@@ -833,6 +833,23 @@ describe('useStreamingEvents cancellation sanitization', () => {
       sendStartedAt: { 'session-1': 1000 },
       sessionWorktreeMap: { 'session-1': 'worktree-1' },
       worktreePaths: { 'worktree-1': '/tmp/worktree' },
+      lastSentMessages: { 'session-1': 'continue' },
+      lastSentAttachments: {
+        'session-1': {
+          images: [
+            {
+              id: 'image-1',
+              path: '/tmp/image.png',
+              filename: 'image.png',
+            },
+          ],
+          files: [],
+          textFiles: [],
+          skills: [],
+        },
+      },
+      pendingImages: {},
+      inputDrafts: { 'session-1': '' },
     })
 
     renderHook(() => useStreamingEvents({ queryClient }), { wrapper })
@@ -894,6 +911,17 @@ describe('useStreamingEvents cancellation sanitization', () => {
     expect(useChatStore.getState().streamingContents['session-1']).toBe(
       undefined
     )
+    expect(useChatStore.getState().inputDrafts['session-1']).toBe('continue')
+    expect(useChatStore.getState().lastSentMessages['session-1']).toBe(
+      undefined
+    )
+    expect(useChatStore.getState().pendingImages['session-1']).toEqual([
+      {
+        id: 'image-1',
+        path: '/tmp/image.png',
+        filename: 'image.png',
+      },
+    ])
   })
 
   it('keeps prior history, current prompt, and the cancelled partial assistant turn', async () => {
@@ -1070,7 +1098,7 @@ describe('useStreamingEvents cancellation sanitization', () => {
       messages: { id: string; role: string; content: string }[]
     }>(['chat', 'session', 'session-1'])
 
-    expect(session?.messages.map(message => message.id)).not.toContain(
+    expect(session?.messages.map(message => message.id)).toContain(
       'current-user'
     )
     expect(useChatStore.getState().inputDrafts['session-1']).toBe(
@@ -1101,7 +1129,7 @@ describe('useStreamingEvents cancellation sanitization', () => {
     )
   })
 
-  it('hydrates a persisted cancelled turn without restoring the sent prompt', async () => {
+  it('keeps the restored prompt after hydrating a persisted cancelled turn', async () => {
     const queryClient = createQueryClient()
     const wrapper = createWrapper(queryClient)
     const hydratedSession = {
@@ -1203,7 +1231,9 @@ describe('useStreamingEvents cancellation sanitization', () => {
       ])
     })
 
-    expect(useChatStore.getState().inputDrafts['session-1'] ?? '').toBe('')
+    expect(useChatStore.getState().inputDrafts['session-1']).toBe(
+      'already running'
+    )
   })
 
   it('restores an instant-cancelled prompt while keeping prior history visible', async () => {

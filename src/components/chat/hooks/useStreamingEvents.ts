@@ -1972,14 +1972,7 @@ export default function useStreamingEvents({
           !!sanitizedContentBlocks && sanitizedContentBlocks.length > 0
         const hasContent =
           hasToolCalls || hasText || hasThinking || hasContentBlocks
-        const hasQueuedMessages =
-          (useChatStore.getState().messageQueues[session_id] ?? []).length > 0
-        const hasCurrentDraft = !!useChatStore
-          .getState()
-          .inputDrafts[session_id]?.trim()
         const sentMessage = useChatStore.getState().lastSentMessages[session_id]
-        const shouldRestoreMessage =
-          !hasContent && !hasQueuedMessages && !hasCurrentDraft
         const shouldHydrateCancelledFromBackend = !undo_send && !hasContent
 
         const removeLatestUserMessageFromCache = () => {
@@ -2024,52 +2017,31 @@ export default function useStreamingEvents({
           )
         }
 
-        if (shouldRestoreMessage) {
-          // Restore message to input and optimistically undo the sent message.
-          // This keeps cancel UX immediate while backend state catches up.
-          const {
-            lastSentMessages,
-            inputDrafts,
-            setInputDraft,
-            clearLastSentMessage,
-          } = useChatStore.getState()
-          const lastMessage = lastSentMessages[session_id]
-          const currentDraft = inputDrafts[session_id] ?? ''
+        // Restore the sent prompt independently from assistant output. The
+        // history can keep a partial cancelled turn while the composer gets a
+        // copy that the user can edit and send again.
+        const store = useChatStore.getState()
+        const hasSentMessage = sentMessage !== undefined
+        const hasCurrentDraft = !!store.inputDrafts[session_id]?.trim()
+        if (hasSentMessage && !hasCurrentDraft) {
+          store.setInputDraft(session_id, sentMessage)
+          store.restoreAttachments(session_id)
+          toast.info('Message restored to input')
+        } else {
+          store.clearLastSentAttachments(session_id)
+        }
+        if (hasSentMessage) store.clearLastSentMessage(session_id)
 
-          if (lastMessage) {
-            // Only restore if input is empty (user hasn't typed new content)
-            if (!currentDraft.trim()) {
-              setInputDraft(session_id, lastMessage)
-              // Restore any attachments that were sent with the message
-              useChatStore.getState().restoreAttachments(session_id)
-              toast.info('Message restored to input')
-            } else {
-              useChatStore.getState().clearLastSentAttachments(session_id)
-            }
-            clearLastSentMessage(session_id)
-
-            // undo_send means the prompt never entered the run history. A
-            // normal live cancellation keeps the user turn visible while the
-            // draft is restored for retry.
-            if (undo_send || !hasContent) removeLatestUserMessageFromCache()
-          } else {
-            useChatStore.getState().clearLastSentAttachments(session_id)
-            if (undo_send || !hasContent) removeLatestUserMessageFromCache()
-          }
+        if (!hasContent) {
+          // undo_send means the prompt never entered the run history. A normal
+          // cancellation keeps the user turn visible while restoring a copy to
+          // the composer.
+          if (undo_send) removeLatestUserMessageFromCache()
         } else {
           // Partial response exists — keep the prompt + streamed partial output
-          // (text and tool calls) visible in history, marked cancelled. Attachments
-          // were consumed, don't restore. Clear lastSentMessage so a later
-          // chat:error (e.g., codex turn.failed emitted after interrupt) can't fall
-          // back to restoring the prompt once streamingContents has been wiped by
-          // cancelSession().
-          useChatStore.getState().clearLastSentAttachments(session_id)
-          useChatStore.getState().clearLastSentMessage(session_id)
-
-          // Keep the partial assistant output (text + tool calls) visible in
-          // history, marked cancelled. Append it optimistically to the cache so it
-          // survives StreamingMessage unmounting, and persist it to the run JSONL
-          // so it also survives an app reload.
+          // (text and tool calls) visible in history, marked cancelled. Append it
+          // optimistically so it survives StreamingMessage unmounting, and save
+          // it to the run JSONL so it also survives an app reload.
           const cancelledAssistant: ChatMessage = {
             id: `cancelled-${session_id}-${emitted_at_ms}`,
             session_id,
@@ -2118,7 +2090,7 @@ export default function useStreamingEvents({
         // This happens AFTER cancelled messages have been removed from cache,
         // preventing flicker.
         console.log(
-          `[Cancelled] about to cancelSession session=${session_id} shouldRestore=${shouldRestoreMessage}`,
+          `[Cancelled] about to cancelSession session=${session_id} restored=${hasSentMessage && !hasCurrentDraft}`,
           {
             currentSending: Object.keys(
               useChatStore.getState().sendingSessionIds
@@ -2165,39 +2137,7 @@ export default function useStreamingEvents({
                 queryClient,
                 session_id,
                 resolvedWorktreeId
-              ).then(session => {
-                const assistant = session
-                  ? [...session.messages]
-                      .reverse()
-                      .find(message => message.role === 'assistant')
-                  : undefined
-                if (
-                  !assistant ||
-                  !hasMeaningfulAssistantPayload(
-                    assistant.content,
-                    assistant.content_blocks,
-                    assistant.tool_calls
-                  )
-                ) {
-                  return
-                }
-
-                // A backend can persist output before its stream reaches the
-                // client. In that case, keep the persisted turn and retract only
-                // the draft that this cancellation restored. Never clear newer
-                // text that the user entered after cancelling.
-                const store = useChatStore.getState()
-                if (
-                  sentMessage &&
-                  store.inputDrafts[session_id] === sentMessage
-                ) {
-                  store.clearInputDraft(session_id)
-                  store.clearPendingImages(session_id)
-                  store.clearPendingFiles(session_id)
-                  store.clearPendingTextFiles(session_id)
-                  store.clearPendingSkills(session_id)
-                }
-              })
+              )
             }
           }
           queryClient.invalidateQueries({

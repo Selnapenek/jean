@@ -1,6 +1,6 @@
 import { createRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@/test/test-utils'
+import { act, fireEvent, render, screen, waitFor } from '@/test/test-utils'
 import { ChatInput } from './ChatInput'
 import { invoke } from '@/lib/transport'
 import type * as EnvironmentModule from '@/lib/environment'
@@ -13,11 +13,16 @@ import {
 
 const processAttachmentFile = vi.fn()
 const invokeMock = invoke as unknown as ReturnType<typeof vi.fn>
-const { mobileState, nativeState, slashPopoverMock } = vi.hoisted(() => ({
-  mobileState: { value: false },
-  nativeState: { value: false },
-  slashPopoverMock: vi.fn(() => null),
-}))
+const { chatStoreSubscribers, mobileState, nativeState, slashPopoverMock } =
+  vi.hoisted(() => ({
+    chatStoreSubscribers: [] as ((
+      state: typeof storeState,
+      prevState: typeof storeState
+    ) => void)[],
+    mobileState: { value: false },
+    nativeState: { value: false },
+    slashPopoverMock: vi.fn(() => null),
+  }))
 
 const storeState = {
   inputDrafts: {} as Record<string, string>,
@@ -60,7 +65,17 @@ vi.mock('@/lib/transport', () => ({
 vi.mock('@/store/chat-store', () => ({
   useChatStore: {
     getState: () => storeState,
-    subscribe: vi.fn(() => vi.fn()),
+    subscribe: vi.fn(
+      (
+        subscriber: (
+          state: typeof storeState,
+          prevState: typeof storeState
+        ) => void
+      ) => {
+        chatStoreSubscribers.push(subscriber)
+        return vi.fn()
+      }
+    ),
   },
 }))
 
@@ -103,7 +118,22 @@ describe('ChatInput attachments', () => {
     storeState.removePendingImage.mockReset()
     storeState.addPendingTextFile.mockReset()
     storeState.inputDrafts = {}
+    chatStoreSubscribers.length = 0
     slashPopoverMock.mockClear()
+  })
+
+  it('shows a message restored to the session draft after cancellation', () => {
+    const textarea = renderInput()
+    const prevState = { ...storeState, inputDrafts: {} }
+
+    act(() => {
+      storeState.inputDrafts = { 'session-1': 'cancelled prompt' }
+      chatStoreSubscribers.forEach(subscriber =>
+        subscriber(storeState, prevState)
+      )
+    })
+
+    expect(textarea.value).toBe('cancelled prompt')
   })
 
   it('opens the skill picker when typing $ for a Codex session', () => {

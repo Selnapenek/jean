@@ -1,9 +1,6 @@
 import { useCallback, useState, useRef, useEffect, useMemo } from 'react'
 import { StatusIndicator } from '@/components/ui/status-indicator'
-import type {
-  IndicatorStatus,
-  IndicatorVariant,
-} from '@/components/ui/status-indicator'
+import type { IndicatorStatus } from '@/components/ui/status-indicator'
 import {
   ArrowDown,
   ArrowDownUp,
@@ -287,49 +284,16 @@ export function WorktreeItem({
     return false
   })
 
-  // Get execution mode for running session (yolo vs vibing/plan)
-  const runningSessionExecutionMode = useChatStore(state => {
-    for (const [sessionId, isSending] of Object.entries(
-      state.sendingSessionIds
-    )) {
-      if (isSending && state.sessionWorktreeMap[sessionId] === worktree.id) {
-        return (
-          state.executingModes[sessionId] ??
-          state.executionModes[sessionId] ??
-          'plan'
-        )
-      }
-    }
-    return 'plan'
-  })
-
-  // Determine indicator status and variant for StatusIndicator component
-  const { indicatorStatus, indicatorVariant } = useMemo((): {
-    indicatorStatus: IndicatorStatus
-    indicatorVariant?: IndicatorVariant
-  } => {
-    if (isWaitingQuestion || isWaitingPlan) {
-      return { indicatorStatus: 'waiting' }
-    }
-    if (isChatRunning) {
-      return {
-        indicatorStatus: 'running',
-        indicatorVariant:
-          runningSessionExecutionMode === 'yolo' ? 'destructive' : 'default',
-      }
-    }
-    if (loadingOperation) {
-      return { indicatorStatus: 'running', indicatorVariant: 'loading' }
-    }
-    if (isReviewing) {
-      return { indicatorStatus: 'review' }
-    }
-    return { indicatorStatus: 'idle' }
+  // Determine indicator status for StatusIndicator component
+  const indicatorStatus = useMemo((): IndicatorStatus => {
+    if (isWaitingQuestion || isWaitingPlan) return 'waiting'
+    if (isChatRunning || loadingOperation) return 'running'
+    if (isReviewing) return 'review'
+    return 'idle'
   }, [
     isWaitingQuestion,
     isWaitingPlan,
     isChatRunning,
-    runningSessionExecutionMode,
     loadingOperation,
     isReviewing,
   ])
@@ -708,11 +672,7 @@ export function WorktreeItem({
           onDoubleClick={handleDoubleClick}
         >
           {/* Chat status indicator (spinner/dot) */}
-          <StatusIndicator
-            status={indicatorStatus}
-            variant={indicatorVariant}
-            className="h-2 w-2"
-          />
+          <StatusIndicator status={indicatorStatus} className="h-2 w-2" />
 
           {/* Terminal running/failed indicator */}
           <TerminalStatusIndicator worktreeId={worktree.id} />
@@ -869,7 +829,6 @@ export function WorktreeItem({
                 <div className="flex items-center gap-1.5 pl-3 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
                   <StatusIndicator
                     status={groupConfig.indicatorStatus}
-                    variant={groupConfig.indicatorVariant}
                     shape={groupConfig.indicatorShape}
                     label={group.title}
                     className="h-1.5 w-1.5 shrink-0"
@@ -905,7 +864,6 @@ export function WorktreeItem({
                     >
                       <StatusIndicator
                         status={config.indicatorStatus}
-                        variant={config.indicatorVariant}
                         shape={config.indicatorShape}
                         label={config.label}
                         className="h-1.5 w-1.5 shrink-0"

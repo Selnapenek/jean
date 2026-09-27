@@ -1,7 +1,6 @@
 import type {
   IndicatorShape,
   IndicatorStatus,
-  IndicatorVariant,
 } from '@/components/ui/status-indicator'
 import {
   isAskUserQuestion,
@@ -164,7 +163,6 @@ export const statusConfig: Record<
   {
     label: string
     indicatorStatus: IndicatorStatus
-    indicatorVariant?: IndicatorVariant
     indicatorShape?: IndicatorShape
   }
 > = {
@@ -183,12 +181,10 @@ export const statusConfig: Record<
   yoloing: {
     label: 'Yoloing',
     indicatorStatus: 'running',
-    indicatorVariant: 'destructive',
   },
   reviewing: {
     label: 'Reviewing',
     indicatorStatus: 'running',
-    indicatorVariant: 'loading',
   },
   waiting: {
     label: 'Waiting',

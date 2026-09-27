@@ -509,7 +509,6 @@ describe('computeSessionCardData', () => {
     expect(card.status).toBe('reviewing')
     expect(statusConfig[card.status]).toMatchObject({
       indicatorStatus: 'running',
-      indicatorVariant: 'loading',
     })
   })
 

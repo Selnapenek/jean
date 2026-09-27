@@ -1062,13 +1062,6 @@ function ChatWindowContent({
         defaultExecutionMode)
       : defaultExecutionMode
   )
-  // Executing mode - the mode the currently-running prompt was sent with
-  // Uses activeSessionId for immediate status feedback (not deferred)
-  const executingMode = useChatStore(state =>
-    activeSessionId ? state.executingModes[activeSessionId] : undefined
-  )
-  // Streaming execution mode - uses executing mode when sending, otherwise selected mode
-  const streamingExecutionMode = executingMode ?? executionMode
   // Whether this session is waiting for user input (AskUserQuestion/ExitPlanMode)
   const rawIsWaitingForInput = useChatStore(state =>
     activeSessionId
@@ -2755,9 +2748,6 @@ function ChatWindowContent({
                                 <StreamingStatusBar
                                   isSending={isSending}
                                   sendStartedAt={sendStartedAt}
-                                  streamingExecutionMode={
-                                    streamingExecutionMode
-                                  }
                                   restoredRunStatus={
                                     !isSending &&
                                     !isWaitingForInput &&

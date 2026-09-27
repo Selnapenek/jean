@@ -13,12 +13,10 @@ export type IndicatorStatus =
   | 'crashed'
   | 'scheduled'
 
-export type IndicatorVariant = 'default' | 'destructive' | 'loading'
 export type IndicatorShape = 'circle' | 'square' | 'diamond' | 'ring'
 
 interface StatusIndicatorProps {
   status: IndicatorStatus
-  variant?: IndicatorVariant
   shape?: IndicatorShape
   /** Accessible name describing the status (also used as title fallback). */
   label?: string
@@ -66,7 +64,6 @@ function shapeClasses(shape: IndicatorShape): string {
 
 export function StatusIndicator({
   status,
-  variant = 'default',
   shape,
   label,
   className,
@@ -77,13 +74,6 @@ export function StatusIndicator({
 
   // Running state: CSS border spinner (shape still communicates meaning without color)
   if (status === 'running') {
-    const colorClass =
-      variant === 'destructive'
-        ? 'border-t-destructive bg-destructive/10 forced-colors:border-t-[Highlight]'
-        : variant === 'loading'
-          ? 'border-t-cyan-500 bg-cyan-500/10 forced-colors:border-t-[Highlight]'
-          : 'border-t-yellow-500 bg-yellow-500/10 forced-colors:border-t-[Highlight]'
-
     return (
       <span
         role="img"
@@ -92,14 +82,9 @@ export function StatusIndicator({
         className={cn(
           'shrink-0 block animate-spin border-2 border-transparent motion-reduce:animate-none',
           // Reduced motion: solid fill instead of spinner so status remains visible
-          'motion-reduce:border-0 motion-reduce:bg-current',
-          variant === 'destructive'
-            ? 'motion-reduce:text-destructive'
-            : variant === 'loading'
-              ? 'motion-reduce:text-cyan-500'
-              : 'motion-reduce:text-yellow-500',
+          'motion-reduce:border-0 motion-reduce:bg-current motion-reduce:text-yellow-500',
+          'border-t-yellow-500 bg-yellow-500/10 forced-colors:border-t-[Highlight]',
           shapeClass,
-          colorClass,
           className
         )}
       />

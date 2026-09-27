@@ -122,7 +122,6 @@ export const SessionListRow = forwardRef<HTMLDivElement, SessionCardProps>(
                 <span className="inline-flex shrink-0">
                   <StatusIndicator
                     status={config.indicatorStatus}
-                    variant={config.indicatorVariant}
                     shape={config.indicatorShape}
                     label={config.label}
                     className="h-2 w-2 shrink-0"

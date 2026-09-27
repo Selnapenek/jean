@@ -14,6 +14,7 @@ import {
   Copy,
   GitBranchPlus,
   GitPullRequestArrow,
+  Globe,
   Maximize,
   Minimize,
   Pencil,
@@ -21,6 +22,7 @@ import {
   Tag,
   Play,
   Plus,
+  Terminal,
   Trash2,
 } from '@/components/icons/reicon'
 import { ModalCloseButton } from '@/components/ui/modal-close-button'
@@ -167,6 +169,48 @@ function useOffScreenWaiting(
   }, [sortedCards, viewportRef])
 
   return { hasLeft, hasRight }
+}
+
+function HeaderSurfaceToggle({
+  label,
+  icon: Icon,
+  isOpen,
+  shortcut,
+  onClick,
+}: {
+  label: string
+  icon: typeof Terminal
+  isOpen: boolean
+  shortcut: string | undefined
+  onClick: () => void
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn(
+            'h-7 w-7 text-muted-foreground hover:text-foreground',
+            isOpen && 'bg-muted text-foreground'
+          )}
+          aria-label={`Toggle ${label.toLowerCase()}`}
+          aria-pressed={isOpen}
+          onClick={onClick}
+        >
+          <Icon className="h-4 w-4" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>
+        {label}
+        {isNativeApp() && (
+          <kbd className="ml-1 text-[0.625rem] opacity-60">
+            {formatShortcutDisplay(shortcut)}
+          </kbd>
+        )}
+      </TooltipContent>
+    </Tooltip>
+  )
 }
 
 interface SessionChatModalProps {
@@ -1158,6 +1202,32 @@ export function SessionChatModal({
                   )}
                   {!zenMode && (
                     <>
+                      {!isMobile && (
+                        <>
+                          <HeaderSurfaceToggle
+                            label="Terminal"
+                            icon={Terminal}
+                            isOpen={isModalTerminalOpen}
+                            shortcut={
+                              localPreferences?.keybindings?.toggle_terminal ??
+                              DEFAULT_KEYBINDINGS.toggle_terminal
+                            }
+                            onClick={handleToggleModalTerminal}
+                          />
+                          {isNativeApp() && (
+                            <HeaderSurfaceToggle
+                              label="Browser"
+                              icon={Globe}
+                              isOpen={isBrowserModalOpen}
+                              shortcut={
+                                localPreferences?.keybindings?.toggle_browser ??
+                                DEFAULT_KEYBINDINGS.toggle_browser
+                              }
+                              onClick={handleToggleModalBrowser}
+                            />
+                          )}
+                        </>
+                      )}
                       {/* Desktop: secondary tools that are not in the menu */}
                       <div className="hidden lg:flex items-center gap-1">
                         <OpenInButton
@@ -1261,7 +1331,6 @@ export function SessionChatModal({
                           >
                             <StatusIndicator
                               status={config.indicatorStatus}
-                              variant={config.indicatorVariant}
                               shape={config.indicatorShape}
                               label={config.label}
                               className="h-1.5 w-1.5"

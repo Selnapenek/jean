@@ -412,7 +412,7 @@ export function RecentWorktreesList({
                       {isWorking ? (
                         <span
                           aria-hidden="true"
-                          className="recent-working-waveform text-violet-500 dark:text-violet-400"
+                          className="recent-working-waveform text-primary"
                         >
                           <span />
                           <span />

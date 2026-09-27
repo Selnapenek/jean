@@ -35,9 +35,7 @@ describe('RecentWorktreesList structure', () => {
 
   it('aligns status, activity, and optional Git changes in grid rows', () => {
     expect(source).toContain('grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-1')
-    expect(source).toContain(
-      'recent-working-waveform text-violet-500 dark:text-violet-400'
-    )
+    expect(source).toContain('recent-working-waveform text-primary')
     expect(source).toContain(
       'className="justify-self-end text-[10px] tabular-nums"'
     )
@@ -96,9 +94,7 @@ describe('RecentWorktreesList structure', () => {
     expect(source).not.toContain('planning')
     expect(source).not.toContain('executingModes[row.session.id]')
     expect(source).not.toContain('executionModes[row.session.id]')
-    expect(source).toContain(
-      'recent-working-waveform text-violet-500 dark:text-violet-400'
-    )
+    expect(source).toContain('recent-working-waveform text-primary')
     expect(source).not.toContain('border-l-destructive')
     expect(source).not.toContain('border-l-yellow-500')
     expect(source).not.toContain('border-l-green-500')

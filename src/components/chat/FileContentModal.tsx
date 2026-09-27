@@ -44,6 +44,10 @@ import { FilePathCopyRow } from './FilePathCopyRow'
 // Lazy load CodeEditor (Pierre File + edit mode) so the main bundle stays lean
 const CodeEditor = lazy(() => import('@/components/ui/code-editor'))
 
+// Match the dialog close (X) button: same height, grey icon, square on mobile
+const HEADER_ICON_BUTTON_CLASS =
+  'h-7 text-muted-foreground max-sm:w-7 max-sm:px-0'
+
 function isMarkdownFile(filename: string | null | undefined): boolean {
   if (!filename) return false
   return /\.(md|markdown)$/i.test(filename)
@@ -341,6 +345,7 @@ export function FileContentModal({
                       <Button
                         variant="ghost"
                         size="sm"
+                        className={HEADER_ICON_BUTTON_CLASS}
                         onClick={handleToggleEdit}
                         disabled={isSaving}
                       >
@@ -350,6 +355,7 @@ export function FileContentModal({
                       <Button
                         variant="default"
                         size="sm"
+                        className="h-7 max-sm:w-7 max-sm:px-0"
                         onClick={handleSave}
                         disabled={!hasChanges || isSaving}
                       >
@@ -365,6 +371,7 @@ export function FileContentModal({
                     <Button
                       variant="ghost"
                       size="sm"
+                      className={HEADER_ICON_BUTTON_CLASS}
                       onClick={handleToggleEdit}
                     >
                       <Pencil className="h-4 w-4 sm:mr-1" />
@@ -375,6 +382,7 @@ export function FileContentModal({
                     <Button
                       variant="ghost"
                       size="sm"
+                      className={HEADER_ICON_BUTTON_CLASS}
                       onClick={handleOpenExternal}
                     >
                       <ExternalLink className="h-4 w-4 sm:mr-1" />

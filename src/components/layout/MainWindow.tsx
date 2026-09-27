@@ -595,7 +595,6 @@ export function MainWindow() {
           <MobileLeftSidebar
             open={leftSidebarVisible}
             onOpenChange={setLeftSidebarVisible}
-            width={leftSidebarSize}
             isDragging={
               sessionChatModalOpen
                 ? modalSidebarSwipe.isDragging
@@ -620,7 +619,6 @@ export function MainWindow() {
             <MobileFileBrowser
               open={fileBrowserVisible}
               onOpenChange={setFileBrowserVisible}
-              width={fileBrowserSize}
             />
           </Suspense>
         )}

@@ -234,6 +234,7 @@ import {
 import { openCanvasConflictResolution } from './conflict-resolution-navigation'
 import { getCanvasDiffRequest } from './canvas-diff-request'
 import { resolveModalWorktreeSnapshot } from './modal-worktree-snapshot'
+import { LOCAL_SERVER_ID } from '@/types/server-resource'
 
 interface ProjectCanvasViewProps {
   projectId: string
@@ -966,6 +967,8 @@ export function ProjectCanvasView({
   project,
 }: ProjectCanvasViewProps) {
   const { data: preferences } = usePreferences(project.serverId)
+  // Display preference of this client, not of the project's server
+  const { data: localPreferences } = usePreferences(LOCAL_SERVER_ID)
   const worktreeSortMode = useProjectsStore(
     state =>
       state.projectCanvasSettings[projectId]?.worktreeSortMode ?? 'created'
@@ -3641,7 +3644,9 @@ export function ProjectCanvasView({
                         <WorktreeSectionHeader
                           worktree={section.worktree}
                           projectId={projectId}
-                          gitSyncButton={preferences?.git_sync_button ?? true}
+                          gitSyncButton={
+                            localPreferences?.git_sync_button ?? true
+                          }
                           defaultBranch={project.default_branch}
                           openPRs={openPRs}
                           cards={section.cards}

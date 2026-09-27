@@ -53,6 +53,7 @@ import {
 import { resolveBackendCliPath } from '@/services/cli-binary'
 import { usePreferences } from '@/services/preferences'
 import { parseServerResourceKey } from '@/lib/server-resource'
+import { LOCAL_SERVER_ID } from '@/types/server-resource'
 import { usePackageScripts, type PackageScript } from '@/services/projects'
 import { useGitHubPRs } from '@/services/github'
 import {
@@ -893,7 +894,9 @@ export function SessionChatModal({
     [pickRemoteOrRun, worktree, worktreePath, project]
   )
 
-  const gitSyncButton = preferences?.git_sync_button ?? true
+  // Display preference of this client, not of the worktree's server
+  const { data: localPreferences } = usePreferences(LOCAL_SERVER_ID)
+  const gitSyncButton = localPreferences?.git_sync_button ?? true
 
   const handleSync = useCallback(
     (e: React.MouseEvent) => {

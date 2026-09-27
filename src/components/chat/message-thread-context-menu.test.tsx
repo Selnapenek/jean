@@ -115,6 +115,69 @@ describe('MessageThreadContextMenu', () => {
     ).toBeInTheDocument()
   })
 
+  it('opens on touch long press despite small finger jitter', async () => {
+    render(
+      <MessageThreadContextMenu messageText="Full message body">
+        <div>
+          Play <code data-file-path="out/video.mp4">out/video.mp4</code>
+        </div>
+      </MessageThreadContextMenu>
+    )
+
+    const code = screen.getByText('out/video.mp4')
+    fireEvent.pointerDown(code, {
+      pointerType: 'touch',
+      clientX: 20,
+      clientY: 20,
+    })
+    // Radix cancels its own long press on any pointermove.
+    fireEvent.pointerMove(code, {
+      pointerType: 'touch',
+      clientX: 23,
+      clientY: 22,
+    })
+
+    expect(
+      await screen.findByRole(
+        'menuitem',
+        { name: /download file/i },
+        { timeout: 2000 }
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('does not open when the finger moves away (scroll)', async () => {
+    vi.useFakeTimers()
+    try {
+      render(
+        <MessageThreadContextMenu messageText="Full message body">
+          <div>
+            Play <code data-file-path="out/video.mp4">out/video.mp4</code>
+          </div>
+        </MessageThreadContextMenu>
+      )
+
+      const code = screen.getByText('out/video.mp4')
+      fireEvent.pointerDown(code, {
+        pointerType: 'touch',
+        clientX: 20,
+        clientY: 20,
+      })
+      fireEvent.pointerMove(code, {
+        pointerType: 'touch',
+        clientX: 20,
+        clientY: 80,
+      })
+      vi.advanceTimersByTime(1000)
+
+      expect(
+        screen.queryByRole('menuitem', { name: /download file/i })
+      ).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('hides Download file outside file-path code', async () => {
     render(
       <MessageThreadContextMenu messageText="Full message body">

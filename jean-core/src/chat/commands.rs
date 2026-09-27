@@ -1576,14 +1576,26 @@ pub async fn rename_session(
 ) -> Result<(), String> {
     log::trace!("Renaming session {session_id} to: {new_name}");
 
-    with_sessions_mut(&app, &worktree_path, &worktree_id, |sessions| {
+    let old_name = with_sessions_mut(&app, &worktree_path, &worktree_id, |sessions| {
         if let Some(session) = sessions.find_session_mut(&session_id) {
-            session.name = new_name;
-            Ok(())
+            Ok(std::mem::replace(&mut session.name, new_name.clone()))
         } else {
             Err(format!("Session not found: {session_id}"))
         }
-    })
+    })?;
+
+    // Notify all clients so an in-flight auto-naming indicator is cleared
+    // and caches show the manual name immediately.
+    let _ = app.emit_all(
+        "session-renamed",
+        &super::naming::SessionNameResult {
+            session_id,
+            worktree_id,
+            old_name,
+            new_name,
+        },
+    );
+    Ok(())
 }
 
 /// Regenerate session name using AI based on the first user message

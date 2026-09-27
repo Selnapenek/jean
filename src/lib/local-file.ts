@@ -8,6 +8,7 @@ import {
   invoke,
 } from '@/lib/transport'
 import { useChatStore } from '@/store/chat-store'
+import { useUIStore } from '@/store/ui-store'
 
 const URL_SCHEME = /^[a-z][a-z\d+.-]*:/i
 const WINDOWS_ABSOLUTE = /^[a-z]:[\\/]/i
@@ -27,10 +28,31 @@ export function extractFilePath(text: string): string | null {
   return /^[^.].*\.[a-z\d]+$|^\.[^.]+$/i.test(name) ? value : null
 }
 
-/** Resolve a relative path against the active worktree. */
+/**
+ * Worktree the user is looking at: the session modal's worktree when the
+ * modal is open (canvas view), else the active worktree.
+ */
+export function getCurrentWorktree(): {
+  id: string | null
+  path: string | null
+} {
+  const { sessionChatModalOpen, sessionChatModalWorktreeId } =
+    useUIStore.getState()
+  const { activeWorktreeId, activeWorktreePath, worktreePaths } =
+    useChatStore.getState()
+  if (sessionChatModalOpen && sessionChatModalWorktreeId) {
+    return {
+      id: sessionChatModalWorktreeId,
+      path: worktreePaths[sessionChatModalWorktreeId] ?? null,
+    }
+  }
+  return { id: activeWorktreeId, path: activeWorktreePath }
+}
+
+/** Resolve a relative path against the current worktree. */
 export function resolveWorktreeFilePath(
   path: string,
-  rootPath = useChatStore.getState().activeWorktreePath
+  rootPath = getCurrentWorktree().path
 ): string | null {
   const isAbsolute = path.startsWith('/') || WINDOWS_ABSOLUTE.test(path)
   if (isAbsolute) return path
@@ -46,8 +68,9 @@ export function resolveWorktreeFilePath(
  *   `download=true`, so the server sends `Content-Disposition: attachment`.
  */
 export async function downloadLocalFile(path: string): Promise<void> {
-  const { activeWorktreeId } = useChatStore.getState()
-  const serverId = parseServerResourceKey(activeWorktreeId ?? '')?.serverId
+  const serverId = parseServerResourceKey(
+    getCurrentWorktree().id ?? ''
+  )?.serverId
   const isRemoteServer = Boolean(serverId && serverId !== 'local')
 
   if (!isRemoteServer && isLocalBackend()) {

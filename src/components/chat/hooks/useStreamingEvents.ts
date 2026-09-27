@@ -365,15 +365,26 @@ export default function useStreamingEvents({
       // before sendMessage.mutate, so it's already in sendingSessionIds).
       const isSender = !!useChatStore.getState().sendingSessionIds[session_id]
       // A new turn supersedes the previous turn's waiting state and denials.
+      // It also drops tool calls/blocks that pauseSession kept for a question or
+      // plan: otherwise non-sender clients (web access, queue, MCP) re-show the
+      // old question and bake it into the next chat:done message (#779).
+      // chat:sending is emitted before the new run starts, so no new-run tool
+      // events can be lost here.
       useChatStore.setState(state => {
         if (
           !state.waitingForInputSessionIds[session_id] &&
           !state.reviewingSessions[session_id] &&
           !state.pendingPermissionDenials[session_id] &&
-          !state.deniedMessageContext[session_id]
+          !state.deniedMessageContext[session_id] &&
+          !state.activeToolCalls[session_id] &&
+          !state.streamingContentBlocks[session_id]
         ) {
           return state
         }
+        const { [session_id]: _toolCalls, ...activeToolCalls } =
+          state.activeToolCalls
+        const { [session_id]: _blocks, ...streamingContentBlocks } =
+          state.streamingContentBlocks
         const { [session_id]: _waiting, ...waitingForInputSessionIds } =
           state.waitingForInputSessionIds
         const { [session_id]: _reviewing, ...reviewingSessions } =
@@ -387,6 +398,8 @@ export default function useStreamingEvents({
           reviewingSessions,
           pendingPermissionDenials,
           deniedMessageContext,
+          activeToolCalls,
+          streamingContentBlocks,
         }
       })
       addSendingSession(session_id)

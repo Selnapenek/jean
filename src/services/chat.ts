@@ -602,16 +602,27 @@ export async function prefetchSessions(
         ...reviewResultsUpdates,
       }
     }
+    // Merge with in-memory answers: disk can lag behind, and replacing would
+    // re-open questions answered since the last save (#779).
     if (Object.keys(answeredQuestionsUpdates).length > 0) {
+      const merged: Record<string, Set<string>> = {}
+      for (const [id, fromDisk] of Object.entries(answeredQuestionsUpdates)) {
+        const inMemory = currentState.answeredQuestions[id]
+        merged[id] = inMemory ? new Set([...fromDisk, ...inMemory]) : fromDisk
+      }
       storeUpdates.answeredQuestions = {
         ...currentState.answeredQuestions,
-        ...answeredQuestionsUpdates,
+        ...merged,
       }
     }
     if (Object.keys(submittedAnswersUpdates).length > 0) {
+      const merged: typeof submittedAnswersUpdates = {}
+      for (const [id, fromDisk] of Object.entries(submittedAnswersUpdates)) {
+        merged[id] = { ...fromDisk, ...currentState.submittedAnswers[id] }
+      }
       storeUpdates.submittedAnswers = {
         ...currentState.submittedAnswers,
-        ...submittedAnswersUpdates,
+        ...merged,
       }
     }
     if (Object.keys(fixedFindingsUpdates).length > 0) {

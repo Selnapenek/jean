@@ -1,4 +1,10 @@
-import { useCallback, useState, type ReactElement } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactElement,
+} from 'react'
 import { Copy, Download } from '@/components/icons/reicon'
 import { toast } from 'sonner'
 import {
@@ -9,6 +15,9 @@ import {
 } from '@/components/ui/context-menu'
 import { copyToClipboard } from '@/lib/clipboard'
 import { downloadLocalFile, resolveWorktreeFilePath } from '@/lib/local-file'
+
+const LONG_PRESS_MS = 500
+const LONG_PRESS_MOVE_TOLERANCE_PX = 10
 
 /** Read the current window selection as trimmed plain text. */
 export function getTrimmedSelectionText(): string {
@@ -69,6 +78,60 @@ export function MessageThreadContextMenu({
     setFilePath(fileCode?.dataset.filePath ?? '')
   }, [])
 
+  // Radix cancels its touch long press on any pointermove, and a finger
+  // held on iOS always jitters a little. Open the menu for file paths with
+  // our own long press that allows small moves.
+  const longPressRef = useRef<{
+    timer: ReturnType<typeof setTimeout>
+    x: number
+    y: number
+  } | null>(null)
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressRef.current) clearTimeout(longPressRef.current.timer)
+    longPressRef.current = null
+  }, [])
+
+  const handlePointerDown = useCallback(
+    (event: React.PointerEvent) => {
+      captureMenuTarget(event)
+      cancelLongPress()
+      if (event.pointerType === 'mouse') return
+      const target = event.target instanceof Element ? event.target : null
+      const fileCode = target?.closest('code[data-file-path]')
+      if (!fileCode) return
+      const { clientX, clientY } = event
+      longPressRef.current = {
+        x: clientX,
+        y: clientY,
+        timer: setTimeout(() => {
+          longPressRef.current = null
+          fileCode.dispatchEvent(
+            new MouseEvent('contextmenu', {
+              bubbles: true,
+              cancelable: true,
+              clientX,
+              clientY,
+            })
+          )
+        }, LONG_PRESS_MS),
+      }
+    },
+    [captureMenuTarget, cancelLongPress]
+  )
+
+  const handlePointerMove = useCallback(
+    (event: React.PointerEvent) => {
+      const press = longPressRef.current
+      if (!press) return
+      const moved = Math.hypot(event.clientX - press.x, event.clientY - press.y)
+      if (moved > LONG_PRESS_MOVE_TOLERANCE_PX) cancelLongPress()
+    },
+    [cancelLongPress]
+  )
+
+  useEffect(() => cancelLongPress, [cancelLongPress])
+
   const handleOpenChange = useCallback((open: boolean) => {
     // Capture selection when the menu opens — opening the menu can clear
     // the live Selection before the user picks an item.
@@ -124,7 +187,10 @@ export function MessageThreadContextMenu({
       <ContextMenuTrigger
         asChild
         onContextMenu={captureMenuTarget}
-        onPointerDown={captureMenuTarget}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={cancelLongPress}
+        onPointerCancel={cancelLongPress}
       >
         {children}
       </ContextMenuTrigger>

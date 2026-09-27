@@ -187,10 +187,13 @@ export function WorktreeItem({
       // Skip sessions that are currently streaming (handled by isStreamingWaitingQuestion)
       if (useChatStore.getState().sendingSessionIds[session.id]) continue
 
-      // Find last assistant message by iterating from end (avoids array copy from .reverse())
+      // Find last assistant message by iterating from end (avoids array copy from .reverse()).
+      // A later user message means its questions were answered (matches MessageItem).
       let lastAssistantMsg = null
       for (let i = session.messages.length - 1; i >= 0; i--) {
-        if (session.messages[i]?.role === 'assistant') {
+        const role = session.messages[i]?.role
+        if (role === 'user') break
+        if (role === 'assistant') {
           lastAssistantMsg = session.messages[i]
           break
         }

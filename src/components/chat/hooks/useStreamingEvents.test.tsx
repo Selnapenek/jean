@@ -252,6 +252,90 @@ describe('useStreamingEvents sending mode sync', () => {
       ])?.pending_permission_denials
     ).toEqual([])
   })
+
+  it('drops the paused question tool state when another client starts a turn (#779)', async () => {
+    const queryClient = createQueryClient()
+    queryClient.setQueryData(['chat', 'session', 'session-1'], {
+      id: 'session-1',
+      name: 'Test',
+      order: 0,
+      created_at: 1,
+      updated_at: 1,
+      messages: [],
+    })
+    // Paused on an AskUserQuestion; this client is NOT the sender
+    // (sendingSessionIds is empty), e.g. web access / queue / MCP.
+    useChatStore.setState({
+      sendingSessionIds: {},
+      waitingForInputSessionIds: { 'session-1': true },
+      answeredQuestions: {},
+      streamingContents: {},
+      activeToolCalls: {
+        'session-1': [
+          {
+            id: 'old-question',
+            name: 'AskUserQuestion',
+            input: { questions: [] },
+          },
+        ],
+        'session-2': [{ id: 'other-tool', name: 'Bash', input: {} }],
+      },
+      streamingContentBlocks: {
+        'session-1': [
+          { type: 'text', text: 'Which option?' },
+          { type: 'tool_use', tool_call_id: 'old-question' },
+        ],
+        'session-2': [{ type: 'tool_use', tool_call_id: 'other-tool' }],
+      },
+    })
+    renderHook(() => useStreamingEvents({ queryClient }), {
+      wrapper: createWrapper(queryClient),
+    })
+    await waitFor(() => expect(registeredListeners.has('chat:done')).toBe(true))
+
+    registeredListeners.get('chat:sending')?.({
+      payload: {
+        session_id: 'session-1',
+        worktree_id: 'worktree-1',
+        user_message: 'answer from another client',
+        execution_mode: 'build',
+      },
+    })
+
+    let state = useChatStore.getState()
+    expect(state.waitingForInputSessionIds['session-1']).toBeUndefined()
+    expect(state.activeToolCalls['session-1']).toBeUndefined()
+    expect(state.streamingContentBlocks['session-1']).toBeUndefined()
+    // Other sessions untouched
+    expect(state.activeToolCalls['session-2']).toHaveLength(1)
+    expect(state.streamingContentBlocks['session-2']).toHaveLength(1)
+
+    // New turn finishes without asking anything: the old question must not
+    // pause the session again or be baked into the new assistant message.
+    useChatStore.setState({
+      streamingContents: { 'session-1': 'Done.' },
+      streamingContentBlocks: {
+        ...useChatStore.getState().streamingContentBlocks,
+        'session-1': [{ type: 'text', text: 'Done.' }],
+      },
+    })
+    registeredListeners.get('chat:done')?.({
+      payload: { session_id: 'session-1', worktree_id: 'worktree-1' },
+    })
+
+    state = useChatStore.getState()
+    expect(state.waitingForInputSessionIds['session-1']).toBeUndefined()
+    expect(state.activeToolCalls['session-1'] ?? []).toEqual([])
+    const messages =
+      queryClient.getQueryData<{
+        messages: { role: string; tool_calls?: { id: string }[] }[]
+      }>(['chat', 'session', 'session-1'])?.messages ?? []
+    expect(
+      messages.some(message =>
+        message.tool_calls?.some(tool => tool.id === 'old-question')
+      )
+    ).toBe(false)
+  })
 })
 
 describe('useStreamingEvents Codex MCP elicitation', () => {

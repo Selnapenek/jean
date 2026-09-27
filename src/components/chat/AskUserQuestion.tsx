@@ -43,6 +43,8 @@ interface AskUserQuestionProps {
   isSkipped?: boolean
   /** Persisted tool output (fallback when Zustand state is lost after reload) */
   toolOutput?: string
+  /** Disable Answer/Skip while the run that asked is still ending */
+  submitDisabled?: boolean
 }
 
 /**
@@ -60,6 +62,7 @@ export function AskUserQuestion({
   hasFollowUpMessage = false,
   isSkipped = false,
   toolOutput,
+  submitDisabled = false,
 }: AskUserQuestionProps) {
   // Local state for answers
   // Structure: answers[questionIndex] = { selectedOptions: [0, 2], customText: 'foo' }
@@ -197,7 +200,7 @@ export function AskUserQuestion({
   })
 
   useEffect(() => {
-    if (readOnly) return
+    if (readOnly || submitDisabled) return
 
     const handleAnswerQuestion = () => {
       onAnswerQuestion()
@@ -206,7 +209,7 @@ export function AskUserQuestion({
     window.addEventListener('answer-question', handleAnswerQuestion)
     return () =>
       window.removeEventListener('answer-question', handleAnswerQuestion)
-  }, [readOnly])
+  }, [readOnly, submitDisabled])
 
   // Generate summary text for collapsed view
   const getAnswerSummary = useCallback(() => {
@@ -455,7 +458,7 @@ export function AskUserQuestion({
         {/* Submit/Skip buttons (only if not read-only) */}
         {!readOnly && (
           <div className="flex justify-start gap-2 pt-2">
-            <Button size="sm" onClick={handleSubmit}>
+            <Button size="sm" onClick={handleSubmit} disabled={submitDisabled}>
               Answer
               <Kbd className="ml-1.5 h-4 text-[10px] bg-primary-foreground/20 text-primary-foreground">
                 {formatShortcutDisplay(
@@ -468,6 +471,7 @@ export function AskUserQuestion({
                 size="sm"
                 variant="ghost"
                 onClick={() => onSkip(toolCallId)}
+                disabled={submitDisabled}
                 className="text-muted-foreground"
               >
                 Skip

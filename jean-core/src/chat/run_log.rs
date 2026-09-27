@@ -653,6 +653,7 @@ pub(crate) fn tool_result_content_to_string(content: &serde_json::Value) -> Stri
 pub fn parse_run_to_message(lines: &[String], run: &RunEntry) -> Result<ChatMessage, String> {
     let mut content = String::new();
     let mut tool_calls: Vec<ToolCall> = Vec::new();
+    let mut seen_tool_use_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut content_blocks: Vec<ContentBlock> = Vec::new();
     // Track tool IDs that received error responses (is_error: true).
     // Used to filter out denied blocking tools (AskUserQuestion/ExitPlanMode)
@@ -860,6 +861,12 @@ pub fn parse_run_to_message(lines: &[String], run: &RunEntry) -> Result<ChatMess
                                         .and_then(|v| v.as_str())
                                         .unwrap_or("")
                                         .to_string();
+                                    // Same tool_use can appear in more than one
+                                    // assistant line; keep the first, like the
+                                    // live parser (`seen_tool_use_ids`).
+                                    if !id.is_empty() && !seen_tool_use_ids.insert(id.clone()) {
+                                        continue;
+                                    }
                                     let name = block
                                         .get("name")
                                         .and_then(|v| v.as_str())
@@ -2191,6 +2198,34 @@ Move services between instances without downtime.
             msg.tool_calls[0].output.as_deref(),
             Some("Findings: auth uses JWT middleware.\nEntry point is `src/auth.rs`.")
         );
+    }
+
+    #[test]
+    fn parse_run_dedupes_repeated_tool_use_ids() {
+        let run = sample_run();
+        let question = serde_json::json!({
+            "type": "assistant",
+            "message": {
+                "content": [{
+                    "type": "tool_use",
+                    "id": "toolu_question",
+                    "name": "AskUserQuestion",
+                    "input": { "questions": [{ "question": "Which DB?", "options": [] }] }
+                }]
+            }
+        })
+        .to_string();
+        let lines = vec![question.clone(), question];
+
+        let msg = parse_run_to_message(&lines, &run).unwrap();
+
+        assert_eq!(msg.tool_calls.len(), 1);
+        let tool_blocks = msg
+            .content_blocks
+            .iter()
+            .filter(|b| matches!(b, ContentBlock::ToolUse { .. }))
+            .count();
+        assert_eq!(tool_blocks, 1);
     }
 
     #[test]

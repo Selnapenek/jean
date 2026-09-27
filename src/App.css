@@ -507,6 +507,16 @@
     -ms-user-select: none !important;
   }
 
+  /* Inline file paths open the message menu on long press. On touch screens,
+     iOS text selection/callout would cancel that long press. */
+  @media (pointer: coarse) {
+    .select-text code[data-file-path] {
+      user-select: none !important;
+      -webkit-user-select: none !important;
+      -webkit-touch-callout: none;
+    }
+  }
+
   /* Links should always have pointer cursor */
   a,
   .select-text a,

@@ -356,6 +356,15 @@ pub async fn dispatch_command(
             emit_cache_invalidation(app, &["projects"]);
             to_value(result)
         }
+        "get_auto_fix_status" => {
+            let project_id: String = field(&args, "projectId", "project_id")?;
+            to_value(crate::auto_fix::scheduler::get_auto_fix_status(&project_id))
+        }
+        "clear_auto_fix_failures" => {
+            let project_id: String = field(&args, "projectId", "project_id")?;
+            crate::auto_fix::scheduler::clear_auto_fix_failures(&project_id);
+            Ok(Value::Null)
+        }
         "reorder_projects" => {
             let project_ids: Vec<String> = field(&args, "projectIds", "project_ids")?;
             crate::projects::reorder_projects(app.clone(), project_ids).await?;

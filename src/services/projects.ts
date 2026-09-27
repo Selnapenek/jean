@@ -21,6 +21,7 @@ import { logger } from '@/lib/logger'
 import { disposeAllWorktreeTerminals } from '@/lib/terminal-instances'
 import { toastActionLabel } from '@/lib/toast-action-label'
 import type {
+  AutoFixStatus,
   Project,
   Worktree,
   DetectPrResponse,
@@ -125,6 +126,8 @@ export const projectsQueryKeys = {
     [...projectsQueryKeys.all, 'worktrees', projectId] as const,
   bootstrap: (projectId: string) =>
     [...projectsQueryKeys.all, 'bootstrap', projectId] as const,
+  autoFixStatus: (projectId: string) =>
+    [...projectsQueryKeys.all, 'auto-fix-status', projectId] as const,
 }
 
 export interface RecentWorktreesData {
@@ -3191,6 +3194,66 @@ export function useUpdateProjectSettings() {
             : 'Unknown error occurred'
       logger.error('Failed to update project settings', { error })
       toast.error('Failed to save settings', { description: message })
+    },
+  })
+}
+
+/** Resolve a (possibly server-scoped) project id to its owning server. */
+function resolveProjectServer(projectId: string) {
+  const projectRef = parseServerResourceKey(projectId)
+  return {
+    serverId: projectRef?.serverId ?? LOCAL_SERVER_ID,
+    resourceId: projectRef?.resourceId ?? projectId,
+  }
+}
+
+/**
+ * Runtime Mr. Robot status for a project. Polls every 10s while enabled
+ * (callers pass `enabled` only while the pane is mounted and Mr. Robot is on).
+ */
+export function useAutoFixStatus(projectId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: projectsQueryKeys.autoFixStatus(projectId),
+    queryFn: async (): Promise<AutoFixStatus> => {
+      const { serverId, resourceId } = resolveProjectServer(projectId)
+      return invokeForServer<AutoFixStatus>(serverId, 'get_auto_fix_status', {
+        projectId: resourceId,
+      })
+    },
+    enabled: enabled && Boolean(projectId),
+    refetchInterval: enabled ? 10_000 : false,
+    staleTime: 5_000,
+  })
+}
+
+/** Clear Mr. Robot failed issues (so they are retried) and the last error. */
+export function useClearAutoFixFailures() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (projectId: string): Promise<void> => {
+      const { serverId, resourceId } = resolveProjectServer(projectId)
+      await invokeForServer<null>(serverId, 'clear_auto_fix_failures', {
+        projectId: resourceId,
+      })
+    },
+    onSuccess: (_data, projectId) => {
+      queryClient.invalidateQueries({
+        queryKey: projectsQueryKeys.autoFixStatus(projectId),
+      })
+      toast.success('Failed issues cleared', {
+        description: 'Mr. Robot will retry them on the next scan.',
+      })
+    },
+    onError: error => {
+      const message =
+        typeof error === 'string'
+          ? error
+          : error instanceof Error
+            ? error.message
+            : 'Unknown error occurred'
+      logger.error('Failed to clear Mr. Robot failures', { error })
+      toast.error('Failed to clear failed issues', { description: message })
     },
   })
 }

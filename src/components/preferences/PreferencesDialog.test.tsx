@@ -273,6 +273,20 @@ describe('PreferencesDialog', () => {
     )
   })
 
+  it('shows Web Access but hides Keybindings in the mobile pane selector', async () => {
+    const user = userEvent.setup()
+
+    render(<PreferencesDialog />)
+
+    await user.click(screen.getByRole('combobox'))
+
+    const options = screen
+      .getAllByRole('option')
+      .map(option => option.textContent?.trim())
+    expect(options).toContain('Web Access')
+    expect(options).not.toContain('Keybindings')
+  })
+
   it('keeps the dialog open when Escape clears the desktop search', async () => {
     const user = userEvent.setup()
 

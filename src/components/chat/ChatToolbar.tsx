@@ -616,7 +616,6 @@ export const ChatToolbar = memo(function ChatToolbar({
             <ExecutionModeDropdown
               executionMode={executionMode}
               availableModes={availableExecutionModes}
-              disabled={hasPendingQuestions}
               onSetExecutionMode={onSetExecutionMode}
               className="flex @xl:hidden shrink-0"
               align="end"

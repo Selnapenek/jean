@@ -3628,7 +3628,7 @@ pub async fn send_chat_message(
                                     content_blocks: response.content_blocks,
                                     cancelled: response.cancelled,
                                     waiting_for_plan,
-                                    error_emitted: false,
+                                    error_emitted: response.error_emitted,
                                     usage: response.usage,
                                     backend: Backend::Claude,
                                 },

@@ -520,7 +520,8 @@
   /* Links should always have pointer cursor */
   a,
   .select-text a,
-  .select-text a * {
+  .select-text a *,
+  .select-text code[data-file-path] {
     cursor: pointer !important;
   }
 

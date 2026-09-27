@@ -61,6 +61,14 @@ export function resolveWorktreeFilePath(
   return `${rootPath.replace(/[\\/]+$/, '')}${separator}${path.replace(/^(\.[\\/])?[\\/]*/, '')}`
 }
 
+/** Open a file in Jean's file viewer. Returns false if the path is unresolvable. */
+export function openLocalFile(path: string): boolean {
+  const resolved = resolveWorktreeFilePath(path)
+  if (!resolved) return false
+  useUIStore.getState().setViewingFilePath(resolved)
+  return true
+}
+
 /**
  * Download a file from the active worktree's server.
  * - Local native app: native "Save as" dialog, then copy on disk.

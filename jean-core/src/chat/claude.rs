@@ -143,6 +143,8 @@ pub struct ClaudeResponse {
     pub cancelled: bool,
     /// Token usage for this response
     pub usage: Option<UsageData>,
+    /// Whether a `chat:error` was emitted for a failed turn (e.g. auth failure)
+    pub error_emitted: bool,
 }
 
 /// Payload for text chunk events sent to frontend
@@ -1294,6 +1296,7 @@ pub fn execute_claude_detached(
                 content_blocks: vec![],
                 cancelled: true,
                 usage: None,
+                error_emitted: false,
             },
         ));
     }
@@ -1438,6 +1441,9 @@ pub fn tail_claude_output(
     let mut startup_failed = false; // True when Claude produced no output before the startup timeout / died starting up
     let mut usage: Option<UsageData> = None;
     let mut error_lines: Vec<String> = Vec::new();
+    // API failure (auth, billing, ...) reported before any real output. Kept
+    // out of the transcript so the turn fails instead of completing (#780).
+    let mut api_error: Option<String> = None;
 
     // Track Monitor tool_use_ids that are currently armed along with their
     // arm-time and declared timeout_ms. Claude CLI keeps the stream open
@@ -1637,6 +1643,7 @@ pub fn tail_claude_output(
                             content_blocks,
                             cancelled: false,
                             usage: None,
+                            error_emitted: false,
                         });
                     }
 
@@ -1659,6 +1666,13 @@ pub fn tail_claude_output(
                         .iter()
                         .find(|(_, arm)| arm.initial_turn_finished)
                         .map(|(id, _)| id.clone());
+
+                    if full_content.is_empty() && tool_calls.is_empty() {
+                        if let Some(text) = assistant_api_error_text(&msg) {
+                            api_error = Some(text);
+                            continue;
+                        }
+                    }
 
                     if let Some(message) = msg.get("message") {
                         if let Some(blocks) = message.get("content").and_then(|c| c.as_array()) {
@@ -1929,6 +1943,7 @@ pub fn tail_claude_output(
                                                 content_blocks,
                                                 cancelled: false,
                                                 usage: None, // No usage for partial responses
+                                                error_emitted: false,
                                             });
                                         }
                                     }
@@ -2079,7 +2094,10 @@ pub fn tail_claude_output(
                 }
                 "result" => {
                     // Final result - Claude CLI completed
-                    if full_content.is_empty() {
+                    let result_error = result_error_text(&msg);
+                    if full_content.is_empty() && tool_calls.is_empty() && result_error.is_some() {
+                        api_error = result_error;
+                    } else if full_content.is_empty() {
                         if let Some(result) = msg.get("result").and_then(|v| v.as_str()) {
                             full_content = result.to_string();
                         }
@@ -2527,7 +2545,22 @@ pub fn tail_claude_output(
         return Err(error);
     }
 
-    if !error_lines.is_empty() && full_content.is_empty() {
+    // Only a failure when nothing real was produced; user cancel wins.
+    let api_error =
+        api_error.filter(|_| !user_cancelled && full_content.is_empty() && tool_calls.is_empty());
+    let error_emitted = api_error.is_some();
+
+    if let Some(error) = api_error {
+        log::warn!("Claude API error for session {session_id}: {error}");
+        let _ = app.emit_all(
+            "chat:error",
+            &ErrorEvent {
+                session_id: session_id.to_string(),
+                worktree_id: worktree_id.to_string(),
+                error,
+            },
+        );
+    } else if !error_lines.is_empty() && full_content.is_empty() {
         let error_text = error_lines.join("\n");
         log::warn!("CLI error output for session {session_id}: {error_text}");
         let _ = app.emit_all(
@@ -2553,7 +2586,74 @@ pub fn tail_claude_output(
         content_blocks,
         cancelled,
         usage,
+        error_emitted,
     })
+}
+
+/// Error text of the synthetic assistant message Claude CLI emits when the
+/// API call fails (auth, billing, rate limit...). It carries a top-level
+/// `error` code, e.g. `"authentication_failed"`.
+fn assistant_api_error_text(msg: &serde_json::Value) -> Option<String> {
+    let code = msg.get("error").and_then(|v| v.as_str())?;
+    if msg
+        .get("parent_tool_use_id")
+        .and_then(|v| v.as_str())
+        .is_some()
+    {
+        return None;
+    }
+    let text = msg
+        .get("message")
+        .and_then(|m| m.get("content"))
+        .and_then(|c| c.as_array())
+        .map(|blocks| {
+            blocks
+                .iter()
+                .filter(|b| b.get("type").and_then(|t| t.as_str()) == Some("text"))
+                .filter_map(|b| b.get("text").and_then(|t| t.as_str()))
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .unwrap_or_default();
+    let text = text.trim();
+    Some(if text.is_empty() {
+        format!("Claude API error: {code}")
+    } else {
+        text.to_string()
+    })
+}
+
+/// Error text of a `result` message with `is_error: true`.
+fn result_error_text(msg: &serde_json::Value) -> Option<String> {
+    if msg.get("is_error").and_then(|v| v.as_bool()) != Some(true) {
+        return None;
+    }
+    if let Some(result) = msg
+        .get("result")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|r| !r.is_empty())
+    {
+        return Some(result.to_string());
+    }
+    let errors = msg
+        .get("errors")
+        .and_then(|v| v.as_array())
+        .map(|errs| {
+            errs.iter()
+                .filter_map(|e| e.as_str())
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .unwrap_or_default();
+    if !errors.trim().is_empty() {
+        return Some(errors.trim().to_string());
+    }
+    let subtype = msg
+        .get("subtype")
+        .and_then(|v| v.as_str())
+        .unwrap_or("error");
+    Some(format!("Claude CLI failed: {subtype}"))
 }
 
 #[cfg(test)]
@@ -2584,6 +2684,104 @@ mod tests {
         assert_eq!(startup_failure_message(true, true, "", &[]), None);
         assert_eq!(startup_failure_message(true, false, "done", &[]), None);
         assert_eq!(startup_failure_message(false, false, "", &[]), None);
+    }
+
+    #[test]
+    fn assistant_api_error_text_reads_synthetic_auth_error() {
+        let msg = serde_json::json!({
+            "type": "assistant",
+            "error": "authentication_failed",
+            "parent_tool_use_id": null,
+            "message": {
+                "model": "<synthetic>",
+                "content": [{
+                    "type": "text",
+                    "text": "Failed to authenticate: OAuth session expired and could not be refreshed"
+                }]
+            }
+        });
+
+        assert_eq!(
+            assistant_api_error_text(&msg).as_deref(),
+            Some("Failed to authenticate: OAuth session expired and could not be refreshed")
+        );
+    }
+
+    #[test]
+    fn assistant_api_error_text_ignores_normal_and_subagent_messages() {
+        let normal = serde_json::json!({
+            "type": "assistant",
+            "message": { "content": [{ "type": "text", "text": "Hello" }] }
+        });
+        let subagent = serde_json::json!({
+            "type": "assistant",
+            "error": "rate_limit",
+            "parent_tool_use_id": "toolu_1",
+            "message": { "content": [{ "type": "text", "text": "API Error" }] }
+        });
+
+        assert_eq!(assistant_api_error_text(&normal), None);
+        assert_eq!(assistant_api_error_text(&subagent), None);
+    }
+
+    #[test]
+    fn assistant_api_error_text_falls_back_to_error_code() {
+        let msg = serde_json::json!({
+            "type": "assistant",
+            "error": "billing_error",
+            "message": { "content": [] }
+        });
+
+        assert_eq!(
+            assistant_api_error_text(&msg).as_deref(),
+            Some("Claude API error: billing_error")
+        );
+    }
+
+    #[test]
+    fn result_error_text_reads_is_error_results() {
+        let auth = serde_json::json!({
+            "type": "result",
+            "subtype": "success",
+            "is_error": true,
+            "result": "Failed to authenticate: OAuth session expired"
+        });
+        let errors = serde_json::json!({
+            "type": "result",
+            "subtype": "error_during_execution",
+            "is_error": true,
+            "errors": ["No conversation found"]
+        });
+        let bare = serde_json::json!({
+            "type": "result",
+            "subtype": "error_max_turns",
+            "is_error": true
+        });
+
+        assert_eq!(
+            result_error_text(&auth).as_deref(),
+            Some("Failed to authenticate: OAuth session expired")
+        );
+        assert_eq!(
+            result_error_text(&errors).as_deref(),
+            Some("No conversation found")
+        );
+        assert_eq!(
+            result_error_text(&bare).as_deref(),
+            Some("Claude CLI failed: error_max_turns")
+        );
+    }
+
+    #[test]
+    fn result_error_text_ignores_successful_results() {
+        let msg = serde_json::json!({
+            "type": "result",
+            "subtype": "success",
+            "is_error": false,
+            "result": "Done"
+        });
+
+        assert_eq!(result_error_text(&msg), None);
     }
 
     #[test]

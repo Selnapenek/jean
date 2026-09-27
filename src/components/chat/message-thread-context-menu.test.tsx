@@ -12,10 +12,12 @@ const mocks = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
   downloadLocalFile: vi.fn(),
+  openLocalFile: vi.fn(),
 }))
 
 vi.mock('@/lib/local-file', () => ({
   downloadLocalFile: mocks.downloadLocalFile,
+  openLocalFile: mocks.openLocalFile,
   resolveWorktreeFilePath: (path: string) => `/repo/${path}`,
 }))
 
@@ -91,6 +93,50 @@ describe('MessageThreadContextMenu', () => {
     )
 
     expect(mocks.downloadLocalFile).toHaveBeenCalledWith('/repo/out/video.mp4')
+  })
+
+  it('opens a file path from inline code in the file viewer', async () => {
+    const user = userEvent.setup()
+    mocks.openLocalFile.mockReturnValue(true)
+    render(
+      <MessageThreadContextMenu messageText="Full message body">
+        <div>
+          Play <code data-file-path="out/video.mp4">out/video.mp4</code>
+        </div>
+      </MessageThreadContextMenu>
+    )
+
+    fireEvent.contextMenu(screen.getByText('out/video.mp4'))
+    await user.click(
+      await screen.findByRole('menuitem', { name: /open file/i })
+    )
+
+    expect(mocks.openLocalFile).toHaveBeenCalledWith('out/video.mp4')
+  })
+
+  it('does not pass the click that ends a long press to the file path', async () => {
+    const onClick = vi.fn()
+    render(
+      <MessageThreadContextMenu messageText="Full message body">
+        <div>
+          Play{' '}
+          <code data-file-path="out/video.mp4" onClick={onClick}>
+            out/video.mp4
+          </code>
+        </div>
+      </MessageThreadContextMenu>
+    )
+
+    const code = screen.getByText('out/video.mp4')
+    fireEvent.pointerDown(code, { pointerType: 'touch' })
+    await screen.findByRole(
+      'menuitem',
+      { name: /download file/i },
+      { timeout: 2000 }
+    )
+    fireEvent.click(code)
+
+    expect(onClick).not.toHaveBeenCalled()
   })
 
   it('shows Download file on touch long press without contextmenu (iOS)', async () => {

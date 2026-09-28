@@ -84,8 +84,6 @@ interface UseMessageSendingParams {
   }
   queryClient: QueryClient
   markAtBottom: () => void
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  sessionsData: any
   clearInputDraft: (sessionId: string) => void
   clearChatInputState: () => void
 }
@@ -114,7 +112,6 @@ export function useMessageSending({
   createSession,
   queryClient,
   markAtBottom,
-  sessionsData,
   clearInputDraft,
   clearChatInputState,
 }: UseMessageSendingParams) {
@@ -350,18 +347,6 @@ export function useMessageSending({
       )
         return
       if (!activeSessionId || !activeWorktreeId || !activeWorktreePath) return
-
-      if (
-        sessionsData &&
-        !sessionsData.sessions.some(
-          (s: { id: string }) => s.id === activeSessionId
-        )
-      ) {
-        toast.error(
-          'Session not found. Please refresh or create a new session.'
-        )
-        return
-      }
 
       // Intercept /login — interactive CLI login is not available inside Jean
       // headless chat (issue #387). Open CliLoginModal instead.
@@ -684,7 +669,6 @@ export function useMessageSending({
       installedBackends,
       markAtBottom,
       sendMessageNow,
-      sessionsData,
     ]
   )
 

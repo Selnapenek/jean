@@ -110,4 +110,88 @@ describe('EditedFilesDisplay', () => {
     expect(screen.getByText('+1')).toBeVisible()
     expect(screen.getByText('-1')).toBeVisible()
   })
+
+  it('shows Claude Write, MultiEdit, and NotebookEdit file changes', () => {
+    const toolCalls: ToolCall[] = [
+      {
+        id: 'w-1',
+        name: 'Write',
+        input: { file_path: '/repo/src/new-file.ts', content: 'a\nb\nc\n' },
+      },
+      {
+        id: 'm-1',
+        name: 'MultiEdit',
+        input: {
+          file_path: '/repo/src/multi.ts',
+          edits: [
+            { old_string: 'one\n', new_string: 'uno\n' },
+            { old_string: 'two\n', new_string: 'dos\ntres\n' },
+          ],
+        },
+      },
+      {
+        id: 'n-1',
+        name: 'NotebookEdit',
+        input: {
+          notebook_path: '/repo/analysis.ipynb',
+          cell_id: 'cell-1',
+          new_source: 'print(1)',
+        },
+      },
+      { id: 'r-1', name: 'Read', input: { file_path: '/repo/src/read.ts' } },
+    ]
+
+    render(<EditedFilesDisplay toolCalls={toolCalls} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edited 3 files' }))
+
+    expect(screen.getByText('new-file.ts')).toBeVisible()
+    expect(screen.getByText('multi.ts')).toBeVisible()
+    expect(screen.getByText('analysis.ipynb')).toBeVisible()
+    expect(screen.queryByText('read.ts')).not.toBeInTheDocument()
+    expect(screen.getAllByText('+3')).toHaveLength(2)
+    expect(screen.getByText('-2')).toBeVisible()
+  })
+
+  it('passes normalized MultiEdit edits to the diff modal', () => {
+    const toolCalls: ToolCall[] = [
+      {
+        id: 'm-1',
+        name: 'MultiEdit',
+        input: {
+          file_path: '/repo/src/multi.ts',
+          edits: [
+            { old_string: 'one', new_string: 'uno' },
+            { old_string: 'two', new_string: 'dos' },
+          ],
+        },
+      },
+    ]
+
+    render(<EditedFilesDisplay toolCalls={toolCalls} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edited 1 file' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'View changes to multi.ts' })
+    )
+
+    expect(diffModalMock.mock.lastCall?.[0].edits).toEqual([
+      {
+        name: 'Edit',
+        input: {
+          file_path: '/repo/src/multi.ts',
+          old_string: 'one',
+          new_string: 'uno',
+        },
+      },
+      {
+        name: 'Edit',
+        input: {
+          file_path: '/repo/src/multi.ts',
+          old_string: 'two',
+          new_string: 'dos',
+        },
+      },
+    ])
+  })
 })

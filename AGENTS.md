@@ -258,16 +258,10 @@ re-parse the whole accumulated buffer (avoids O(n²) on long sessions).
 }
 ```
 
-**Extraction pattern** (see `src-tauri/src/chat/commands.rs:extract_text_from_stream_json`):
+**Extraction pattern** (shared helper `extract_claude_structured_output` in `jean-core/src/chat/claude.rs`):
 
-```rust
-for block in content {
-    if block.get("type") == Some("tool_use")
-       && block.get("name") == Some("StructuredOutput") {
-        return block.get("input").clone(); // This is your JSON schema data
-    }
-}
-```
+- Prefer the final `result` event's `structured_output` field (the CLI validates it against the schema)
+- Fall back to the LAST `StructuredOutput` tool_use input (the model may retry after a validation failure, so the first call can be invalid)
 
 **Usage in this codebase:**
 

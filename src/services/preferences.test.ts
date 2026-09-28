@@ -144,6 +144,7 @@ describe('model option helpers', () => {
       'claude-opus-4-5-20251101',
       'claude-sonnet-4-6[1m]',
       'claude-sonnet-4-6',
+      'claude-haiku-4-5',
       'haiku',
     ])
     expect(normalizeClaudeModel('claude-fable-5-1')).toBe('claude-fable-5-1')
@@ -156,6 +157,15 @@ describe('model option helpers', () => {
     expect(normalizeClaudeModel('claude-opus-4-7')).toBe('claude-opus-4-7')
     expect(normalizeClaudeModel('claude-opus-4-6')).toBe('claude-opus-4-6')
     expect(normalizeClaudeModel('claude-sonnet-4-6')).toBe('claude-sonnet-4-6')
+    expect(normalizeClaudeModel('claude-haiku-4-5')).toBe('claude-haiku-4-5')
+    // Unknown-but-plausible Claude ids pass through (no silent upgrade)
+    expect(normalizeClaudeModel('claude-haiku-9-9')).toBe('claude-haiku-9-9')
+    expect(normalizeClaudeModel('claude-opus-6[1m]')).toBe('claude-opus-6[1m]')
+    // Only empty/invalid values fall back to the default
+    expect(normalizeClaudeModel('')).toBe('claude-opus-5-5')
+    expect(normalizeClaudeModel('gpt-5.5')).toBe('claude-opus-5-5')
+    expect(normalizeClaudeModel('claude-')).toBe('claude-opus-5-5')
+    expect(normalizeClaudeModel('toString')).toBe('claude-opus-5-5')
     // Custom CLI providers keep Claude Code aliases for ANTHROPIC_DEFAULT_* routing
     expect(
       normalizeClaudeModel('sonnet', { preserveProviderAliases: true })
@@ -584,7 +594,7 @@ describe('preferences service', () => {
       await waitFor(() => expect(result.current.isSuccess).toBe(true))
 
       expect(result.current.data?.theme).toBe('system')
-      expect(result.current.data?.selected_model).toBe('claude-opus-4-8[1m]')
+      expect(result.current.data?.selected_model).toBe('claude-opus-5-5')
       expect(result.current.data?.jean_mcp_enabled).toBe(true)
     })
 

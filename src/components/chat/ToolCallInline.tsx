@@ -29,6 +29,7 @@ import {
   List,
   Code,
   Activity,
+  type LucideIcon,
 } from '@/components/icons/reicon'
 import type { ToolCall } from '@/types/chat'
 import type { StackableItem } from './tool-call-utils'
@@ -90,6 +91,9 @@ function shouldRenderRawOutput(toolCall: ToolCall): boolean {
   const normalizedName = normalizeToolCallForDisplay(toolCall.name, input).name
   // These tools already surface output (results/path/etc.) in expandedContent.
   if (
+    // Read contents can be huge and are dropped live; hide them in history too
+    // so a row looks the same during streaming and after reload.
+    normalizedName === 'Read' ||
     normalizedName === 'FileChange' ||
     normalizedName === 'Monitor' ||
     normalizedName === 'CodexWebSearch' ||
@@ -104,6 +108,40 @@ function shouldRenderRawOutput(toolCall: ToolCall): boolean {
   return true
 }
 
+/** True when the backend reported the tool result as an error. */
+export function isToolCallError(toolCall: ToolCall): boolean {
+  return toolCall.is_error === true
+}
+
+/** Subtle "failed" marker for tool rows whose result was an error. */
+function ToolErrorBadge({ compact }: { compact?: boolean }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex shrink-0 items-center gap-0.5 text-destructive/80',
+        compact ? 'text-[0.625rem]' : 'text-[0.6875rem]'
+      )}
+    >
+      <XCircle className={compact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
+      failed
+    </span>
+  )
+}
+
+/**
+ * Expanded body for tools without a dedicated renderer: the input arguments.
+ * Output is rendered once, by the raw "Output:" panel (shouldRenderRawOutput).
+ */
+function formatInputForExpanded(
+  toolCall: ToolCall,
+  input: Record<string, unknown>
+): React.ReactNode {
+  if (Object.keys(input).length > 0) return JSON.stringify(input, null, 2)
+  if (shouldRenderRawOutput(toolCall)) return null
+  // Placeholder outputs ("completed", "ok") are not shown in the raw panel.
+  return toolCall.output?.trim() || 'No details available'
+}
+
 /** Best-effort one-line detail from common tool input fields. */
 function firstStringField(
   input: Record<string, unknown>,
@@ -112,6 +150,112 @@ function firstStringField(
   for (const key of keys) {
     const value = input[key]
     if (typeof value === 'string' && value.trim()) return value
+  }
+  return undefined
+}
+
+interface SimpleToolSpec {
+  label: string
+  icon: LucideIcon
+  /** Input fields tried in order for the one-line detail. */
+  detailKeys?: string[]
+}
+
+/**
+ * Claude Code tools that only need a label + key input detail. The expanded
+ * body shows the input JSON and the raw "Output:" panel shows the result.
+ * Input field names: https://code.claude.com/docs/en/tools-reference
+ */
+const SIMPLE_TOOL_SPECS: Record<string, SimpleToolSpec> = {
+  BashOutput: { label: 'Bash Output', icon: Terminal, detailKeys: ['bash_id'] },
+  TaskOutput: {
+    label: 'Task Output',
+    icon: Terminal,
+    detailKeys: ['task_id', 'bash_id', 'id'],
+  },
+  KillShell: { label: 'Kill Shell', icon: XCircle, detailKeys: ['shell_id'] },
+  KillBash: { label: 'Kill Shell', icon: XCircle, detailKeys: ['shell_id'] },
+  TaskStop: {
+    label: 'Stop Task',
+    icon: XCircle,
+    detailKeys: ['task_id', 'shell_id', 'id'],
+  },
+  PowerShell: {
+    label: 'PowerShell',
+    icon: Terminal,
+    detailKeys: ['command', 'description'],
+  },
+  SendMessage: {
+    label: 'Send Message',
+    icon: Send,
+    detailKeys: ['to', 'agent_id', 'name', 'summary'],
+  },
+  ListAgents: { label: 'List Agents', icon: Users },
+  EnterWorktree: {
+    label: 'Enter Worktree',
+    icon: Folder,
+    detailKeys: ['name', 'path'],
+  },
+  ExitWorktree: {
+    label: 'Exit Worktree',
+    icon: Folder,
+    detailKeys: ['action'],
+  },
+  CronCreate: { label: 'Schedule Prompt', icon: Clock, detailKeys: ['cron'] },
+  CronDelete: { label: 'Delete Schedule', icon: Clock, detailKeys: ['id'] },
+  CronList: { label: 'List Schedules', icon: Clock },
+  ListMcpResourcesTool: {
+    label: 'List MCP Resources',
+    icon: List,
+    detailKeys: ['server'],
+  },
+  ReadMcpResourceTool: {
+    label: 'Read MCP Resource',
+    icon: FileText,
+    detailKeys: ['uri', 'server'],
+  },
+  TaskCreate: {
+    label: 'Create Task',
+    icon: ListTodo,
+    detailKeys: ['subject', 'title', 'description'],
+  },
+  TaskUpdate: {
+    label: 'Update Task',
+    icon: ListTodo,
+    detailKeys: ['subject', 'title', 'status', 'taskId', 'task_id', 'id'],
+  },
+  TaskGet: {
+    label: 'Get Task',
+    icon: ListTodo,
+    detailKeys: ['taskId', 'task_id', 'id'],
+  },
+  TaskList: { label: 'List Tasks', icon: ListTodo },
+  Workflow: {
+    label: 'Workflow',
+    icon: Layers,
+    detailKeys: ['description', 'name', 'title'],
+  },
+  PushNotification: {
+    label: 'Push Notification',
+    icon: Send,
+    detailKeys: ['message', 'title', 'body'],
+  },
+  WaitForMcpServers: { label: 'Wait for MCP Servers', icon: Clock },
+}
+
+function getSimpleToolDetail(
+  spec: SimpleToolSpec,
+  input: Record<string, unknown>
+): string | undefined {
+  const detail = spec.detailKeys
+    ? firstStringField(input, spec.detailKeys)
+    : undefined
+  if (detail) return detail.length > 60 ? `${detail.slice(0, 60)}…` : detail
+  // e.g. WaitForMcpServers { servers: [...] }
+  for (const value of Object.values(input)) {
+    if (Array.isArray(value) && value.every(v => typeof v === 'string')) {
+      return value.length > 0 ? value.join(', ') : undefined
+    }
   }
   return undefined
 }
@@ -481,6 +625,7 @@ export function ToolCallInline({
                 <ExternalLink className="h-3 w-3 opacity-60" />
               </button>
             ) : null}
+            {isToolCallError(toolCall) ? <ToolErrorBadge /> : null}
             <span className="ml-auto flex min-w-0 flex-1 items-center justify-end">
               {isStreaming && isIncomplete ? (
                 <Loader2 className="h-3 w-3 animate-spin text-muted-foreground/50" />
@@ -523,6 +668,12 @@ interface TaskCallInlineProps {
   subToolCalls: ToolCall[]
   /** All tool calls in the message, used to resolve nested Task sub-tools */
   allToolCalls?: ToolCall[]
+  /**
+   * Sub-tools of nested Task/Agent calls keyed by their tool id, as resolved by
+   * buildTimeline (includes its content-order fallback grouping). When absent,
+   * nested sub-tools are resolved by parent_tool_use_id only.
+   */
+  nestedSubTools?: Record<string, ToolCall[]>
   className?: string
   /** Callback when a file path is clicked (for Read/Edit/Write tools) */
   onFileClick?: (filePath: string) => void
@@ -540,6 +691,7 @@ export function TaskCallInline({
   taskToolCall,
   subToolCalls,
   allToolCalls,
+  nestedSubTools,
   className,
   onFileClick,
   isStreaming,
@@ -577,6 +729,7 @@ export function TaskCallInline({
           {description && (
             <code className={TOOL_CALL_DETAIL_PILL_CLASS}>{description}</code>
           )}
+          {isToolCallError(taskToolCall) ? <ToolErrorBadge /> : null}
           {/* Show sub-tool count badge */}
           {subToolCalls.length > 0 && (
             <span className="ml-auto shrink-0 text-xs text-muted-foreground/60">
@@ -613,16 +766,25 @@ export function TaskCallInline({
               <div className="space-y-1">
                 {subToolCalls.map(subTool =>
                   (subTool.name === 'Task' || subTool.name === 'Agent') &&
-                  allToolCalls ? (
+                  (allToolCalls || nestedSubTools) ? (
                     <TaskCallInline
                       key={subTool.id}
                       taskToolCall={subTool}
-                      subToolCalls={allToolCalls.filter(
-                        t => t.parent_tool_use_id === subTool.id
-                      )}
+                      subToolCalls={
+                        nestedSubTools?.[subTool.id] ??
+                        (allToolCalls ?? []).filter(
+                          t => t.parent_tool_use_id === subTool.id
+                        )
+                      }
                       allToolCalls={allToolCalls}
+                      nestedSubTools={nestedSubTools}
                       onFileClick={onFileClick}
                       isStreaming={isStreaming}
+                      // A nested agent is still running while its parent is
+                      // and it has not returned its report yet.
+                      isIncomplete={
+                        Boolean(isIncomplete) && !subTool.output?.trim()
+                      }
                     />
                   ) : (
                     <SubToolItem
@@ -862,6 +1024,7 @@ function SubToolItem({ toolCall, onFileClick }: SubToolItemProps) {
                 <ExternalLink className="h-2.5 w-2.5 opacity-60" />
               </button>
             ) : null}
+            {isToolCallError(toolCall) ? <ToolErrorBadge compact /> : null}
             <span className="ml-auto flex min-w-0 flex-1 items-center justify-end">
               <ChevronRight
                 className={cn(
@@ -1217,9 +1380,74 @@ function getToolSummaryName(toolCall: ToolCall): string {
       if (isJeanMcpToolName(normalized) || isJeanMcpToolName(toolCall.name)) {
         return formatJeanMcpToolLabel(normalized)
       }
-      return normalized
+      return SIMPLE_TOOL_SPECS[normalized]?.label ?? normalized
     }
   }
+}
+
+function truncateOneLine(text: string, max: number): string {
+  const oneLine = text.replace(/\s+/g, ' ').trim()
+  return oneLine.length > max ? `${oneLine.slice(0, max - 1)}…` : oneLine
+}
+
+/** Keep the end of long paths (the filename is the useful part). */
+function truncatePathOneLine(text: string, max: number): string {
+  const oneLine = text.replace(/\s+/g, ' ').trim()
+  if (oneLine.length <= max) return oneLine
+  if (/[/\\]/.test(oneLine)) return `…${oneLine.slice(-(max - 1))}`
+  return `${oneLine.slice(0, max - 1)}…`
+}
+
+/**
+ * One-line label/detail for a tool call. Shared by the compact streaming
+ * ticker and the finished compact message list so both show the same text.
+ */
+export function summarizeToolCall(toolCall: ToolCall): {
+  label: string
+  detail?: string
+} {
+  const normalized = normalizeToolCallForDisplay(
+    toolCall.name,
+    (toolCall.input ?? {}) as Record<string, unknown>
+  )
+  const input = normalized.input
+  const label = getToolSummaryName({ ...toolCall, name: normalized.name })
+
+  if (isJeanMcpToolName(normalized.name)) {
+    const detail = formatJeanMcpToolDetail(input)
+    return { label, detail: detail ? truncateOneLine(detail, 80) : undefined }
+  }
+
+  const pathDetail = firstStringField(input, [
+    'file_path',
+    'notebook_path',
+    'filePath',
+    'path',
+  ])
+  if (pathDetail) {
+    return { label, detail: truncatePathOneLine(pathDetail, 80) }
+  }
+
+  // Codex web search may nest the query under action
+  const action =
+    input.action && typeof input.action === 'object'
+      ? (input.action as Record<string, unknown>)
+      : undefined
+  const spec = SIMPLE_TOOL_SPECS[normalized.name]
+  const detail =
+    firstStringField(input, ['query']) ??
+    (action ? firstStringField(action, ['query', 'url']) : undefined) ??
+    (spec ? getSimpleToolDetail(spec, input) : undefined) ??
+    firstStringField(input, [
+      'command',
+      'url',
+      'pattern',
+      'description',
+      'backend',
+      'tool_name',
+      'toolName',
+    ])
+  return { label, detail: detail ? truncateOneLine(detail, 80) : undefined }
 }
 
 /** Live-ticking remaining seconds for a pending ScheduleWakeup. */
@@ -1460,7 +1688,9 @@ function getToolDisplay(toolCall: ToolCall): ToolDisplay {
         label: 'Report Findings',
         detail: `${count} finding${count === 1 ? '' : 's'}`,
         expandedContent:
-          count > 0 ? JSON.stringify(findings, null, 2) : 'No findings reported',
+          count > 0
+            ? JSON.stringify(findings, null, 2)
+            : 'No findings reported',
       }
     }
 
@@ -1511,7 +1741,7 @@ function getToolDisplay(toolCall: ToolCall): ToolDisplay {
         detail: receiverIds?.length
           ? `${receiverIds.length} agent${receiverIds.length === 1 ? '' : 's'}`
           : undefined,
-        expandedContent: toolCall.output ?? JSON.stringify(input, null, 2),
+        expandedContent: formatInputForExpanded(toolCall, input),
       }
     }
 
@@ -1764,7 +1994,7 @@ function getToolDisplay(toolCall: ToolCall): ToolDisplay {
         icon: <Search className="h-4 w-4 shrink-0" />,
         label: 'Code Search',
         detail: query,
-        expandedContent: toolCall.output ?? JSON.stringify(input, null, 2),
+        expandedContent: formatInputForExpanded(toolCall, input),
       }
     }
 
@@ -1775,13 +2005,15 @@ function getToolDisplay(toolCall: ToolCall): ToolDisplay {
         icon: <List className="h-4 w-4 shrink-0" />,
         label: 'List',
         detail: path,
-        expandedContent: toolCall.output ?? `Path: ${path ?? '(cwd)'}`,
+        expandedContent: `Path: ${path ?? '(cwd)'}`,
       }
     }
 
-    case 'lsp': {
-      const action = input.action as string | undefined
-      const filePath = input.filePath as string | undefined
+    // OpenCode `lsp` (action) and Claude Code `LSP` (operation)
+    case 'lsp':
+    case 'LSP': {
+      const action = firstStringField(input, ['operation', 'action', 'method'])
+      const filePath = firstStringField(input, ['filePath', 'file_path'])
       const filename = filePath ? getFilename(filePath) : undefined
       return {
         icon: <Code className="h-4 w-4 shrink-0" />,
@@ -1789,7 +2021,63 @@ function getToolDisplay(toolCall: ToolCall): ToolDisplay {
         detail: action
           ? `${action}${filename ? ` ${filename}` : ''}`
           : filename,
-        expandedContent: toolCall.output ?? JSON.stringify(input, null, 2),
+        filePath,
+        expandedContent: formatInputForExpanded(toolCall, input),
+      }
+    }
+
+    case 'MultiEdit': {
+      const filePath = firstStringField(input, ['file_path', 'filePath'])
+      const edits = (Array.isArray(input.edits) ? input.edits : []) as {
+        old_string?: string
+        new_string?: string
+      }[]
+      const count = `${edits.length} edit${edits.length === 1 ? '' : 's'}`
+      return {
+        icon: <Edit className="h-4 w-4 shrink-0" />,
+        label: 'Multi Edit',
+        detail: filePath ? `${getFilename(filePath)} · ${count}` : count,
+        filePath,
+        expandedContent:
+          filePath && edits.length > 0 ? (
+            <div className="space-y-2">
+              {edits.map((edit, idx) => (
+                <InlineFileDiff
+                  // Edits have no stable id; order is fixed for a tool call.
+                  key={`${idx}:${edit.old_string?.slice(0, 32) ?? ''}`}
+                  filePath={filePath}
+                  oldString={edit.old_string ?? ''}
+                  newString={edit.new_string ?? ''}
+                />
+              ))}
+            </div>
+          ) : (
+            formatInputForExpanded(toolCall, input)
+          ),
+      }
+    }
+
+    case 'NotebookEdit': {
+      const notebookPath = firstStringField(input, ['notebook_path', 'path'])
+      const editMode = firstStringField(input, ['edit_mode']) ?? 'replace'
+      const cellId = firstStringField(input, ['cell_id'])
+      const source =
+        typeof input.new_source === 'string' ? input.new_source : ''
+      const header = [
+        notebookPath ? `Path: ${notebookPath}` : undefined,
+        `Mode: ${editMode}`,
+        cellId ? `Cell: ${cellId}` : undefined,
+      ]
+        .filter(Boolean)
+        .join('\n')
+      return {
+        icon: <FileCode className="h-4 w-4 shrink-0" />,
+        label: `Notebook ${editMode}`,
+        detail: notebookPath
+          ? `${getFilename(notebookPath)}${cellId ? ` · ${cellId}` : ''}`
+          : cellId,
+        filePath: notebookPath,
+        expandedContent: source ? `${header}\n\n${source}` : header,
       }
     }
 
@@ -1952,17 +2240,22 @@ function getToolDisplay(toolCall: ToolCall): ToolDisplay {
     default: {
       const jeanBare = extractJeanMcpBareToolName(normalized.name)
       if (jeanBare) {
-        const detail = formatJeanMcpToolDetail(input)
-        const expanded = toolCall.output?.trim()
-          ? toolCall.output
-          : Object.keys(input).length > 0
-            ? JSON.stringify(input, null, 2)
-            : 'No details available'
         return {
           icon: <Bot className="h-4 w-4 shrink-0" />,
           label: formatJeanMcpToolLabel(normalized.name),
-          detail,
-          expandedContent: expanded,
+          detail: formatJeanMcpToolDetail(input),
+          expandedContent: formatInputForExpanded(toolCall, input),
+        }
+      }
+
+      const spec = SIMPLE_TOOL_SPECS[normalized.name]
+      if (spec) {
+        const Icon = spec.icon
+        return {
+          icon: <Icon className="h-4 w-4 shrink-0" />,
+          label: spec.label,
+          detail: getSimpleToolDetail(spec, input),
+          expandedContent: formatInputForExpanded(toolCall, input),
         }
       }
 
@@ -1994,11 +2287,7 @@ function getToolDisplay(toolCall: ToolCall): ToolDisplay {
           'projectId',
           'worktreeId',
         ]) ?? formatJeanMcpToolDetail(input)
-      const expanded = toolCall.output?.trim()
-        ? toolCall.output
-        : Object.keys(input).length > 0
-          ? JSON.stringify(input, null, 2)
-          : 'No details available'
+      const expanded = formatInputForExpanded(toolCall, input)
       return {
         icon: <Terminal className="h-4 w-4 shrink-0" />,
         label: isKnownExternal

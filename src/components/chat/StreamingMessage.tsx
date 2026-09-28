@@ -309,6 +309,7 @@ export const StreamingMessage = memo(function StreamingMessage({
                                         taskToolCall={item.taskTool}
                                         subToolCalls={item.subTools}
                                         allToolCalls={toolCalls}
+                                        nestedSubTools={item.nestedSubTools}
                                         onFileClick={onFileClick}
                                         isStreaming={true}
                                         isIncomplete={isIncomplete}

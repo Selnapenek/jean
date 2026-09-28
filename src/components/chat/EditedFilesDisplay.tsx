@@ -32,10 +32,12 @@ function asString(value: unknown): string | undefined {
  * Normalize Claude file-changing tool calls into old/new string edits.
  * - Edit: one replacement
  * - MultiEdit: one entry per inner edit
- * - Write: whole file content (shown as added; prior content is unknown)
+ * - Write: whole file content (kept as name 'Write'; prior content unknown)
  * - NotebookEdit: new cell source
+ * Failed/denied tool calls (`is_error`) changed nothing and are skipped.
  */
 export function getClaudeFileEdits(toolCall: ToolCall): EditTool[] {
+  if (toolCall.is_error === true) return []
   const input = asRecord(toolCall.input)
   if (!input) return []
 
@@ -50,6 +52,7 @@ export function getClaudeFileEdits(toolCall: ToolCall): EditTool[] {
             file_path: filePath,
             old_string: asString(input.old_string),
             new_string: asString(input.new_string),
+            ...(input.replace_all === true && { replace_all: true }),
           },
         },
       ]
@@ -67,6 +70,7 @@ export function getClaudeFileEdits(toolCall: ToolCall): EditTool[] {
               file_path: filePath,
               old_string: asString(e.old_string),
               new_string: asString(e.new_string),
+              ...(e.replace_all === true && { replace_all: true }),
             },
           },
         ]
@@ -261,6 +265,19 @@ export const EditedFilesDisplay = memo(function EditedFilesDisplay({
       )
   }, [selectedFilePath, getMessages, messageIndex])
 
+  // Edits on selectedFilePath from messages BEFORE this one — lets the diff
+  // recover the prior content when this message overwrote the file (Write).
+  const previousEdits = useMemo(() => {
+    if (!selectedFilePath || !getMessages || messageIndex == null) return []
+    return getMessages()
+      .slice(0, messageIndex)
+      .flatMap(msg =>
+        (msg.tool_calls ?? [])
+          .flatMap(getClaudeFileEdits)
+          .filter(edit => edit.input.file_path === selectedFilePath)
+      )
+  }, [selectedFilePath, getMessages, messageIndex])
+
   if (uniqueFilePaths.length === 0) return null
 
   return (
@@ -333,6 +350,7 @@ export const EditedFilesDisplay = memo(function EditedFilesDisplay({
           filePath={selectedFilePath}
           edits={selectedEdits}
           subsequentEdits={subsequentEdits}
+          previousEdits={previousEdits}
           worktreePath={worktreePath}
           patch={selectedCodexPatch}
         />

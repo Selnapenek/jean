@@ -592,6 +592,9 @@ export default function useStreamingEvents({
         ) {
           return
         }
+        // Buffered text/thinking arrived before this tool; commit it first so
+        // the tool block lands after it (not above it) while streaming.
+        flushPendingStreamFor(session_id)
         addToolBlock(session_id, tool_call_id)
       }
     )
@@ -623,6 +626,26 @@ export default function useStreamingEvents({
         addThinkingBlock(sid, buffered)
       }
       thinkingBuffer = {}
+    }
+
+    /**
+     * Commit one session's buffered thinking + text immediately. Call before
+     * adding ordered content blocks (tool/user-input) so they land after the
+     * text that preceded them. Pending timers stay armed for other sessions.
+     */
+    function flushPendingStreamFor(sessionId: string) {
+      const thinking = thinkingBuffer[sessionId]
+      if (thinking) {
+        const { [sessionId]: _thinking, ...restThinking } = thinkingBuffer
+        thinkingBuffer = restThinking
+        addThinkingBlock(sessionId, thinking)
+      }
+      const text = chunkBuffer[sessionId]
+      if (text) {
+        const { [sessionId]: _text, ...restChunks } = chunkBuffer
+        chunkBuffer = restChunks
+        appendStreamingChunk(sessionId, text)
+      }
     }
 
     function scheduleThinkingFlush() {
@@ -689,6 +712,7 @@ export default function useStreamingEvents({
       ) {
         return
       }
+      flushPendingStreamFor(session_id)
       addUserInputBlock(session_id, text)
     })
 
@@ -696,7 +720,7 @@ export default function useStreamingEvents({
     const unlistenToolResult = listen<ToolResultEvent>(
       'chat:tool_result',
       event => {
-        const { session_id, tool_use_id, output } = event.payload
+        const { session_id, tool_use_id, output, is_error } = event.payload
 
         // Check if this tool was in pending denials - if so, it ran anyway
         // (e.g., yolo mode, or tool was pre-approved via allowedTools)
@@ -724,11 +748,14 @@ export default function useStreamingEvents({
         // in both the "Final output" block and the outer raw-output panel.
         if (toolCall?.name === 'Monitor') return
 
-        // For Read tools, store empty placeholder instead of full content (can be large)
+        // For Read tools, store empty placeholder instead of full content (can be large).
+        // Read output is never rendered (see shouldRenderRawOutput), so live and
+        // reloaded history look the same.
         updateToolCallOutput(
           session_id,
           tool_use_id,
-          toolCall?.name === 'Read' ? '' : output
+          toolCall?.name === 'Read' ? '' : output,
+          is_error
         )
       }
     )
@@ -951,6 +978,7 @@ export default function useStreamingEvents({
           input: { questions },
         }
         addToolCall(session_id, toolCall)
+        flushPendingStreamFor(session_id)
         addToolBlock(session_id, toolCall.id)
 
         if (next === current) return
@@ -1726,6 +1754,7 @@ export default function useStreamingEvents({
       const {
         lastSentMessages,
         streamingContents,
+        activeToolCalls,
         setInputDraft,
         clearLastSentMessage,
         setError,
@@ -1786,9 +1815,11 @@ export default function useStreamingEvents({
       setError(session_id, displayError)
 
       // Check if CLI produced streaming content BEFORE clearing state.
-      // If content was streamed, the CLI ran — don't remove the user message
-      // or rollback, as the conversation is persisted in JSONL on disk (#209).
-      const hasStreamedContent = !!streamingContents[session_id]
+      // If content or tool calls were streamed, the CLI ran — don't remove the
+      // user message or rollback, as the conversation is persisted on disk (#209).
+      const hasStreamedContent =
+        !!streamingContents[session_id] ||
+        (activeToolCalls[session_id]?.length ?? 0) > 0
 
       // Restore the input that failed so user can retry
       const lastMessage = lastSentMessages[session_id]

@@ -1412,7 +1412,7 @@ fn default_model_for_backend(backend: &str) -> String {
         "commandcode" => "commandcode/default".to_string(),
         "grok" => "grok/grok-4.6".to_string(),
         "antigravity" => "antigravity/auto".to_string(),
-        _ => "claude-opus-4-8[1m]".to_string(),
+        _ => "claude-opus-5-5".to_string(),
     }
 }
 
@@ -1758,7 +1758,7 @@ mod tests {
     fn default_models_cover_all_auto_fix_backends() {
         assert_eq!(
             default_model_for_backend("claude"),
-            "claude-opus-4-8[1m]".to_string()
+            "claude-opus-5-5".to_string()
         );
         assert_eq!(
             default_model_for_backend("codex"),

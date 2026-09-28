@@ -3585,8 +3585,56 @@ pub async fn send_chat_message(
                         thread_include_recap,
                         Some(make_pid_callback()),
                     ) {
-                        Ok((pid, response)) => {
+                        Ok((pid, mut response)) => {
                             log::trace!("execute_claude_detached succeeded (PID: {pid})");
+
+                            // `--resume` with an unknown id: CLI printed "No conversation
+                            // found" and exited. Clear the stale id and retry once fresh.
+                            if response.session_not_found {
+                                if let Some(stale_id) = claude_session_id_for_call.take() {
+                                    log::warn!(
+                                        "Claude session {stale_id} not found, clearing stored session ID and retrying without --resume"
+                                    );
+                                    if let Err(e) = with_sessions_mut(
+                                        &thread_app,
+                                        &thread_worktree_path,
+                                        &thread_worktree_id,
+                                        |sessions| {
+                                            if let Some(session) =
+                                                sessions.find_session_mut(&thread_session_id)
+                                            {
+                                                session.claude_session_id = None;
+                                            }
+                                            Ok(())
+                                        },
+                                    ) {
+                                        break Err(format!(
+                                            "Session expired and failed to clear stale session state: {e}"
+                                        ));
+                                    }
+                                    // Same output file is reused (CLI appends): drop the
+                                    // failed attempt so the retry tail starts clean.
+                                    if let Err(e) = super::run_log::truncate_run_output_to_header(
+                                        &thread_output_file,
+                                    ) {
+                                        log::warn!(
+                                            "Failed to reset Claude output before retry: {e}"
+                                        );
+                                    }
+                                    continue;
+                                }
+                                // Not resuming, so a retry cannot help: surface it.
+                                let _ = thread_app.emit_all(
+                                    "chat:error",
+                                    &super::claude::ErrorEvent {
+                                        session_id: thread_session_id.clone(),
+                                        worktree_id: thread_worktree_id.clone(),
+                                        error: "Claude CLI failed: No conversation found to resume"
+                                            .to_string(),
+                                    },
+                                );
+                                response.error_emitted = true;
+                            }
 
                             if should_clear_stale_resumed_claude_session(
                                 claude_session_id_for_call.is_some(),
@@ -5024,7 +5072,7 @@ pub async fn send_chat_message(
         let _ = tx.send(result);
     });
 
-    let (pid, unified_response) = match rx.await {
+    let (pid, mut unified_response) = match rx.await {
         Ok(Ok(result)) => result,
         Ok(Err(e)) => {
             // Thread completed with an error — clean up registrations owned by
@@ -5303,8 +5351,13 @@ pub async fn send_chat_message(
     let has_resume_worthy_payload = has_assistant_payload || has_persisted_visible_codex_artifacts;
 
     // Handle error_emitted: backend emitted chat:error during execution (e.g., Codex usage limit).
-    // Treat like undo_send so the user message doesn't persist in history.
-    if unified_response.error_emitted {
+    // With no output, treat like undo_send so the user message doesn't persist in history.
+    // After partial output (e.g. Claude API error / error_max_turns mid-turn), keep the
+    // partial reply and resume id by finishing the run as cancelled-with-content below.
+    if unified_response.error_emitted && has_assistant_payload {
+        unified_response.cancelled = true;
+    }
+    if unified_response.error_emitted && !has_assistant_payload {
         if let Err(e) = run_log_writer.cancel(None, None) {
             log::warn!("Failed to cancel run log after error: {e}");
         }
@@ -7495,7 +7548,8 @@ fn format_messages_for_summary(messages: &[ChatMessage]) -> String {
 /// For --json-schema, Claude returns structured output via a tool call named "StructuredOutput"
 fn extract_text_from_stream_json(output: &str) -> Result<String, String> {
     let mut text_content = String::new();
-    let mut structured_output: Option<serde_json::Value> = None;
+    // Final `result.structured_output`, else the last StructuredOutput call.
+    let mut structured_output = super::claude::extract_claude_structured_output(output);
 
     log::trace!("Parsing stream-json output ({} bytes)", output.len());
 
@@ -7526,21 +7580,6 @@ fn extract_text_from_stream_json(output: &str) -> Result<String, String> {
                         if block_type == Some("text") {
                             if let Some(text) = block.get("text").and_then(|t| t.as_str()) {
                                 text_content.push_str(text);
-                            }
-                        }
-
-                        // Handle StructuredOutput tool call (from --json-schema)
-                        if block_type == Some("tool_use") {
-                            let tool_name = block.get("name").and_then(|n| n.as_str());
-                            log::trace!(
-                                "Found tool_use block: name={:?}, block={block}",
-                                tool_name
-                            );
-                            if tool_name == Some("StructuredOutput") {
-                                if let Some(input) = block.get("input") {
-                                    log::trace!("Found StructuredOutput input: {input}");
-                                    structured_output = Some(input.clone());
-                                }
                             }
                         }
                     }
@@ -7633,7 +7672,7 @@ fn execute_summarization_claude(
     magic_backend: Option<&str>,
     reasoning_effort: Option<&str>,
 ) -> Result<ContextSummaryResponse, String> {
-    let model_str = model.unwrap_or("claude-opus-4-8[1m]");
+    let model_str = model.unwrap_or("claude-opus-5-5");
 
     // Per-operation backend > project/global default_backend
     let backend = resolve_magic_prompt_backend(app, magic_backend, worktree_id);
@@ -8690,92 +8729,109 @@ pub async fn resume_session(
             });
         }
 
-        // Clone values for the async task
+        // Clone values for the tail thread
         let app_clone = app.clone();
         let session_id_clone = session_id.clone();
         let worktree_id_clone = worktree_id.clone();
         let run_id_clone = run_id.clone();
+        let execution_mode = run.execution_mode.clone();
 
-        // Spawn a task to tail the output file
-        tauri::async_runtime::spawn(async move {
+        // tail_claude_output is a blocking poll loop (std::thread::sleep), so run
+        // it on its own OS thread instead of starving an async runtime worker.
+        std::thread::spawn(move || {
             log::trace!("Starting tail task for run: {run_id_clone}, session: {session_id_clone}");
 
             // Helper: emit chat:done so frontend clears sending state
-            let emit_done = |app: &tauri::AppHandle, sid: &str, wid: &str| {
-                let _ = app.emit_all(
+            let emit_done = |waiting_for_plan: bool| {
+                let _ = app_clone.emit_all(
                     "chat:done",
-                    &serde_json::json!({ "session_id": sid, "worktree_id": wid, "waiting_for_plan": false }),
+                    &serde_json::json!({
+                        "session_id": session_id_clone,
+                        "worktree_id": worktree_id_clone,
+                        "waiting_for_plan": waiting_for_plan,
+                    }),
                 );
             };
 
             // Tail the output file — Claude backend only (Codex handled above)
-            let (resume_id, usage, cancelled) = {
-                match super::claude::tail_claude_output(
-                    &app_clone,
-                    &session_id_clone,
-                    &worktree_id_clone,
-                    &output_file,
-                    pid,
-                ) {
-                    Ok(response) => (response.session_id, response.usage, response.cancelled),
-                    Err(e) => {
-                        log::error!(
-                            "Resume Claude tail failed for run: {run_id_clone}, error: {e}"
-                        );
-                        super::registry::unregister_process(&session_id_clone);
-                        if let Ok(mut writer) =
-                            RunLogWriter::resume(&app_clone, &session_id_clone, &run_id_clone)
-                        {
-                            if let Err(e) = writer.crash() {
-                                log::error!("Failed to mark run as crashed: {e}");
-                            }
+            let tail_result = super::claude::tail_claude_output(
+                &app_clone,
+                &session_id_clone,
+                &worktree_id_clone,
+                &output_file,
+                pid,
+            );
+            // PID-scoped: never remove a newer run's registration.
+            super::registry::unregister_process_if_owned(&session_id_clone, pid);
+
+            let response = match tail_result {
+                Ok(response) => response,
+                Err(e) => {
+                    log::error!("Resume Claude tail failed for run: {run_id_clone}, error: {e}");
+                    if let Ok(mut writer) =
+                        RunLogWriter::resume(&app_clone, &session_id_clone, &run_id_clone)
+                    {
+                        if let Err(e) = writer.crash() {
+                            log::error!("Failed to mark run as crashed: {e}");
                         }
-                        emit_done(&app_clone, &session_id_clone, &worktree_id_clone);
-                        return;
                     }
+                    // tail_claude_output already emitted chat:error for this.
+                    return;
                 }
             };
 
-            // Unregister from process registry now that tailing is complete
-            super::registry::unregister_process(&session_id_clone);
-
+            let completed =
+                !response.cancelled && !response.error_emitted && !response.session_not_found;
+            let has_payload = !response.content.is_empty()
+                || !response.tool_calls.is_empty()
+                || !response.content_blocks.is_empty();
             log::trace!(
-                "Resume completed for run: {run_id_clone}, resume_id: {:?}, cancelled: {cancelled}",
-                resume_id
+                "Resume completed for run: {run_id_clone}, resume_id: {:?}, cancelled: {}, error: {}",
+                response.session_id,
+                response.cancelled,
+                response.error_emitted
             );
 
-            // If tail detected dead process (cancelled=true), it skipped emitting chat:done.
-            // Emit it here so the frontend clears sending state.
-            if cancelled {
-                emit_done(&app_clone, &session_id_clone, &worktree_id_clone);
+            // Persist run status first, then emit the terminal event (same order
+            // as the send path) so a refetch on chat:done sees the final state.
+            if let Ok(mut writer) =
+                RunLogWriter::resume(&app_clone, &session_id_clone, &run_id_clone)
+            {
+                let assistant_message_id = uuid::Uuid::new_v4().to_string();
+                let resume_sid = Some(response.session_id.as_str()).filter(|id| !id.is_empty());
+                let finish = if completed {
+                    writer.complete(&assistant_message_id, resume_sid, response.usage.clone())
+                } else {
+                    // Process died, user cancelled, or the turn failed: the run did
+                    // not complete. Keep partial output and its resume id.
+                    writer.cancel(
+                        has_payload.then_some(assistant_message_id.as_str()),
+                        resume_sid.filter(|_| has_payload),
+                    )
+                };
+                if let Err(e) = finish {
+                    log::error!("Failed to finish resumed run: {e}");
+                }
+
+                // Clean up input file if it exists
+                if let Err(e) =
+                    super::run_log::delete_input_file(&app_clone, &session_id_clone, &run_id_clone)
+                {
+                    log::trace!("Could not delete input file (may not exist): {e}");
+                }
             }
 
-            // Create a RunLogWriter to update the manifest
-            {
-                if let Ok(mut writer) =
-                    RunLogWriter::resume(&app_clone, &session_id_clone, &run_id_clone)
-                {
-                    let assistant_message_id = uuid::Uuid::new_v4().to_string();
-                    let resume_sid = if resume_id.is_empty() {
-                        None
-                    } else {
-                        Some(resume_id.as_str())
-                    };
-                    if let Err(e) =
-                        writer.complete(&assistant_message_id, resume_sid, usage.clone())
-                    {
-                        log::error!("Failed to mark run as completed: {e}");
-                    }
-
-                    // Clean up input file if it exists
-                    if let Err(e) = super::run_log::delete_input_file(
-                        &app_clone,
-                        &session_id_clone,
-                        &run_id_clone,
-                    ) {
-                        log::trace!("Could not delete input file (may not exist): {e}");
-                    }
-                }
+            // Exactly one terminal event: chat:error was already emitted for a
+            // failed turn; otherwise chat:done (tail never emits it itself).
+            if !response.error_emitted {
+                let waiting_for_plan = completed
+                    && plan_mode_content_waits_for_approval(
+                        &Backend::Claude,
+                        execution_mode.as_deref(),
+                        !response.content.is_empty(),
+                        response.tool_calls.iter().any(is_pending_plan_tool_call),
+                    );
+                emit_done(waiting_for_plan);
             }
         });
     }
@@ -10556,6 +10612,7 @@ mod tests {
             }),
             output: Some("<tool_use_error>Error: No such tool available: AskUserQuestion. AskUserQuestion exists but is not enabled in this context. Use one of the available tools instead.</tool_use_error>".to_string()),
             parent_tool_use_id: None,
+            is_error: None,
         };
 
         assert!(!is_pending_blocking_tool_call(&tool));
@@ -10569,6 +10626,7 @@ mod tests {
             input: serde_json::json!({}),
             output: None,
             parent_tool_use_id: None,
+            is_error: None,
         };
 
         assert!(!is_pending_blocking_tool_call_for_mode(&tool, Some("yolo")));

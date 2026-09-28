@@ -824,21 +824,21 @@ export interface MagicPromptReasoningEfforts {
 
 /** Default models for each magic prompt */
 export const DEFAULT_MAGIC_PROMPT_MODELS: MagicPromptModels = {
-  investigate_issue_model: 'claude-opus-4-8[1m]',
-  investigate_pr_model: 'claude-opus-4-8[1m]',
-  investigate_workflow_run_model: 'claude-opus-4-8[1m]',
+  investigate_issue_model: 'claude-opus-5-5',
+  investigate_pr_model: 'claude-opus-5-5',
+  investigate_workflow_run_model: 'claude-opus-5-5',
   pr_content_model: 'sonnet',
   commit_message_model: 'sonnet',
-  code_review_model: 'claude-opus-4-8[1m]',
-  context_summary_model: 'claude-opus-4-8[1m]',
-  resolve_conflicts_model: 'claude-opus-4-8[1m]',
+  code_review_model: 'claude-opus-5-5',
+  context_summary_model: 'claude-opus-5-5',
+  resolve_conflicts_model: 'claude-opus-5-5',
   release_notes_model: 'sonnet',
   session_naming_model: 'sonnet',
-  investigate_security_alert_model: 'claude-opus-4-8[1m]',
-  investigate_advisory_model: 'claude-opus-4-8[1m]',
-  investigate_linear_issue_model: 'claude-opus-4-8[1m]',
-  investigate_sentry_issue_model: 'claude-opus-4-8[1m]',
-  review_comments_model: 'claude-opus-4-8[1m]',
+  investigate_security_alert_model: 'claude-opus-5-5',
+  investigate_advisory_model: 'claude-opus-5-5',
+  investigate_linear_issue_model: 'claude-opus-5-5',
+  investigate_sentry_issue_model: 'claude-opus-5-5',
+  review_comments_model: 'claude-opus-5-5',
 }
 
 function makeMagicPromptModelsPreset(
@@ -1480,6 +1480,7 @@ export type ClaudeModel =
   | 'sonnet'
   | 'claude-sonnet-4-6'
   | 'claude-sonnet-4-6[1m]'
+  | 'claude-haiku-4-5'
   | 'haiku'
 
 export const modelOptions: { value: ClaudeModel; label: string }[] = [
@@ -1497,6 +1498,7 @@ export const modelOptions: { value: ClaudeModel; label: string }[] = [
   { value: 'claude-opus-4-5-20251101', label: 'Claude Opus 4.5' },
   { value: 'claude-sonnet-4-6[1m]', label: 'Claude Sonnet 4.6 (1M)' },
   { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
+  { value: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
   { value: 'haiku', label: 'Claude Haiku' },
 ]
 
@@ -1513,8 +1515,19 @@ const knownClaudeModels = new Set<string>([
   'opus',
 ])
 
+/** Default Claude model when none (or an invalid one) is configured. */
+export const DEFAULT_CLAUDE_MODEL: ClaudeModel = 'claude-opus-5-5'
+
+/** Plausible Claude model id: `claude-...` with optional `[1m]` / `-fast`. */
+const CLAUDE_MODEL_ID_PATTERN = /^claude-[a-z0-9][a-z0-9.-]*(\[1m\])?(-fast)?$/i
+
 /**
  * Normalize a Claude model id.
+ *
+ * Known ids and unknown-but-plausible `claude-*` ids (e.g. models newer than
+ * this build) pass through unchanged, so a stored choice is never silently
+ * swapped for a different (possibly costlier) model. Only empty/invalid values
+ * fall back to `DEFAULT_CLAUDE_MODEL`.
  *
  * When `preserveProviderAliases` is true (custom CLI provider is active), keep
  * the Claude Code aliases `opus` / `sonnet` / `haiku` so they resolve through
@@ -1532,15 +1545,17 @@ export function normalizeClaudeModel(
     return model
   }
 
-  if (model in legacyClaudeDefaultModelMap) {
+  if (typeof model !== 'string') return DEFAULT_CLAUDE_MODEL
+
+  if (Object.hasOwn(legacyClaudeDefaultModelMap, model)) {
     return legacyClaudeDefaultModelMap[
       model as keyof typeof legacyClaudeDefaultModelMap
     ]
   }
 
-  return knownClaudeModels.has(model)
+  return knownClaudeModels.has(model) || CLAUDE_MODEL_ID_PATTERN.test(model)
     ? (model as ClaudeModel)
-    : 'claude-opus-4-8[1m]'
+    : DEFAULT_CLAUDE_MODEL
 }
 
 /** Claude model options for a custom CLI profile (opus/sonnet/haiku aliases). */
@@ -2322,7 +2337,7 @@ export function getEditorLabel(editor: EditorApp | undefined): string {
 
 export const defaultPreferences: AppPreferences = {
   theme: 'system',
-  selected_model: 'claude-opus-4-8[1m]',
+  selected_model: 'claude-opus-5-5',
   thinking_level: 'ultrathink',
   default_effort_level: 'high',
   terminal: isServerWindows() ? 'powershell' : 'terminal',

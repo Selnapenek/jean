@@ -7672,38 +7672,11 @@ pub async fn cancel_create_pr_with_ai_content(worktree_path: String) -> Result<b
 }
 
 /// Extract structured output from Claude CLI stream-json response
-/// Handles the StructuredOutput tool call pattern used with --json-schema
+/// (`--json-schema`: final `result.structured_output`, else last StructuredOutput call).
 fn extract_structured_output(output: &str) -> Result<String, String> {
-    for line in output.lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-
-        let parsed: serde_json::Value = match serde_json::from_str(line) {
-            Ok(v) => v,
-            Err(_) => continue,
-        };
-
-        if parsed.get("type").and_then(|t| t.as_str()) == Some("assistant") {
-            if let Some(message) = parsed.get("message") {
-                if let Some(content) = message.get("content").and_then(|c| c.as_array()) {
-                    for block in content {
-                        if block.get("type").and_then(|t| t.as_str()) == Some("tool_use")
-                            && block.get("name").and_then(|n| n.as_str())
-                                == Some("StructuredOutput")
-                        {
-                            if let Some(input) = block.get("input") {
-                                return Ok(input.to_string());
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    Err("No structured output found in Claude response".to_string())
+    crate::chat::claude::extract_claude_structured_output(output)
+        .map(|value| value.to_string())
+        .ok_or_else(|| "No structured output found in Claude response".to_string())
 }
 
 fn extract_claude_stream_error(stdout: &str) -> Option<String> {

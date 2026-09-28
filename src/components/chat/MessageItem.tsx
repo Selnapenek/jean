@@ -625,6 +625,7 @@ export const MessageItem = memo(function MessageItem({
                                 taskToolCall={item.taskTool}
                                 subToolCalls={item.subTools}
                                 allToolCalls={message.tool_calls ?? []}
+                                nestedSubTools={item.nestedSubTools}
                                 onFileClick={onFileClick}
                                 isStreaming={false}
                               />

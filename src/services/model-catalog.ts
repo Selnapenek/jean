@@ -123,10 +123,10 @@ function getBundledReasoning(
         ? GPT_5_6_LUNA_EFFORT_LEVELS
         : GPT_5_6_EFFORT_LEVELS
       : isGpt56
-      ? model.includes('luna')
-        ? GPT_5_6_LUNA_EFFORT_LEVELS
-        : GPT_5_6_EFFORT_LEVELS
-      : STANDARD_EFFORT_LEVELS
+        ? model.includes('luna')
+          ? GPT_5_6_LUNA_EFFORT_LEVELS
+          : GPT_5_6_EFFORT_LEVELS
+        : STANDARD_EFFORT_LEVELS
     return {
       type: 'effort',
       default: isGpt6 || isGpt56 ? 'medium' : 'high',
@@ -169,7 +169,7 @@ const fallbackModelCatalog: ModelCatalog = {
   version: 1,
   updated_at: 'bundled',
   defaults: {
-    claude: 'claude-opus-4-8[1m]',
+    claude: 'claude-opus-5-5',
     codex: 'gpt-5.6-sol',
     opencode: 'opencode/gpt-5.6-sol',
     grok: 'grok/grok-4.6',

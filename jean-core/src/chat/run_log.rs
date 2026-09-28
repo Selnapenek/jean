@@ -5,7 +5,7 @@
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use uuid::Uuid;
@@ -601,6 +601,23 @@ pub fn get_run_log_path(
     Ok(session_dir.join(format!("{run_id}.jsonl")))
 }
 
+/// Drop everything after the `_run_meta` header of a run's output file.
+///
+/// Used before retrying a Claude run in the same output file (e.g. after a
+/// stale `--resume` id), so the retry's tailer does not re-read the failed
+/// attempt's output and history replay does not show it.
+pub fn truncate_run_output_to_header(path: &Path) -> Result<(), String> {
+    let contents =
+        fs::read_to_string(path).map_err(|e| format!("Failed to read run output: {e}"))?;
+    let header: String = contents
+        .lines()
+        .next()
+        .filter(|line| line.contains("\"_run_meta\""))
+        .map(|line| format!("{line}\n"))
+        .unwrap_or_default();
+    fs::write(path, header).map_err(|e| format!("Failed to truncate run output: {e}"))
+}
+
 /// Read all lines from a run's JSONL file
 pub fn read_run_log(
     app: &tauri::AppHandle,
@@ -625,6 +642,8 @@ pub fn read_run_log(
 ///
 /// Content can be a plain string (most tools) OR an array of content blocks
 /// (Task/Agent subagent reports return `[{ "type": "text", "text": "..." }]`).
+/// Image blocks become an `[image]` placeholder so image-only results
+/// (e.g. screenshots) are not empty.
 /// Shared by live streaming and history rebuild so reloaded sessions keep reports.
 pub(crate) fn tool_result_content_to_string(content: &serde_json::Value) -> String {
     if let Some(s) = content.as_str() {
@@ -633,19 +652,24 @@ pub(crate) fn tool_result_content_to_string(content: &serde_json::Value) -> Stri
     if let Some(arr) = content.as_array() {
         return arr
             .iter()
-            .filter_map(|item| {
-                if item.get("type").and_then(|t| t.as_str()) == Some("text") {
-                    item.get("text")
-                        .and_then(|t| t.as_str())
-                        .map(|s| s.to_string())
-                } else {
-                    None
-                }
+            .filter_map(|item| match item.get("type").and_then(|t| t.as_str()) {
+                Some("text") => item
+                    .get("text")
+                    .and_then(|t| t.as_str())
+                    .map(|s| s.to_string()),
+                Some("image") => Some("[image]".to_string()),
+                _ => None,
             })
             .collect::<Vec<_>>()
             .join("\n");
     }
     String::new()
+}
+
+/// `Some(true)` when a tool_result block is flagged `is_error: true`, else `None`.
+/// Shared by live streaming and history rebuild.
+pub(crate) fn tool_result_is_error(block: &serde_json::Value) -> Option<bool> {
+    (block.get("is_error").and_then(|v| v.as_bool()) == Some(true)).then_some(true)
 }
 
 /// Parse JSONL lines and build a ChatMessage
@@ -775,6 +799,19 @@ pub fn parse_run_to_message(lines: &[String], run: &RunEntry) -> Result<ChatMess
                 }
             }
             "assistant" => {
+                // Synthetic API-error message from Claude CLI (top-level `error`
+                // code, not a subagent). Live streaming reports it as chat:error
+                // and keeps it out of the reply; mirror that here.
+                if msg.get("error").and_then(|v| v.as_str()).is_some()
+                    && current_parent_tool_use_id.is_none()
+                {
+                    continue;
+                }
+
+                // Subagent (Task/Agent) text and thinking are not part of the
+                // main reply (live streaming skips them too). Tool calls stay.
+                let is_subagent = current_parent_tool_use_id.is_some();
+
                 // Text-routing gate (mirrors live-stream logic): if ANY armed
                 // Monitor has initial_turn_finished=true, this assistant turn
                 // is a per-notification wake-up, so skip its text from chat.
@@ -787,7 +824,7 @@ pub fn parse_run_to_message(lines: &[String], run: &RunEntry) -> Result<ChatMess
                                 block.get("type").and_then(|v| v.as_str()).unwrap_or("");
 
                             match block_type {
-                                "text" => {
+                                "text" if !is_subagent => {
                                     if let Some(text) = block.get("text").and_then(|v| v.as_str()) {
                                         // Skip CLI placeholder text emitted when extended
                                         // thinking starts before any real text content
@@ -893,11 +930,12 @@ pub fn parse_run_to_message(lines: &[String], run: &RunEntry) -> Result<ChatMess
                                         input,
                                         output: None,
                                         parent_tool_use_id: current_parent_tool_use_id.clone(),
+                                        is_error: None,
                                     });
 
                                     content_blocks.push(ContentBlock::ToolUse { tool_call_id: id });
                                 }
-                                "thinking" => {
+                                "thinking" if !is_subagent => {
                                     // Newer Claude models emit an empty thinking block
                                     // before the real one. Live streaming skips it, so
                                     // the snapshot must too or reopen merges duplicate.
@@ -963,6 +1001,7 @@ pub fn parse_run_to_message(lines: &[String], run: &RunEntry) -> Result<ChatMess
                                 {
                                     // Non-Monitor tool: normal output update
                                     tc.output = Some(output);
+                                    tc.is_error = is_error.then_some(true);
                                 }
                             }
                         }
@@ -980,8 +1019,10 @@ pub fn parse_run_to_message(lines: &[String], run: &RunEntry) -> Result<ChatMess
                 if let Some(dur) = msg.get("duration_ms").and_then(|v| v.as_u64()) {
                     last_ms = last_ms.saturating_add(dur);
                 }
-                // Use result if we somehow missed content
-                if content.is_empty() {
+                // Use result if we somehow missed content. Error results
+                // (`is_error: true`) are failures, not reply text.
+                let is_error_result = msg.get("is_error").and_then(|v| v.as_bool()) == Some(true);
+                if content.is_empty() && !is_error_result {
                     if let Some(result) = msg.get("result").and_then(|v| v.as_str()) {
                         content = result.to_string();
                     }
@@ -1262,6 +1303,7 @@ fn inject_synthetic_exit_plan(backend: &Backend, run_id: &str, assistant_msg: &m
         input,
         output: None,
         parent_tool_use_id: None,
+        is_error: None,
     });
     assistant_msg.content_blocks.push(ContentBlock::ToolUse {
         tool_call_id: synthetic_id,
@@ -2007,6 +2049,7 @@ Move services between instances without downtime.
             input: serde_json::json!({"plan": "keep existing"}),
             output: None,
             parent_tool_use_id: None,
+            is_error: None,
         });
 
         assert!(!should_inject_synthetic_exit_plan(
@@ -2303,11 +2346,171 @@ Move services between instances without downtime.
                 { "type": "image", "source": {} },
                 { "type": "text", "text": "b" }
             ])),
-            "a\nb"
+            "a\n[image]\nb"
+        );
+        assert_eq!(
+            tool_result_content_to_string(&serde_json::json!([
+                { "type": "image", "source": {} }
+            ])),
+            "[image]"
         );
         assert_eq!(
             tool_result_content_to_string(&serde_json::json!({ "unexpected": true })),
             ""
+        );
+    }
+
+    #[test]
+    fn tool_result_is_error_only_flags_true() {
+        assert_eq!(
+            tool_result_is_error(&serde_json::json!({ "is_error": true })),
+            Some(true)
+        );
+        assert_eq!(
+            tool_result_is_error(&serde_json::json!({ "is_error": false })),
+            None
+        );
+        assert_eq!(tool_result_is_error(&serde_json::json!({})), None);
+    }
+
+    #[test]
+    fn parse_run_skips_subagent_text_and_thinking_but_keeps_its_tools() {
+        let run = sample_run();
+        let lines = vec![
+            serde_json::json!({
+                "type": "assistant",
+                "parent_tool_use_id": null,
+                "message": { "content": [
+                    { "type": "text", "text": "Main reply" },
+                    { "type": "tool_use", "id": "toolu_task", "name": "Task", "input": {} }
+                ]}
+            })
+            .to_string(),
+            serde_json::json!({
+                "type": "assistant",
+                "parent_tool_use_id": "toolu_task",
+                "message": { "content": [
+                    { "type": "thinking", "thinking": "subagent thinking" },
+                    { "type": "text", "text": "subagent text" },
+                    { "type": "tool_use", "id": "toolu_sub_read", "name": "Read", "input": {} }
+                ]}
+            })
+            .to_string(),
+        ];
+
+        let msg = parse_run_to_message(&lines, &run).unwrap();
+
+        assert_eq!(msg.content, "Main reply");
+        assert!(!msg
+            .content_blocks
+            .iter()
+            .any(|b| matches!(b, ContentBlock::Thinking { .. })));
+        assert_eq!(msg.tool_calls.len(), 2);
+        assert_eq!(
+            msg.tool_calls[1].parent_tool_use_id.as_deref(),
+            Some("toolu_task")
+        );
+    }
+
+    #[test]
+    fn parse_run_marks_errored_tool_results() {
+        let run = sample_run();
+        let lines = vec![
+            serde_json::json!({
+                "type": "assistant",
+                "message": { "content": [
+                    { "type": "tool_use", "id": "toolu_ok", "name": "Bash", "input": {} },
+                    { "type": "tool_use", "id": "toolu_bad", "name": "Bash", "input": {} }
+                ]}
+            })
+            .to_string(),
+            serde_json::json!({
+                "type": "user",
+                "message": { "content": [
+                    { "type": "tool_result", "tool_use_id": "toolu_ok", "content": "fine" },
+                    { "type": "tool_result", "tool_use_id": "toolu_bad", "is_error": true, "content": "exit 1" }
+                ]}
+            })
+            .to_string(),
+        ];
+
+        let msg = parse_run_to_message(&lines, &run).unwrap();
+
+        assert_eq!(msg.tool_calls[0].is_error, None);
+        assert_eq!(msg.tool_calls[1].is_error, Some(true));
+        assert_eq!(msg.tool_calls[1].output.as_deref(), Some("exit 1"));
+    }
+
+    #[test]
+    fn parse_run_does_not_use_error_results_or_api_errors_as_content() {
+        let run = sample_run();
+        let error_result = vec![serde_json::json!({
+            "type": "result",
+            "subtype": "error_max_turns",
+            "is_error": true,
+            "result": "Reached max turns"
+        })
+        .to_string()];
+        assert_eq!(
+            parse_run_to_message(&error_result, &run).unwrap().content,
+            ""
+        );
+
+        let api_error_after_partial = vec![
+            serde_json::json!({
+                "type": "assistant",
+                "message": { "content": [{ "type": "text", "text": "Partial" }] }
+            })
+            .to_string(),
+            serde_json::json!({
+                "type": "assistant",
+                "error": "overloaded_error",
+                "parent_tool_use_id": null,
+                "message": { "content": [{ "type": "text", "text": "API Error: Overloaded" }] }
+            })
+            .to_string(),
+            serde_json::json!({
+                "type": "result",
+                "subtype": "success",
+                "is_error": true,
+                "result": "API Error: Overloaded"
+            })
+            .to_string(),
+        ];
+        assert_eq!(
+            parse_run_to_message(&api_error_after_partial, &run)
+                .unwrap()
+                .content,
+            "Partial"
+        );
+
+        let success = vec![serde_json::json!({
+            "type": "result",
+            "subtype": "success",
+            "is_error": false,
+            "result": "Done"
+        })
+        .to_string()];
+        assert_eq!(
+            parse_run_to_message(&success, &run).unwrap().content,
+            "Done"
+        );
+    }
+
+    #[test]
+    fn truncate_run_output_keeps_only_meta_header() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(
+            file.path(),
+            "{\"_run_meta\":true,\"run_id\":\"r1\"}\nNo conversation found with session ID: abc\n",
+        )
+        .unwrap();
+
+        truncate_run_output_to_header(file.path()).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(file.path()).unwrap(),
+            "{\"_run_meta\":true,\"run_id\":\"r1\"}\n"
         );
     }
 

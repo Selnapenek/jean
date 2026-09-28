@@ -576,7 +576,7 @@ fn default_font_weight() -> String {
 }
 
 fn default_model() -> String {
-    "claude-opus-4-8[1m]".to_string()
+    "claude-opus-5-5".to_string()
 }
 
 fn migrate_default_claude_model(model: &str) -> Option<&'static str> {
@@ -2355,7 +2355,7 @@ impl Default for MagicPromptModels {
 
 impl MagicPromptModels {
     /// Upgrade previous Opus defaults left on existing installs to the current
-    /// default (`"claude-opus-4-8[1m]"`). Users who explicitly picked non-Opus
+    /// default (`default_model()`). Users who explicitly picked non-Opus
     /// default models are untouched. Returns true if any field changed.
     fn migrate_legacy_defaults(&mut self) -> bool {
         let new_opus = default_model();
@@ -3294,7 +3294,7 @@ async fn load_preferences(app: AppHandle) -> Result<AppPreferences, String> {
         preferences.selected_model = new_model.to_string();
         needs_resave = true;
     }
-    // Migrate legacy magic-prompt model names ("opus" → "claude-opus-4-8[1m]")
+    // Migrate legacy magic-prompt model names ("opus" → default_model())
     // and legacy auto-naming models ("haiku" → "sonnet")
     needs_resave |= preferences.magic_prompt_models.migrate_legacy_defaults();
     if preferences.branch_naming_model == "haiku" {

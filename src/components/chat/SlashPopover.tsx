@@ -131,13 +131,7 @@ export function SlashPopover({
     }
 
     return items.slice(0, 15)
-  }, [
-    backendGroups,
-    searchQuery,
-    isAtPromptStart,
-    sessionBackend,
-    triggerKind,
-  ])
+  }, [backendGroups, searchQuery, isAtPromptStart, sessionBackend, triggerKind])
 
   const renderGroups = useMemo(() => {
     const groups: RenderGroup[] = []
@@ -308,9 +302,9 @@ export function SlashPopover({
                           )}
                         >
                           {isCommand ? (
-                            <Terminal className="h-4 w-4 shrink-0 text-blue-500" />
+                            <Terminal className="h-4 w-4 shrink-0 text-muted-foreground" />
                           ) : (
-                            <Wand2 className="h-4 w-4 shrink-0 text-purple-500" />
+                            <Wand2 className="h-4 w-4 shrink-0 text-purple-600 dark:text-purple-400" />
                           )}
                           <div className="flex flex-col min-w-0">
                             <span className="truncate text-sm font-medium">

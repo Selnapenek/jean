@@ -93,7 +93,7 @@ export function ScriptsButton({
                   className={cn(
                     'h-3.5 w-3.5',
                     favoriteScriptNames.has(script.name) &&
-                      'fill-yellow-500 text-yellow-500'
+                      'fill-warning text-warning'
                   )}
                 />
               </button>

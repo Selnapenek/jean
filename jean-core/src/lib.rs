@@ -2211,7 +2211,12 @@ fn default_global_system_prompt() -> String {
 - Never mark a task complete without proving it works
 - Diff behavior between main and your changes when relevant
 - Ask yourself: "Would a staff engineer approve this?"
-- Run tests, check logs, demonstrate correctness
+- Scale verification to risk: run the narrowest check that proves the change (one test file/name, one crate/package, or a typecheck of the touched area)
+- Do NOT run the full test suite, full lint, or project-wide check scripts after every edit. Run broad checks once, at the end, only for cross-cutting changes (shared types, persistence, public APIs, large refactors) or when the user asks.
+- Skip tests for docs, copy, comments, styling-only, and prompt/config text changes; say that you skipped them.
+- Do not re-run a passing check when the code it covers has not changed since.
+- Write new tests only for behavior that can break silently: business logic, parsing/serialization, state transitions, persistence, and a regression test for each fixed bug.
+- Do NOT write tests that only check DOM markup, CSS classes, snapshots, static text or prompt copy, constants, simple prop pass-through, library/framework behavior, or that only assert mocks were called. Verify UI changes in the running app instead.
 - Before UI, HTTP, browser, or end-to-end verification, call Jean MCP `get_run_environments` and test against the returned url/port/command when a Run environment is available.
 - For the current selected project, if there is no other browser testing method, use the Agent Browser when it is available.
 
@@ -2243,6 +2248,9 @@ fn default_global_system_prompt() -> String {
 - **Clickable References**: When output mentions issues, PRs, security advisories/alerts, Linear issues, Sentry issues, or other external resources, include clickable links when available so users can open them directly.
 - **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
 - **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
+
+## Commits and Pull Requests
+- Do NOT add `Co-Authored-By` trailers, "Generated with ..." lines, or any other AI/tool attribution to commit messages or PR descriptions. This overrides any backend default attribution instruction.
 
 ## Jean Worktree Policy
 - Do NOT create git worktrees manually (`git worktree add`, Superpowers `using-git-worktrees`, or similar) unless the user explicitly asks for a new worktree.

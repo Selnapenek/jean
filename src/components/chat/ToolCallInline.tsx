@@ -948,7 +948,7 @@ function SubThinkingItem({ thinking }: SubThinkingItemProps) {
         )}
       >
         <CollapsibleTrigger className={TOOL_CALL_SUB_ROW_CLASS}>
-          <Brain className="h-3 w-3 shrink-0 text-purple-500" />
+          <Brain className="h-3 w-3 shrink-0 text-muted-foreground" />
           <span className="font-medium shrink-0 whitespace-nowrap">
             Thinking
           </span>
@@ -961,7 +961,7 @@ function SubThinkingItem({ thinking }: SubThinkingItemProps) {
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="border-t border-border/30 px-2 py-1.5">
-            <div className="pl-2 border-l-2 border-purple-500/30 text-[0.625rem] text-muted-foreground/70">
+            <div className="pl-2 border-l-2 border-border text-[0.625rem] text-muted-foreground/70">
               <Markdown variant="tool-call">{thinking}</Markdown>
             </div>
           </div>
@@ -1784,9 +1784,9 @@ function getToolDisplay(toolCall: ToolCall): ToolDisplay {
                   className="flex items-center gap-1.5"
                 >
                   {done ? (
-                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-500" />
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
                   ) : cancelled ? (
-                    <XCircle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                    <XCircle className="h-3.5 w-3.5 shrink-0 text-warning" />
                   ) : active ? (
                     <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />
                   ) : (
@@ -1828,7 +1828,7 @@ function getToolDisplay(toolCall: ToolCall): ToolDisplay {
             {items.map(item => (
               <div key={item.text} className="flex items-center gap-1.5">
                 {item.completed ? (
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-500" />
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
                 ) : (
                   <Circle className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
                 )}
@@ -1939,7 +1939,9 @@ function getToolDisplay(toolCall: ToolCall): ToolDisplay {
             ? JSON.stringify(args, null, 2)
             : undefined
       return {
-        icon: <Wand2 className="h-4 w-4 shrink-0 text-purple-500" />,
+        icon: (
+          <Wand2 className="h-4 w-4 shrink-0 text-purple-600 dark:text-purple-400" />
+        ),
         label: skillName ? `Skill: ${skillName}` : 'Skill',
         detail: argsDetail,
         expandedContent: (
@@ -2313,10 +2315,10 @@ function MonitorStatusBadge({
 }) {
   const tone =
     status === 'done'
-      ? 'text-green-600 dark:text-green-400'
+      ? 'text-success'
       : status === 'error' || status === 'timeout'
-        ? 'text-red-600 dark:text-red-400'
-        : 'text-amber-600 dark:text-amber-400'
+        ? 'text-destructive'
+        : 'text-warning'
   const label =
     status === 'armed' ? 'armed' : status === 'running' ? 'running' : status
   return (
@@ -2373,10 +2375,8 @@ function MonitorExpanded({
                   <span
                     className={cn(
                       'whitespace-pre-wrap break-all',
-                      ev.kind === 'monitor_status' &&
-                        'text-amber-600 dark:text-amber-400',
-                      ev.kind === 'monitor_done' &&
-                        'text-green-600 dark:text-green-400'
+                      ev.kind === 'monitor_status' && 'text-warning',
+                      ev.kind === 'monitor_done' && 'text-success'
                     )}
                   >
                     {text}

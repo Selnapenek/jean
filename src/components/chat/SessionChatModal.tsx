@@ -1275,7 +1275,7 @@ export function SessionChatModal({
                 <button
                   type="button"
                   onClick={() => scrollToFirstWaiting('left')}
-                  className="absolute left-0 top-0 bottom-0 w-1 bg-yellow-500 animate-blink rounded-r z-10 cursor-pointer"
+                  className="absolute left-0 top-0 bottom-0 w-1 bg-warning animate-blink rounded-r z-10 cursor-pointer"
                   aria-label="Scroll to waiting session"
                 />
               )}
@@ -1283,7 +1283,7 @@ export function SessionChatModal({
                 <button
                   type="button"
                   onClick={() => scrollToFirstWaiting('right')}
-                  className="absolute right-0 top-0 bottom-0 w-1 bg-yellow-500 animate-blink rounded-l z-10 cursor-pointer"
+                  className="absolute right-0 top-0 bottom-0 w-1 bg-warning animate-blink rounded-l z-10 cursor-pointer"
                   aria-label="Scroll to waiting session"
                 />
               )}
@@ -1326,7 +1326,7 @@ export function SessionChatModal({
                                 isUnreadSession(session) &&
                                 'bg-muted/60 text-foreground/90 hover:bg-muted/80',
                               isActionableWaitingStatus(status) &&
-                                'bg-yellow-500/10 text-yellow-700 border-yellow-500 hover:bg-yellow-500/20 hover:text-yellow-800 dark:bg-yellow-400/10 dark:text-yellow-300 dark:border-yellow-400 dark:hover:bg-yellow-400/20 dark:hover:text-yellow-200'
+                                'bg-warning/10 text-warning border-warning hover:bg-warning/20 hover:text-warning'
                             )}
                           >
                             <StatusIndicator

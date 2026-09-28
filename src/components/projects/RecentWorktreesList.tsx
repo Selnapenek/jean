@@ -347,9 +347,9 @@ export function RecentWorktreesList({
             })
             const statusClassName =
               status.tone === 'waiting'
-                ? 'text-amber-600 dark:text-amber-400'
+                ? 'text-warning'
                 : status.tone === 'failed'
-                  ? 'text-red-600 dark:text-red-400'
+                  ? 'text-destructive'
                   : 'text-muted-foreground'
             const isWorking = status.tone === 'working'
             const isUnread = isUnreadSession(row.session)
@@ -406,7 +406,7 @@ export function RecentWorktreesList({
                       {isUnread && (
                         <BellDot
                           aria-label="Unread session"
-                          className="size-3.5 shrink-0 text-yellow-400"
+                          className="size-3.5 shrink-0 text-warning"
                         />
                       )}
                       {isWorking ? (
@@ -459,8 +459,10 @@ export function RecentWorktreesList({
                     <span className="flex gap-1 text-[10px] font-medium tabular-nums">
                       {(row.added > 0 || row.removed > 0) && (
                         <>
-                          <span className="text-green-500">+{row.added}</span>
-                          <span className="text-red-500">-{row.removed}</span>
+                          <span className="text-success">+{row.added}</span>
+                          <span className="text-destructive">
+                            -{row.removed}
+                          </span>
                         </>
                       )}
                     </span>
@@ -481,7 +483,7 @@ export function RecentWorktreesList({
           {failedCount > 0 && (
             <div
               role="status"
-              className="flex items-center justify-center gap-1 text-[11px] text-amber-600"
+              className="flex items-center justify-center gap-1 text-[11px] text-warning"
             >
               <AlertTriangle className="size-3" /> Some recent sessions could
               not load.{' '}

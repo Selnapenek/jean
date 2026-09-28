@@ -724,7 +724,7 @@ export function WorktreeItem({
                 <button
                   type="button"
                   onClick={handleSync}
-                  className="shrink-0 rounded bg-violet-500/10 px-1.5 py-0.5 text-[11px] font-medium text-violet-500 transition-colors hover:bg-violet-500/20"
+                  className="shrink-0 rounded bg-violet-500/10 px-1.5 py-0.5 text-[11px] font-medium text-violet-600 dark:text-violet-400 transition-colors hover:bg-violet-500/20"
                 >
                   <span className="flex items-center gap-0.5">
                     <ArrowDownUp className="h-3 w-3" />
@@ -779,7 +779,7 @@ export function WorktreeItem({
                     <button
                       type="button"
                       onClick={handlePush}
-                      className="shrink-0 rounded bg-orange-500/10 px-1.5 py-0.5 text-[11px] font-medium text-orange-500 transition-colors hover:bg-orange-500/20"
+                      className="shrink-0 rounded bg-warning/10 px-1.5 py-0.5 text-[11px] font-medium text-warning transition-colors hover:bg-warning/20"
                     >
                       <span className="flex items-center gap-0.5">
                         <ArrowUp className="h-3 w-3" />
@@ -798,9 +798,11 @@ export function WorktreeItem({
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="inline-flex shrink-0 items-center gap-0.5 text-[11px] font-medium">
-                  <span className="text-green-500">+{uncommittedAdded}</span>
+                  <span className="text-success">+{uncommittedAdded}</span>
                   <span className="text-muted-foreground">/</span>
-                  <span className="text-red-500">-{uncommittedRemoved}</span>
+                  <span className="text-destructive">
+                    -{uncommittedRemoved}
+                  </span>
                 </span>
               </TooltipTrigger>
               <TooltipContent>{`Uncommitted: +${uncommittedAdded}/-${uncommittedRemoved} lines`}</TooltipContent>

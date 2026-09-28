@@ -9,14 +9,14 @@ export function getPrStatusDisplay(status: PrDisplayStatus): {
     case 'draft':
       return { label: 'Draft', className: 'text-muted-foreground' }
     case 'open':
-      return { label: 'Open', className: 'text-green-600 dark:text-green-500' }
+      return { label: 'Open', className: 'text-success' }
     case 'merged':
       return {
         label: 'Merged',
         className: 'text-purple-600 dark:text-purple-400',
       }
     case 'closed':
-      return { label: 'Closed', className: 'text-red-600 dark:text-red-400' }
+      return { label: 'Closed', className: 'text-destructive' }
     default:
       return { label: 'Unknown', className: 'text-muted-foreground' }
   }

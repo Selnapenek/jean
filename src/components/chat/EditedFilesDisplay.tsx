@@ -322,13 +322,13 @@ export const EditedFilesDisplay = memo(function EditedFilesDisplay({
                       {stats &&
                         (stats.additions > 0 || stats.deletions > 0) && (
                           <span className="flex shrink-0 items-center font-mono text-xs opacity-80">
-                            <span className="text-green-500">
+                            <span className="text-success">
                               +{stats.additions}
                             </span>
                             <span className="text-muted-foreground mx-0.5">
                               /
                             </span>
-                            <span className="text-red-500">
+                            <span className="text-destructive">
                               -{stats.deletions}
                             </span>
                           </span>

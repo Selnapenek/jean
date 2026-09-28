@@ -323,7 +323,7 @@ export function WorktreeDropdownMenu({
                           className={cn(
                             'h-3.5 w-3.5',
                             favoriteScriptNames.has(script.name) &&
-                              'fill-yellow-500 text-yellow-500'
+                              'fill-warning text-warning'
                           )}
                         />
                       </button>
@@ -350,8 +350,10 @@ export function WorktreeDropdownMenu({
               <span>Git</span>
               {hasDiff && (
                 <span className="ml-auto text-xs">
-                  <span className="text-green-500">+{uncommittedAdded}</span>{' '}
-                  <span className="text-red-500">-{uncommittedRemoved}</span>
+                  <span className="text-success">+{uncommittedAdded}</span>{' '}
+                  <span className="text-destructive">
+                    -{uncommittedRemoved}
+                  </span>
                 </span>
               )}
             </DropdownMenuItem>
@@ -362,26 +364,26 @@ export function WorktreeDropdownMenu({
               <GitBranch className="mr-2 h-4 w-4" />
               <span>Branch diff</span>
               <span className="ml-auto text-xs">
-                <span className="text-green-500">+{branchDiffAdded}</span>
+                <span className="text-success">+{branchDiffAdded}</span>
                 {' / '}
-                <span className="text-red-500">-{branchDiffRemoved}</span>
+                <span className="text-destructive">-{branchDiffRemoved}</span>
               </span>
             </DropdownMenuItem>
           )}
 
           <DropdownMenuItem onClick={handleOpenIssues}>
-            <CircleDot className="mr-2 h-4 w-4 text-green-600" />
+            <CircleDot className="mr-2 h-4 w-4 text-success" />
             {issueCount > 0 ? `${issueCount} Issues` : 'Issues'}
           </DropdownMenuItem>
 
           <DropdownMenuItem onClick={handleOpenPRs}>
-            <GitPullRequestArrow className="mr-2 h-4 w-4 text-blue-600" />
+            <GitPullRequestArrow className="mr-2 h-4 w-4 text-info" />
             {prCount > 0 ? `${prCount} Pull Requests` : 'Pull Requests'}
           </DropdownMenuItem>
 
           <DropdownMenuItem onClick={handleOpenWorkflowRuns}>
             {failedWorkflowCount > 0 ? (
-              <AlertCircle className="mr-2 h-4 w-4 text-red-600" />
+              <AlertCircle className="mr-2 h-4 w-4 text-destructive" />
             ) : (
               <Activity className="mr-2 h-4 w-4" />
             )}
@@ -394,7 +396,7 @@ export function WorktreeDropdownMenu({
 
           {(showMobileGitHubItems || securityCount > 0) && (
             <DropdownMenuItem onClick={handleOpenSecurity}>
-              <ShieldAlert className="mr-2 h-4 w-4 text-orange-600" />
+              <ShieldAlert className="mr-2 h-4 w-4 text-warning" />
               {securityCount > 0 ? `${securityCount} Security` : 'Security'}
             </DropdownMenuItem>
           )}

@@ -384,7 +384,7 @@ export const WebAccessPane: React.FC = () => {
                 <div
                   className={`h-2 w-2 rounded-full ${
                     serverStatus?.running
-                      ? 'bg-green-500'
+                      ? 'bg-success'
                       : 'bg-muted-foreground/40'
                   }`}
                 />
@@ -477,9 +477,9 @@ export const WebAccessPane: React.FC = () => {
           </InlineField>
 
           {!tokenRequired && (
-            <div className="flex items-start gap-3 rounded-md border border-amber-500/50 bg-amber-500/10 p-3">
-              <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
-              <div className="text-sm text-amber-600 dark:text-amber-400">
+            <div className="flex items-start gap-3 rounded-md border border-warning/50 bg-warning/10 p-3">
+              <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
+              <div className="text-sm text-warning">
                 <strong>Security Warning:</strong> Anyone on your network can
                 access Jean without authentication. Only disable this on trusted
                 networks.

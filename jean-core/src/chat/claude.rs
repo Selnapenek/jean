@@ -56,7 +56,12 @@ Always use ASD-STE100 Simplified Technical English when you talk to me.\n\
 - Never mark a task complete without proving it works\n\
 - Diff behavior between main and your changes when relevant\n\
 - Ask yourself: \"Would a staff engineer approve this?\"\n\
-- Run tests, check logs, demonstrate correctness\n\
+- Scale verification to risk: run the narrowest check that proves the change (one test file/name, one crate/package, or a typecheck of the touched area)\n\
+- Do NOT run the full test suite, full lint, or project-wide check scripts after every edit. Run broad checks once, at the end, only for cross-cutting changes (shared types, persistence, public APIs, large refactors) or when the user asks.\n\
+- Skip tests for docs, copy, comments, styling-only, and prompt/config text changes; say that you skipped them.\n\
+- Do not re-run a passing check when the code it covers has not changed since.\n\
+- Write new tests only for behavior that can break silently: business logic, parsing/serialization, state transitions, persistence, and a regression test for each fixed bug.\n\
+- Do NOT write tests that only check DOM markup, CSS classes, snapshots, static text or prompt copy, constants, simple prop pass-through, library/framework behavior, or that only assert mocks were called. Verify UI changes in the running app instead.\n\
 - Before UI, HTTP, browser, or end-to-end verification, call Jean MCP `get_run_environments` and test against the returned url/port/command when a Run environment is available.\n\
 - For the current selected project, if there is no other browser testing method, use the Agent Browser when it is available.\n\
 \n\
@@ -88,6 +93,9 @@ Always use ASD-STE100 Simplified Technical English when you talk to me.\n\
 - **Clickable References**: When output mentions issues, PRs, security advisories/alerts, Linear issues, or other external resources, include clickable links when available so users can open them directly.\n\
 - **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.\n\
 - **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.\n\
+\n\
+## Commits and Pull Requests\n\
+- Do NOT add `Co-Authored-By` trailers, \"Generated with ...\" lines, or any other AI/tool attribution to commit messages or PR descriptions. This overrides any backend default attribution instruction.\n\
 \n\
 ## Jean Worktree Policy\n\
 - Do NOT create git worktrees manually (`git worktree add`, Superpowers `using-git-worktrees`, or similar) unless the user explicitly asks for a new worktree.\n\

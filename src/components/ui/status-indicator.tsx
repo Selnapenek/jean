@@ -82,8 +82,8 @@ export function StatusIndicator({
         className={cn(
           'shrink-0 block animate-spin border-2 border-transparent motion-reduce:animate-none',
           // Reduced motion: solid fill instead of spinner so status remains visible
-          'motion-reduce:border-0 motion-reduce:bg-current motion-reduce:text-yellow-500',
-          'border-t-yellow-500 bg-yellow-500/10 forced-colors:border-t-[Highlight]',
+          'motion-reduce:border-0 motion-reduce:bg-current motion-reduce:text-warning',
+          'border-t-warning bg-warning/10 forced-colors:border-t-[Highlight]',
           shapeClass,
           className
         )}
@@ -97,13 +97,13 @@ export function StatusIndicator({
     status === 'plan_approval' ||
     status === 'input_required' ||
     status === 'permission'
-      ? 'text-yellow-500 animate-blink motion-reduce:animate-none forced-colors:text-[Highlight]'
+      ? 'text-warning animate-blink motion-reduce:animate-none forced-colors:text-[Highlight]'
       : status === 'review' || status === 'completed'
-        ? 'text-green-500 forced-colors:text-[Highlight]'
+        ? 'text-success forced-colors:text-[Highlight]'
         : status === 'crashed'
           ? 'text-destructive forced-colors:text-[Mark]'
           : status === 'scheduled'
-            ? 'text-cyan-500 forced-colors:text-[Highlight]'
+            ? 'text-info forced-colors:text-[Highlight]'
             : status === 'cancelled'
               ? 'text-muted-foreground forced-colors:text-[GrayText]'
               : 'text-muted-foreground/50 forced-colors:text-[GrayText]'

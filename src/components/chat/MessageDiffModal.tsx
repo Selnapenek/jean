@@ -434,11 +434,11 @@ export function MessageDiffModal({
               <span className="truncate">{getFilename(filePath)}</span>
               {hasCurrentStats && (
                 <span className="shrink-0 font-mono text-sm font-semibold">
-                  <span className="text-green-500">
+                  <span className="text-success">
                     +{currentStats.additions}
                   </span>
                   <span className="mx-1 text-muted-foreground">/</span>
-                  <span className="text-red-500">
+                  <span className="text-destructive">
                     -{currentStats.deletions}
                   </span>
                 </span>

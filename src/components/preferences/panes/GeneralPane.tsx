@@ -2483,7 +2483,7 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
               </p>
             )}
             {codexStatus?.installed && codexStatus.sandbox_ready === false && (
-              <p className="text-xs text-amber-600 dark:text-amber-400 px-1">
+              <p className="text-xs text-warning px-1">
                 {codexStatus.sandbox_message ??
                   'Codex sandbox requires bubblewrap. Install it with: sudo apt install bubblewrap'}
               </p>

@@ -258,7 +258,7 @@ describe('PreferencesDialog', () => {
     }
 
     expect(within(antigravityButton).getByText('Beta')).toHaveClass(
-      'bg-yellow-500/10'
+      'bg-warning/10'
     )
 
     const kimiButton = within(navigationMenu)

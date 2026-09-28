@@ -54,7 +54,7 @@ describe('RecentWorktreesList structure', () => {
     expect(source).toContain('const isUnread = isUnreadSession(row.session)')
     expect(source).toContain('{isUnread && (')
     expect(source).toContain('aria-label="Unread session"')
-    expect(source).toContain('text-yellow-400')
+    expect(source).toContain('text-warning')
   })
 
   it('uses fully rounded rows and a full background for the current row', () => {

@@ -134,6 +134,7 @@ describe('model option helpers', () => {
       'claude-fable-5',
       'claude-opus-5-5',
       'claude-opus-5',
+      'claude-sonnet-5-5',
       'claude-sonnet-5',
       'claude-opus-4-8[1m]',
       'claude-opus-4-8',
@@ -152,6 +153,7 @@ describe('model option helpers', () => {
     expect(normalizeClaudeModel('claude-fable-5')).toBe('claude-fable-5')
     expect(normalizeClaudeModel('claude-opus-5-5')).toBe('claude-opus-5-5')
     expect(normalizeClaudeModel('claude-opus-5')).toBe('claude-opus-5')
+    expect(normalizeClaudeModel('claude-sonnet-5-5')).toBe('claude-sonnet-5-5')
     expect(normalizeClaudeModel('claude-sonnet-5')).toBe('claude-sonnet-5')
     expect(normalizeClaudeModel('claude-opus-4-8')).toBe('claude-opus-4-8')
     expect(normalizeClaudeModel('claude-opus-4-7')).toBe('claude-opus-4-7')

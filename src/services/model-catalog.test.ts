@@ -8,6 +8,7 @@ import {
   getCatalogModelOptions,
   getCatalogModelReasoning,
   readCachedModelCatalog,
+  type ModelCatalog,
 } from './model-catalog'
 
 function createStorage() {
@@ -162,6 +163,37 @@ describe('model catalog', () => {
     })
   })
 
+  it('sorts Claude catalog models by version number, newest first', () => {
+    const catalog: ModelCatalog = {
+      version: 1,
+      updated_at: '2026-09-28T00:00:00Z',
+      defaults: {},
+      backends: {
+        claude: {
+          models: [
+            { id: 'claude-fable-5-1', label: 'Claude Fable 5.1' },
+            { id: 'claude-fable-5', label: 'Claude Fable 5' },
+            { id: 'claude-opus-5-5', label: 'Claude Opus 5.5' },
+            { id: 'haiku', label: 'Claude Haiku' },
+            { id: 'claude-opus-4-8', label: 'Claude Opus 4.8' },
+            { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5' },
+          ],
+        },
+      },
+    }
+
+    expect(
+      getCatalogModelOptions(catalog, 'claude').map(option => option.value)
+    ).toEqual([
+      'claude-opus-5-5',
+      'claude-sonnet-5-5',
+      'claude-fable-5-1',
+      'claude-fable-5',
+      'claude-opus-4-8',
+      'haiku',
+    ])
+  })
+
   it('falls back to bundled models when neither fetch nor cache is available', async () => {
     const storage = createStorage()
     clearCachedModelCatalog(storage)
@@ -255,11 +287,7 @@ describe('model catalog', () => {
   })
 
   it('does not expose Ultra effort for bundled GPT 5.6 Luna', () => {
-    const reasoning = getCatalogModelReasoning(
-      null,
-      'codex',
-      'gpt-5.6-luna'
-    )
+    const reasoning = getCatalogModelReasoning(null, 'codex', 'gpt-5.6-luna')
 
     expect(reasoning?.default).toBe('medium')
     expect(reasoning?.levels.map(level => level.value)).toEqual([

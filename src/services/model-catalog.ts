@@ -5,6 +5,7 @@ import {
   modelOptions,
   type CliBackend,
 } from '@/types/preferences'
+import { sortModelOptionsByRawModel } from '@/lib/model-utils'
 
 export const MODEL_CATALOG_URL =
   'https://raw.githubusercontent.com/coollabsio/coollabs-cdn/main/json/jean/models.json'
@@ -426,9 +427,10 @@ export function getCatalogModelOptions(
       ? []
       : getCatalogModelOptions(fallbackModelCatalog, backend)
   }
-  return models.flatMap(model =>
+  const options = models.flatMap(model =>
     model.hidden ? [] : [{ value: model.id, label: model.label }]
   )
+  return backend === 'claude' ? sortModelOptionsByRawModel(options) : options
 }
 
 export function getCatalogDefaultModelOptions(

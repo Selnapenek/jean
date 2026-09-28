@@ -1254,6 +1254,21 @@ describe('tool error indicator', () => {
     expect(screen.getByText('failed')).toBeInTheDocument()
   })
 
+  it('does not mark Bash rows that only exited non-zero', () => {
+    render(
+      <ToolCallInline
+        toolCall={{
+          id: 'exit-tool',
+          name: 'Bash',
+          input: { command: 'which missing' },
+          output: 'Exit code 127\nsh: missing: not found',
+          is_error: true,
+        }}
+      />
+    )
+    expect(screen.queryByText('failed')).not.toBeInTheDocument()
+  })
+
   it('does not mark successful tool rows', () => {
     render(
       <ToolCallInline

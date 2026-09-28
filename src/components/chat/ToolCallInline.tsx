@@ -110,7 +110,17 @@ function shouldRenderRawOutput(toolCall: ToolCall): boolean {
 
 /** True when the backend reported the tool result as an error. */
 export function isToolCallError(toolCall: ToolCall): boolean {
-  return toolCall.is_error === true
+  if (toolCall.is_error !== true) return false
+  // Claude flags any non-zero shell exit as an error, but the command did run
+  // (e.g. grep with no match, `which` for a missing binary). Not a failure.
+  const input = (toolCall.input ?? {}) as Record<string, unknown>
+  if (
+    normalizeToolCallForDisplay(toolCall.name, input).name === 'Bash' &&
+    /^Exit code \d+/.test(toolCall.output ?? '')
+  ) {
+    return false
+  }
+  return true
 }
 
 /** Subtle "failed" marker for tool rows whose result was an error. */

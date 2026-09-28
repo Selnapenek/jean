@@ -12,6 +12,10 @@ import {
   Plus,
 } from '@/components/icons/reicon'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { useModifierHintsVisible } from '@/hooks/useModifierHintsVisible'
+import { Kbd } from '@/components/ui/kbd'
+import { isNativeApp } from '@/lib/environment'
+import { formatShortcutDisplay, isModKeyEvent } from '@/types/keybindings'
 import { mergeSessionIntoWorktreeSessions } from '@/components/chat/session-tab-order'
 import { useChatStore } from '@/store/chat-store'
 import { useProjectsStore } from '@/store/projects-store'
@@ -72,6 +76,28 @@ export function getAdjacentRecentRow(
   return rows[nextIndex]
 }
 
+const MAX_RECENT_SHORTCUTS = 9
+
+/** True while Mod+Shift is held (without Alt), which shows the row hints. */
+export function isRecentShortcutModifierHeld(
+  event: Pick<KeyboardEvent, 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey'>
+): boolean {
+  return isModKeyEvent(event) && event.shiftKey && !event.altKey
+}
+
+/** Row index (0-8) for Mod+Shift+1-9, or null for other keys. */
+export function getRecentShortcutIndex(
+  event: Pick<
+    KeyboardEvent,
+    'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey' | 'code'
+  >
+): number | null {
+  if (!isRecentShortcutModifierHeld(event)) return null
+  // Use the physical key: Shift changes event.key to a symbol ("!", "@", ...).
+  const match = event.code.match(/^Digit([1-9])$/)
+  return match?.[1] ? Number(match[1]) - 1 : null
+}
+
 /**
  * Pinned rows first. Inside the pinned and unpinned groups, running rows go
  * first. All other rows keep the incoming recent-activity order, so a
@@ -111,6 +137,11 @@ export function RecentWorktreesList({
   )
   const [limit, setLimit] = useState(INITIAL_RECENT_LIMIT)
   const [showSnoozed, setShowSnoozed] = useState(false)
+  const shortcutsEnabled = isNativeApp() && !isMobile
+  const showShortcutHints = useModifierHintsVisible(
+    isRecentShortcutModifierHeld,
+    shortcutsEnabled
+  )
   const rowRefs = useRef(new Map<string, HTMLButtonElement>())
   const projectKey = useMemo(
     () =>
@@ -244,6 +275,22 @@ export function RecentWorktreesList({
     return () =>
       window.removeEventListener('keydown', onKeyDown, { capture: true })
   }, [displayedRows, handleOpen, selectedSessionId])
+
+  useEffect(() => {
+    if (!shortcutsEnabled) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      const index = getRecentShortcutIndex(event)
+      if (index === null) return
+      const row = displayedRows[index]
+      if (!row) return
+      event.preventDefault()
+      event.stopPropagation()
+      handleOpen(row)
+    }
+    window.addEventListener('keydown', onKeyDown, { capture: true })
+    return () =>
+      window.removeEventListener('keydown', onKeyDown, { capture: true })
+  }, [displayedRows, handleOpen, shortcutsEnabled])
 
   if (query.isPending) {
     return (
@@ -429,14 +476,20 @@ export function RecentWorktreesList({
                     <span className="min-w-0 truncate text-[11px]">
                       {row.projectName} · {row.worktree.name}
                     </span>
-                    <time
-                      className="justify-self-end text-[10px] tabular-nums"
-                      dateTime={new Date(
-                        row.lastActivityAt * 1000
-                      ).toISOString()}
-                    >
-                      {activity}
-                    </time>
+                    {showShortcutHints && index < MAX_RECENT_SHORTCUTS ? (
+                      <Kbd className="h-4 justify-self-end px-1 text-[10px]">
+                        {formatShortcutDisplay(`mod+shift+${index + 1}`)}
+                      </Kbd>
+                    ) : (
+                      <time
+                        className="justify-self-end text-[10px] tabular-nums"
+                        dateTime={new Date(
+                          row.lastActivityAt * 1000
+                        ).toISOString()}
+                      >
+                        {activity}
+                      </time>
+                    )}
                   </button>
                   <div className="flex min-h-4 items-center justify-between">
                     <button

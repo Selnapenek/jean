@@ -1643,7 +1643,10 @@ export function useWorktreeEvents() {
 
         // Show teardown output if a teardown script ran
         if (teardown_output) {
+          // Stable id: the same event can arrive over several server
+          // connections; reuse one toast instead of stacking duplicates.
           toast.success('Teardown completed', {
+            id: `teardown-${id}`,
             description:
               teardown_output.length > 200
                 ? teardown_output.slice(0, 200) + '…'
@@ -1681,6 +1684,7 @@ export function useWorktreeEvents() {
         queryClient.invalidateQueries({ queryKey: ['recent-worktrees'] })
 
         toast.error('Failed to delete worktree', {
+          id: `teardown-${id}`,
           description: error,
           duration: Infinity,
           action: {

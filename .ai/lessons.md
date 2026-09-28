@@ -19,6 +19,8 @@
 - Treat remote profiles as parallel adapters. Do not replace the native app's local core with a global backend switch.
 - A server can remain connected and selectable while excluded from aggregate dashboard results.
 - Gate native-only connections, aggregation, routing, caches, and ownership labels with `isNativeApp()`.
+- Store user state about a remote resource (pins, flags) on the server that owns it, not only in native local UI state, or Web Access clients of that server will not see it.
+- Change state that several clients edit through narrow per-item commands on the owning server. Full snapshot saves must not overwrite it.
 
 ## Make state transitions atomic and observable
 

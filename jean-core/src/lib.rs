@@ -34,7 +34,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::hash::{Hash, Hasher};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 mod agent_browser;
@@ -3690,25 +3690,112 @@ fn get_ui_state_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app_data_dir.join("ui-state.json"))
 }
 
+/// Serializes read-modify-write cycles on `ui-state.json` within this process.
+/// Only held around synchronous file I/O, never across an `.await`.
+static UI_STATE_WRITE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn lock_ui_state_writes() -> std::sync::MutexGuard<'static, ()> {
+    UI_STATE_WRITE_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+}
+
+/// Reads the UI state file, falling back to defaults when it does not exist.
+fn read_ui_state_file(path: &Path) -> Result<UIState, String> {
+    let contents = match std::fs::read_to_string(path) {
+        Ok(contents) => contents,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            log::trace!("UI state file not found, using defaults");
+            return Ok(UIState::default());
+        }
+        Err(e) => {
+            log::error!("Failed to read UI state file: {e}");
+            return Err(format!("Failed to read UI state file: {e}"));
+        }
+    };
+
+    serde_json::from_str(&contents).map_err(|e| {
+        log::warn!("Failed to parse UI state JSON, using defaults: {e}");
+        format!("Failed to parse UI state: {e}")
+    })
+}
+
+/// Serializes and atomically writes the UI state. Callers must hold `UI_STATE_WRITE_LOCK`.
+fn write_ui_state_file(path: &Path, ui_state: &UIState) -> Result<(), String> {
+    let json_content = serde_json::to_string_pretty(ui_state).map_err(|e| {
+        log::error!("Failed to serialize UI state: {e}");
+        format!("Failed to serialize UI state: {e}")
+    })?;
+
+    crate::platform::write_file_atomically(path, json_content.as_bytes()).map_err(|error| {
+        log::error!("Failed to save UI state file: {error}");
+        error
+    })
+}
+
+/// Writes a full UI state snapshot but keeps the pinned recent sessions that are on disk.
+///
+/// Pins change only through `set_recent_session_pinned`, so concurrent clients
+/// (native desktop, Web Access) cannot overwrite each other's pins with a stale
+/// full-state save. If the existing file cannot be parsed, the incoming pins are
+/// kept so the rewrite does not silently drop them.
+fn write_ui_state_keeping_pins(path: &Path, mut ui_state: UIState) -> Result<(), String> {
+    let _guard = lock_ui_state_writes();
+
+    match read_ui_state_file(path) {
+        Ok(existing) => ui_state.pinned_recent_session_ids = existing.pinned_recent_session_ids,
+        Err(e) => log::warn!(
+            "Keeping incoming pinned recent sessions, existing UI state is unreadable: {e}"
+        ),
+    }
+
+    write_ui_state_file(path, &ui_state)
+}
+
+/// Adds (appended at the end, no duplicates) or removes one pinned recent session.
+/// Returns the resulting pins and whether the file changed. A corrupt file is
+/// reported as an error and left untouched.
+fn set_pinned_session_in_file(
+    path: &Path,
+    session_id: &str,
+    pinned: bool,
+) -> Result<(Vec<String>, bool), String> {
+    let _guard = lock_ui_state_writes();
+
+    let mut ui_state = read_ui_state_file(path)?;
+    let pins = &mut ui_state.pinned_recent_session_ids;
+    let changed = if pinned {
+        let already_pinned = pins.iter().any(|id| id == session_id);
+        if !already_pinned {
+            pins.push(session_id.to_string());
+        }
+        !already_pinned
+    } else {
+        let previous_len = pins.len();
+        pins.retain(|id| id != session_id);
+        pins.len() != previous_len
+    };
+
+    if changed {
+        write_ui_state_file(path, &ui_state)?;
+    }
+
+    Ok((ui_state.pinned_recent_session_ids, changed))
+}
+
+fn emit_ui_state_invalidation(app: &AppHandle) {
+    if let Err(error) = app.emit_all(
+        "cache:invalidate",
+        &serde_json::json!({ "keys": ["ui-state"] }),
+    ) {
+        log::error!("Failed to emit UI state cache invalidation: {error}");
+    }
+}
+
 async fn load_ui_state(app: AppHandle) -> Result<UIState, String> {
     log::trace!("Loading UI state from disk");
     let state_path = get_ui_state_path(&app)?;
-
-    if !state_path.exists() {
-        log::trace!("UI state file not found, using defaults");
-        return Ok(UIState::default());
-    }
-
-    let contents = std::fs::read_to_string(&state_path).map_err(|e| {
-        log::error!("Failed to read UI state file: {e}");
-        format!("Failed to read UI state file: {e}")
-    })?;
-
-    let ui_state: UIState = serde_json::from_str(&contents).map_err(|e| {
-        log::warn!("Failed to parse UI state JSON, using defaults: {e}");
-        format!("Failed to parse UI state: {e}")
-    })?;
-
+    let ui_state = read_ui_state_file(&state_path)?;
     log::trace!("Successfully loaded UI state");
     Ok(ui_state)
 }
@@ -3717,26 +3804,181 @@ async fn save_ui_state(app: AppHandle, ui_state: UIState) -> Result<(), String> 
     log::trace!("Saving UI state to disk: {ui_state:?}");
     let state_path = get_ui_state_path(&app)?;
 
-    let json_content = serde_json::to_string_pretty(&ui_state).map_err(|e| {
-        log::error!("Failed to serialize UI state: {e}");
-        format!("Failed to serialize UI state: {e}")
-    })?;
-
-    crate::platform::write_file_atomically(&state_path, json_content.as_bytes()).map_err(
-        |error| {
-            log::error!("Failed to save UI state file: {error}");
-            error
-        },
-    )?;
+    write_ui_state_keeping_pins(&state_path, ui_state)?;
 
     log::trace!("Saved UI state to {state_path:?}");
-    if let Err(error) = app.emit_all(
-        "cache:invalidate",
-        &serde_json::json!({ "keys": ["ui-state"] }),
-    ) {
-        log::error!("Failed to emit UI state cache invalidation: {error}");
-    }
+    emit_ui_state_invalidation(&app);
     Ok(())
+}
+
+/// Returns the pinned recent session IDs. Native clients also use this command
+/// to detect that a remote Jean server supports per-ID pin sync.
+async fn get_pinned_recent_session_ids(app: AppHandle) -> Result<Vec<String>, String> {
+    let state_path = get_ui_state_path(&app)?;
+    Ok(read_ui_state_file(&state_path)?.pinned_recent_session_ids)
+}
+
+/// Pins or unpins one recent session and returns the resulting pin list.
+async fn set_recent_session_pinned(
+    app: AppHandle,
+    session_id: String,
+    pinned: bool,
+) -> Result<Vec<String>, String> {
+    if session_id.trim().is_empty() {
+        return Err("Session ID is required".to_string());
+    }
+
+    let state_path = get_ui_state_path(&app)?;
+    let (pins, changed) = set_pinned_session_in_file(&state_path, &session_id, pinned)?;
+
+    if changed {
+        log::trace!("Set recent session {session_id} pinned={pinned}");
+        emit_ui_state_invalidation(&app);
+    }
+    Ok(pins)
+}
+
+#[cfg(test)]
+mod ui_state_pin_tests {
+    use super::{
+        read_ui_state_file, set_pinned_session_in_file, write_ui_state_keeping_pins, UIState,
+    };
+
+    fn pins(ids: &[&str]) -> Vec<String> {
+        ids.iter().map(|id| id.to_string()).collect()
+    }
+
+    fn write_state(path: &std::path::Path, ui_state: &UIState) {
+        std::fs::write(path, serde_json::to_string_pretty(ui_state).unwrap()).unwrap();
+    }
+
+    #[test]
+    fn save_keeps_pins_on_disk_and_ignores_incoming_pins() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ui-state.json");
+        write_state(
+            &path,
+            &UIState {
+                pinned_recent_session_ids: pins(&["pinned-by-other-client"]),
+                ..UIState::default()
+            },
+        );
+
+        let incoming = UIState {
+            active_worktree_id: Some("worktree-1".to_string()),
+            seen_failed_workflow_run_ids: vec![42],
+            pinned_recent_session_ids: pins(&["stale-pin"]),
+            ..UIState::default()
+        };
+        write_ui_state_keeping_pins(&path, incoming).unwrap();
+
+        let saved = read_ui_state_file(&path).unwrap();
+        assert_eq!(
+            saved.pinned_recent_session_ids,
+            pins(&["pinned-by-other-client"])
+        );
+        assert_eq!(saved.active_worktree_id.as_deref(), Some("worktree-1"));
+        assert_eq!(saved.seen_failed_workflow_run_ids, vec![42]);
+    }
+
+    #[test]
+    fn save_without_existing_file_writes_empty_pins() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ui-state.json");
+
+        let incoming = UIState {
+            active_worktree_id: Some("worktree-1".to_string()),
+            pinned_recent_session_ids: pins(&["stale-pin"]),
+            ..UIState::default()
+        };
+        write_ui_state_keeping_pins(&path, incoming).unwrap();
+
+        let saved = read_ui_state_file(&path).unwrap();
+        assert!(saved.pinned_recent_session_ids.is_empty());
+        assert_eq!(saved.active_worktree_id.as_deref(), Some("worktree-1"));
+    }
+
+    #[test]
+    fn save_over_corrupt_file_keeps_incoming_pins() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ui-state.json");
+        std::fs::write(&path, "{ not json").unwrap();
+
+        let incoming = UIState {
+            pinned_recent_session_ids: pins(&["incoming-pin"]),
+            ..UIState::default()
+        };
+        write_ui_state_keeping_pins(&path, incoming).unwrap();
+
+        let saved = read_ui_state_file(&path).unwrap();
+        assert_eq!(saved.pinned_recent_session_ids, pins(&["incoming-pin"]));
+    }
+
+    #[test]
+    fn set_pinned_appends_once_and_removes() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ui-state.json");
+        write_state(
+            &path,
+            &UIState {
+                active_worktree_id: Some("worktree-1".to_string()),
+                pinned_recent_session_ids: pins(&["a"]),
+                ..UIState::default()
+            },
+        );
+
+        assert_eq!(
+            set_pinned_session_in_file(&path, "b", true).unwrap(),
+            (pins(&["a", "b"]), true)
+        );
+        assert_eq!(
+            set_pinned_session_in_file(&path, "b", true).unwrap(),
+            (pins(&["a", "b"]), false)
+        );
+        assert_eq!(
+            set_pinned_session_in_file(&path, "a", false).unwrap(),
+            (pins(&["b"]), true)
+        );
+        assert_eq!(
+            set_pinned_session_in_file(&path, "a", false).unwrap(),
+            (pins(&["b"]), false)
+        );
+
+        let saved = read_ui_state_file(&path).unwrap();
+        assert_eq!(saved.pinned_recent_session_ids, pins(&["b"]));
+        assert_eq!(saved.active_worktree_id.as_deref(), Some("worktree-1"));
+    }
+
+    #[test]
+    fn set_pinned_works_without_existing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ui-state.json");
+
+        assert_eq!(
+            set_pinned_session_in_file(&path, "a", false).unwrap(),
+            (Vec::new(), false)
+        );
+        assert!(!path.exists());
+
+        assert_eq!(
+            set_pinned_session_in_file(&path, "a", true).unwrap(),
+            (pins(&["a"]), true)
+        );
+        assert_eq!(
+            read_ui_state_file(&path).unwrap().pinned_recent_session_ids,
+            pins(&["a"])
+        );
+    }
+
+    #[test]
+    fn set_pinned_on_corrupt_file_errors_and_leaves_file_unchanged() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ui-state.json");
+        std::fs::write(&path, "{ not json").unwrap();
+
+        assert!(set_pinned_session_in_file(&path, "a", true).is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "{ not json");
+    }
 }
 
 async fn send_native_notification(

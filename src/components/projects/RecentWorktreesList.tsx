@@ -12,16 +12,23 @@ import {
   Plus,
 } from '@/components/icons/reicon'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { useModifierHintsVisible } from '@/hooks/useModifierHintsVisible'
+import {
+  isModOnlyHeld,
+  useModifierHintsVisible,
+} from '@/hooks/useModifierHintsVisible'
 import { Kbd } from '@/components/ui/kbd'
 import { isNativeApp } from '@/lib/environment'
-import { formatShortcutDisplay, isModKeyEvent } from '@/types/keybindings'
+import { formatShortcutDisplay } from '@/types/keybindings'
 import { mergeSessionIntoWorktreeSessions } from '@/components/chat/session-tab-order'
 import { useChatStore } from '@/store/chat-store'
 import { useProjectsStore } from '@/store/projects-store'
 import { useUIStore } from '@/store/ui-store'
 import { chatQueryKeys } from '@/services/chat'
 import { fetchRecentWorktrees } from '@/services/projects'
+import {
+  setRecentSessionPinned,
+  useRecentSessionPins,
+} from '@/services/recent-session-pins'
 import { fetchWorktreesStatus } from '@/services/git-status'
 import type { WorktreeSessions } from '@/types/chat'
 import type { Project, RecentWorktreeItem } from '@/types/projects'
@@ -78,26 +85,6 @@ export function getAdjacentRecentRow(
 
 const MAX_RECENT_SHORTCUTS = 9
 
-/** True while Mod+Shift is held (without Alt), which shows the row hints. */
-export function isRecentShortcutModifierHeld(
-  event: Pick<KeyboardEvent, 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey'>
-): boolean {
-  return isModKeyEvent(event) && event.shiftKey && !event.altKey
-}
-
-/** Row index (0-8) for Mod+Shift+1-9, or null for other keys. */
-export function getRecentShortcutIndex(
-  event: Pick<
-    KeyboardEvent,
-    'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey' | 'code'
-  >
-): number | null {
-  if (!isRecentShortcutModifierHeld(event)) return null
-  // Use the physical key: Shift changes event.key to a symbol ("!", "@", ...).
-  const match = event.code.match(/^Digit([1-9])$/)
-  return match?.[1] ? Number(match[1]) - 1 : null
-}
-
 /**
  * Pinned rows first. Inside the pinned and unpinned groups, running rows go
  * first. All other rows keep the incoming recent-activity order, so a
@@ -132,14 +119,12 @@ export function RecentWorktreesList({
     state => state.waitingForInputSessionIds
   )
   const namingSessionIds = useChatStore(state => state.namingSessionIds)
-  const pinnedSessionIds = useProjectsStore(
-    state => state.pinnedRecentSessionIds
-  )
+  const pinnedSessionIds = useRecentSessionPins(projects)
   const [limit, setLimit] = useState(INITIAL_RECENT_LIMIT)
   const [showSnoozed, setShowSnoozed] = useState(false)
   const shortcutsEnabled = isNativeApp() && !isMobile
   const showShortcutHints = useModifierHintsVisible(
-    isRecentShortcutModifierHeld,
+    isModOnlyHeld,
     shortcutsEnabled
   )
   const rowRefs = useRef(new Map<string, HTMLButtonElement>())
@@ -276,21 +261,18 @@ export function RecentWorktreesList({
       window.removeEventListener('keydown', onKeyDown, { capture: true })
   }, [displayedRows, handleOpen, selectedSessionId])
 
+  // Cmd/Ctrl+1-9 is matched in useMainWindowEventListeners, which dispatches
+  // this event only while the Recent list is visible.
   useEffect(() => {
-    if (!shortcutsEnabled) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      const index = getRecentShortcutIndex(event)
-      if (index === null) return
-      const row = displayedRows[index]
-      if (!row) return
-      event.preventDefault()
-      event.stopPropagation()
-      handleOpen(row)
+    const onOpenByIndex = (event: Event) => {
+      const index = (event as CustomEvent<{ index: number }>).detail?.index
+      const row = index === undefined ? undefined : displayedRows[index]
+      if (row) handleOpen(row)
     }
-    window.addEventListener('keydown', onKeyDown, { capture: true })
+    window.addEventListener('open-recent-session-by-index', onOpenByIndex)
     return () =>
-      window.removeEventListener('keydown', onKeyDown, { capture: true })
-  }, [displayedRows, handleOpen, shortcutsEnabled])
+      window.removeEventListener('open-recent-session-by-index', onOpenByIndex)
+  }, [displayedRows, handleOpen])
 
   if (query.isPending) {
     return (
@@ -478,7 +460,7 @@ export function RecentWorktreesList({
                     </span>
                     {showShortcutHints && index < MAX_RECENT_SHORTCUTS ? (
                       <Kbd className="h-4 justify-self-end px-1 text-[10px]">
-                        {formatShortcutDisplay(`mod+shift+${index + 1}`)}
+                        {formatShortcutDisplay(`mod+${index + 1}`)}
                       </Kbd>
                     ) : (
                       <time
@@ -499,9 +481,11 @@ export function RecentWorktreesList({
                       className="flex size-4 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-100 transition-opacity hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
                       onClick={event => {
                         event.stopPropagation()
-                        useProjectsStore
-                          .getState()
-                          .toggleRecentSessionPinned(row.session.id)
+                        void setRecentSessionPinned(
+                          queryClient,
+                          row.session.id,
+                          !isPinned
+                        )
                       }}
                     >
                       <PinTack

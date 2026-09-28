@@ -79,11 +79,38 @@ export function shouldLetChatInputHandleAction(
   target: EventTarget | null,
   planDialogOpen: boolean
 ): boolean {
+  if (action === 'next_session' || action === 'previous_session') {
+    // Cmd/Ctrl+Arrow moves the caret in text fields. Switch sessions only
+    // when the focused field is empty, so text editing keeps working.
+    return hasEditableText(target)
+  }
   return (
     action === 'approve_plan' &&
     !planDialogOpen &&
     target instanceof Element &&
     target.closest('[data-chat-input]') !== null
+  )
+}
+
+function hasEditableText(target: EventTarget | null): boolean {
+  if (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement
+  ) {
+    return target.value.length > 0
+  }
+  return (
+    target instanceof HTMLElement &&
+    target.isContentEditable === true &&
+    (target.textContent ?? '').length > 0
+  )
+}
+
+/** Cmd/Ctrl+1-9 opens Recent sessions while the Recent list is visible. */
+export function isRecentSessionsShortcutActive(): boolean {
+  return (
+    useUIStore.getState().leftSidebarVisible &&
+    useProjectsStore.getState().sidebarActiveTab === 'recent'
   )
 }
 
@@ -966,7 +993,8 @@ export function useMainWindowEventListeners() {
         }
       }
 
-      // Mod+1–9: switch session tabs (when modal open), dashboard tabs, or worktree by index
+      // Mod+1–9: dashboard tabs, Recent sessions (when the Recent list is
+      // visible), session tabs (when modal open), or worktree by index
       // Use platform mod (Cmd on macOS native, Ctrl elsewhere) so Ctrl+digit reaches terminals.
       if (isModKeyEvent(e) && !e.shiftKey && !e.altKey) {
         // Use e.code (physical key) since e.key can vary with CMD held on macOS
@@ -975,7 +1003,16 @@ export function useMainWindowEventListeners() {
         if (digit >= 1 && digit <= 9) {
           e.preventDefault()
           e.stopPropagation()
-          if (useUIStore.getState().sessionChatModalOpen) {
+          if (
+            isRecentSessionsShortcutActive() &&
+            !useUIStore.getState().githubDashboardOpen
+          ) {
+            window.dispatchEvent(
+              new CustomEvent('open-recent-session-by-index', {
+                detail: { index: digit - 1 },
+              })
+            )
+          } else if (useUIStore.getState().sessionChatModalOpen) {
             window.dispatchEvent(
               new CustomEvent('switch-session', {
                 detail: { index: digit - 1 },

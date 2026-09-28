@@ -117,6 +117,15 @@ server UI-state values on first load and then makes the client record
 authoritative. Keep session data, running terminal metadata, drafts, and other
 operational state in the backend persistence paths.
 
+Each server owns the pins of its own recent sessions. Pins change only through
+`set_recent_session_pinned` (one ID per call); `save_ui_state` keeps the pins
+that are on disk, so a full save from one client cannot drop another client's
+pin. Native Jean reads each remote server's pins with
+`get_pinned_recent_session_ids` and merges them with its local pins
+(`src/services/recent-session-pins.ts`). An "Unknown command" answer marks an
+older server; native Jean then keeps that server's pins in its local UI state
+and moves them to the server after the server is updated.
+
 Servers expose `get_server_preferences`, `update_server_preferences`, and
 `get_server_capabilities`. Server preference responses omit client fields and
 redact secrets to configured flags. Updates use an opaque revision string to

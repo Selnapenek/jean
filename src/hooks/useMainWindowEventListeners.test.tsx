@@ -49,6 +49,29 @@ describe('shouldLetChatInputHandleAction', () => {
       false
     )
   })
+
+  it('lets Cmd/Ctrl+Arrow move the caret in a text field with text', () => {
+    const input = document.createElement('textarea')
+    input.value = 'draft'
+
+    expect(shouldLetChatInputHandleAction('next_session', input, false)).toBe(
+      true
+    )
+    expect(
+      shouldLetChatInputHandleAction('previous_session', input, false)
+    ).toBe(true)
+  })
+
+  it('switches sessions from an empty text field or a non-text target', () => {
+    const input = document.createElement('textarea')
+
+    expect(shouldLetChatInputHandleAction('next_session', input, false)).toBe(
+      false
+    )
+    expect(
+      shouldLetChatInputHandleAction('previous_session', document.body, false)
+    ).toBe(false)
+  })
 })
 
 const { mockInvoke, mockListen, mockDisposeTerminal, mockEnvironment } =

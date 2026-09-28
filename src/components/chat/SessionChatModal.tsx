@@ -43,6 +43,7 @@ import { useChatStore } from '@/store/chat-store'
 import { useTerminalStore } from '@/store/terminal-store'
 import { useBrowserStore } from '@/store/browser-store'
 import { useUIStore } from '@/store/ui-store'
+import { useProjectsStore } from '@/store/projects-store'
 import {
   useSessions,
   useSession,
@@ -78,11 +79,7 @@ import { ModalBrowserDrawer } from '@/components/browser/ModalBrowserDrawer'
 import { OpenInButton } from '@/components/open-in/OpenInButton'
 import { ScriptsButton } from '@/components/open-in/ScriptsButton'
 import { DevToolsDropdown } from './DevToolsDropdown'
-import {
-  DEFAULT_KEYBINDINGS,
-  formatShortcutDisplay,
-  isModKeyEvent,
-} from '@/types/keybindings'
+import { DEFAULT_KEYBINDINGS, formatShortcutDisplay } from '@/types/keybindings'
 import {
   buildNativeClientSessionInput,
   computeSessionCardData,
@@ -110,7 +107,10 @@ import { WorktreeDropdownMenu } from '@/components/projects/WorktreeDropdownMenu
 import { LabelModal } from './LabelModal'
 import { useSessionArchive } from './hooks/useSessionArchive'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { useModifierHintsVisible } from '@/hooks/useModifierHintsVisible'
+import {
+  isModOnlyHeld,
+  useModifierHintsVisible,
+} from '@/hooks/useModifierHintsVisible'
 import { pushNeedsRemotePicker, useRemotePicker } from '@/hooks/useRemotePicker'
 import { useIsTouchDevice } from '@/hooks/use-touch-device'
 import { useSwipeBack } from '@/hooks/useSwipeBack'
@@ -228,13 +228,6 @@ interface SessionChatModalProps {
   onRequestCloseWorktree: () => void
 }
 
-/** Mod alone (no Shift/Alt) shows the Mod+1-9 session tab hints. */
-export function isSessionTabShortcutModifierHeld(
-  event: Pick<KeyboardEvent, 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey'>
-): boolean {
-  return isModKeyEvent(event) && !event.shiftKey && !event.altKey
-}
-
 export function SessionChatModal({
   worktreeId,
   worktreePath,
@@ -246,16 +239,22 @@ export function SessionChatModal({
 }: SessionChatModalProps) {
   const isMobile = useIsMobile()
   const isTouch = useIsTouchDevice()
-  const showTabShortcutHints = useModifierHintsVisible(
-    isSessionTabShortcutModifierHeld,
-    isOpen && isNativeApp() && !isMobile
-  )
   const zenMode = useUIStore(state => state.zenMode)
   const toggleZenMode = useUIStore(state => state.toggleZenMode)
   const isModalTerminalOpen = useTerminalStore(
     state => state.modalTerminalOpen[worktreeId] ?? false
   )
   const leftSidebarVisible = useUIStore(state => state.leftSidebarVisible)
+  // While the Recent list is visible, Cmd/Ctrl+1-9 opens Recent sessions,
+  // so the session tab number hints are hidden.
+  const recentTabActive = useProjectsStore(
+    state => state.sidebarActiveTab === 'recent'
+  )
+  const recentShortcutsActive = leftSidebarVisible && recentTabActive
+  const showTabShortcutHints = useModifierHintsVisible(
+    isModOnlyHeld,
+    isOpen && isNativeApp() && !isMobile && !recentShortcutsActive
+  )
   // Left-edge swipe right: open the sidebar without leaving the worktree.
   const swipeOpenSidebar = useCallback(() => {
     useUIStore.getState().setLeftSidebarVisible(true)

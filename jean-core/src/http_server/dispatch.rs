@@ -167,6 +167,14 @@ pub async fn dispatch_command(
             crate::save_ui_state(app.clone(), ui_state).await?;
             Ok(Value::Null)
         }
+        "get_pinned_recent_session_ids" => {
+            to_value(crate::get_pinned_recent_session_ids(app.clone()).await?)
+        }
+        "set_recent_session_pinned" => {
+            let session_id: String = field(&args, "sessionId", "session_id")?;
+            let pinned: bool = from_field(&args, "pinned")?;
+            to_value(crate::set_recent_session_pinned(app.clone(), session_id, pinned).await?)
+        }
 
         // =====================================================================
         // Projects

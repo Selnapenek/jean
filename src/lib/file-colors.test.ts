@@ -28,7 +28,7 @@ describe('getExtensionColor', () => {
 
   it('returns correct color for config files', () => {
     expect(getExtensionColor('json')).toBe(
-      'text-yellow-700 dark:text-yellow-600'
+      'text-amber-500 dark:text-yellow-600'
     )
     expect(getExtensionColor('toml')).toBe('text-gray-400')
     expect(getExtensionColor('yaml')).toBe('text-red-600 dark:text-red-400')

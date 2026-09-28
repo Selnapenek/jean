@@ -56,9 +56,9 @@ describe('ScriptsButton', () => {
     )
 
     expect(screen.getByRole('button', { name: 'Scripts' })).toHaveClass(
-      'border-border/50',
-      'bg-muted/50',
-      'text-muted-foreground'
+      'bg-primary',
+      'text-primary-foreground/85',
+      'dark:bg-muted/50'
     )
   })
 

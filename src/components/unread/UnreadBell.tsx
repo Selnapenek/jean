@@ -108,7 +108,7 @@ function getSessionStatus(session: Session, isSending: boolean) {
     return {
       icon: Loader2,
       label: 'Running',
-      className: 'text-success animate-spin',
+      className: 'text-foreground animate-spin dark:text-success',
     }
   }
   if (session.waiting_for_input) {

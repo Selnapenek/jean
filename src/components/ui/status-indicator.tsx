@@ -72,7 +72,7 @@ export function StatusIndicator({
   const shapeClass = shapeClasses(resolvedShape)
   const title = label
 
-  // Running state: CSS border spinner (shape still communicates meaning without color)
+  // Running state: CSS border spinner in primary color (black in light, yellow in dark)
   if (status === 'running') {
     return (
       <span
@@ -82,8 +82,8 @@ export function StatusIndicator({
         className={cn(
           'shrink-0 block animate-spin border-2 border-transparent motion-reduce:animate-none',
           // Reduced motion: solid fill instead of spinner so status remains visible
-          'motion-reduce:border-0 motion-reduce:bg-current motion-reduce:text-warning',
-          'border-t-warning bg-warning/10 forced-colors:border-t-[Highlight]',
+          'motion-reduce:border-0 motion-reduce:bg-current motion-reduce:text-primary',
+          'border-t-primary bg-primary/10 forced-colors:border-t-[Highlight]',
           shapeClass,
           className
         )}

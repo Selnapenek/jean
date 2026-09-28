@@ -8,7 +8,7 @@ export const EXTENSION_COLORS: Record<string, string> = {
   jsx: 'text-yellow-600 dark:text-yellow-500',
   rs: 'text-orange-600 dark:text-orange-500',
   py: 'text-green-600 dark:text-green-500',
-  json: 'text-yellow-700 dark:text-yellow-600',
+  json: 'text-amber-500 dark:text-yellow-600',
   md: 'text-gray-500',
   css: 'text-pink-600 dark:text-pink-500',
   html: 'text-orange-600 dark:text-orange-400',

@@ -88,7 +88,7 @@
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   /* Status colors use -700 shades so text stays readable on white (>= 4.5:1) */
-  --warning: #b45309; /* amber-700 */
+  --warning: #c2410c; /* orange-700: vivid, not brown */
   --warning-foreground: #ffffff;
   --success: #15803d; /* green-700 */
   --success-foreground: #ffffff;

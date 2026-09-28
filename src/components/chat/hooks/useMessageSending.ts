@@ -302,7 +302,16 @@ export function useMessageSending({
   const handleSubmit = useCallback(
     async (
       e: React.FormEvent | undefined,
-      options?: { forceSteer?: boolean }
+      options?: {
+        forceSteer?: boolean
+        /**
+         * Runs after the input is captured and cleared, before the message is
+         * sent. Session/worktree targets are captured at call time, so the send
+         * still goes to this session if the user navigates away meanwhile.
+         * If it throws, the draft is restored and nothing is sent.
+         */
+        beforeSend?: () => Promise<void>
+      }
     ) => {
       e?.preventDefault()
 
@@ -384,9 +393,7 @@ export function useMessageSending({
       const sendBackend = selectedBackendRef.current
       const provider = selectedProviderRef.current
       const usingCustomProvider =
-        !!provider &&
-        provider !== '__anthropic__' &&
-        provider !== '__default__'
+        !!provider && provider !== '__anthropic__' && provider !== '__default__'
       if (!backendsLoading && !installedBackends.includes(sendBackend)) {
         handleCliAuthError(`${sendBackend} is not installed`, sendBackend)
         return
@@ -574,6 +581,15 @@ export function useMessageSending({
         ),
         backend: selectedBackend,
         queuedAt: Date.now(),
+      }
+
+      if (options?.beforeSend) {
+        try {
+          await options.beforeSend()
+        } catch {
+          useChatStore.getState().setInputDraft(activeSessionId, textMessage)
+          return
+        }
       }
 
       markAtBottom()

@@ -501,6 +501,73 @@ describe('useMessageSending PI effort', () => {
   })
 })
 
+describe('useMessageSending beforeSend', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockInvoke.mockResolvedValue(undefined)
+    resetInstalledBackendsMock()
+    useChatStore.setState({
+      inputDrafts: {},
+      pendingImages: {},
+      pendingFiles: {},
+      pendingTextFiles: {},
+      pendingSkills: {},
+      sendingSessionIds: {},
+      messageQueues: {},
+    })
+  })
+
+  it('sends only after beforeSend resolves', async () => {
+    const { result, sendMessage } = renderUseMessageSending({
+      selectedBackend: 'claude',
+      selectedModel: 'claude-opus-5-5',
+      inputValue: 'Investigate issue #1',
+    })
+    let finishLoad: () => void = () => undefined
+    const beforeSend = vi.fn(
+      () => new Promise<void>(resolve => (finishLoad = resolve))
+    )
+
+    let submit: Promise<void> | undefined
+    act(() => {
+      submit = result.current.handleSubmit(undefined, { beforeSend })
+    })
+    expect(beforeSend).toHaveBeenCalledTimes(1)
+    expect(sendMessage.mutate).not.toHaveBeenCalled()
+
+    await act(async () => {
+      finishLoad()
+      await submit
+    })
+    expect(sendMessage.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-1',
+        message: 'Investigate issue #1',
+      }),
+      expect.any(Object)
+    )
+  })
+
+  it('restores the draft and skips send when beforeSend fails', async () => {
+    const { result, sendMessage } = renderUseMessageSending({
+      selectedBackend: 'claude',
+      selectedModel: 'claude-opus-5-5',
+      inputValue: 'Investigate issue #1',
+    })
+
+    await act(async () => {
+      await result.current.handleSubmit(undefined, {
+        beforeSend: () => Promise.reject(new Error('load failed')),
+      })
+    })
+
+    expect(sendMessage.mutate).not.toHaveBeenCalled()
+    expect(useChatStore.getState().inputDrafts['session-1']).toBe(
+      'Investigate issue #1'
+    )
+  })
+})
+
 describe('useMessageSending Antigravity effort', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -790,9 +857,7 @@ describe('useMessageSending Codex auto-steer', () => {
 
 [Image attached: /tmp/img.png - Use the Read tool to view this image]`,
       expect.objectContaining({
-        pendingImages: [
-          expect.objectContaining({ path: '/tmp/img.png' }),
-        ],
+        pendingImages: [expect.objectContaining({ path: '/tmp/img.png' })],
       })
     )
     expect(persistEnqueue).not.toHaveBeenCalled()

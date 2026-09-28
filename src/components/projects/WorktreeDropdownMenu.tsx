@@ -187,6 +187,9 @@ export function WorktreeDropdownMenu({
   const hasDiff = uncommittedAdded > 0 || uncommittedRemoved > 0
   const hasBranchDiff = branchDiffAdded > 0 || branchDiffRemoved > 0
   const showMobileGitHubItems = isMobile
+  // Header diff badges hide when the tree is clean, so keep a menu entry to
+  // the Git changes view on mobile/web access.
+  const showGitItem = !!onUncommittedDiffClick && (isMobile || !isNativeApp())
 
   const handleOpenIssues = useCallback(() => {
     useProjectsStore.getState().selectProject(projectId)
@@ -341,14 +344,16 @@ export function WorktreeDropdownMenu({
 
           <DropdownMenuSeparator />
 
-          {isMobile && hasDiff && (
+          {showGitItem && (
             <DropdownMenuItem onClick={onUncommittedDiffClick}>
               <GitBranch className="mr-2 h-4 w-4" />
               <span>Git</span>
-              <span className="ml-auto text-xs">
-                <span className="text-green-500">+{uncommittedAdded}</span>{' '}
-                <span className="text-red-500">-{uncommittedRemoved}</span>
-              </span>
+              {hasDiff && (
+                <span className="ml-auto text-xs">
+                  <span className="text-green-500">+{uncommittedAdded}</span>{' '}
+                  <span className="text-red-500">-{uncommittedRemoved}</span>
+                </span>
+              )}
             </DropdownMenuItem>
           )}
 

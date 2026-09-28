@@ -2020,6 +2020,15 @@ export default function useStreamingEvents({
         const shouldRestoreMessage =
           !hasContent && !hasQueuedMessages && !hasCurrentDraft
         const shouldHydrateCancelledFromBackend = !undo_send && !hasContent
+        // Assistant replies from earlier turns, known before this cancel.
+        const priorAssistantIds = new Set(
+          (
+            queryClient.getQueryData<Session>(chatQueryKeys.session(session_id))
+              ?.messages ?? []
+          )
+            .filter(message => message.role === 'assistant')
+            .map(message => message.id)
+        )
 
         const removeLatestUserMessageFromCache = () => {
           queryClient.setQueryData<Session>(
@@ -2205,13 +2214,14 @@ export default function useStreamingEvents({
                 session_id,
                 resolvedWorktreeId
               ).then(session => {
-                const assistant = session
-                  ? [...session.messages]
-                      .reverse()
-                      .find(message => message.role === 'assistant')
-                  : undefined
+                // Only output of the cancelled turn counts. A reply from an
+                // earlier turn must not retract the restored draft.
+                const lastMessage = session?.messages.at(-1)
+                const assistant =
+                  lastMessage?.role === 'assistant' ? lastMessage : undefined
                 if (
                   !assistant ||
+                  priorAssistantIds.has(assistant.id) ||
                   !hasMeaningfulAssistantPayload(
                     assistant.content,
                     assistant.content_blocks,

@@ -1578,6 +1578,8 @@ pub async fn rename_session(
 
     let old_name = with_sessions_mut(&app, &worktree_path, &worktree_id, |sessions| {
         if let Some(session) = sessions.find_session_mut(&session_id) {
+            // A manual name wins: skip auto-naming on the first prompt.
+            session.session_naming_completed = true;
             Ok(std::mem::replace(&mut session.name, new_name.clone()))
         } else {
             Err(format!("Session not found: {session_id}"))

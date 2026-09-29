@@ -8973,6 +8973,7 @@ pub struct McpServerInfo {
 #[serde(rename_all = "camelCase")]
 pub enum McpHealthStatus {
     Connected,
+    Authenticated,
     NeedsAuthentication,
     CouldNotConnect,
     Disabled,
@@ -9070,8 +9071,8 @@ pub async fn check_mcp_health(
     worktree_path: Option<String>,
 ) -> Result<McpHealthResult, String> {
     match backend.as_deref() {
-        Some("codex") => check_mcp_health_codex(&app),
-        Some("opencode") => check_mcp_health_opencode(&app),
+        Some("codex") => check_mcp_health_codex(&app, worktree_path.as_deref()),
+        Some("opencode") => check_mcp_health_opencode(&app, worktree_path.as_deref()),
         Some("cursor") => check_mcp_health_cursor(&app, worktree_path.as_deref()),
         Some("kimi") => Ok(McpHealthResult {
             statuses: crate::kimi_cli::mcp::get_mcp_servers(worktree_path.as_deref())
@@ -9085,7 +9086,7 @@ pub async fn check_mcp_health(
             let statuses = crate::grok_cli::mcp::check_mcp_health(&app, path)?;
             Ok(McpHealthResult { statuses })
         }
-        _ => check_mcp_health_claude(&app),
+        _ => check_mcp_health_claude(&app, worktree_path.as_deref()),
     }
 }
 
@@ -9109,7 +9110,10 @@ fn check_mcp_health_antigravity(
     Ok(McpHealthResult { statuses })
 }
 
-fn check_mcp_health_claude(app: &AppHandle) -> Result<McpHealthResult, String> {
+fn check_mcp_health_claude(
+    app: &AppHandle,
+    worktree_path: Option<&str>,
+) -> Result<McpHealthResult, String> {
     let cli_path = resolve_cli_binary(app);
     if !cli_path.exists() {
         return Err("Claude CLI not installed".to_string());
@@ -9117,12 +9121,15 @@ fn check_mcp_health_claude(app: &AppHandle) -> Result<McpHealthResult, String> {
 
     log::debug!("Running: claude mcp list");
 
-    let output = crate::platform::cli_command(&cli_path.to_string_lossy(), None)
-        .args(["mcp", "list"])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .map_err(|e| format!("Failed to run claude mcp list: {e}"))?;
+    let output = crate::platform::cli_command(
+        &cli_path.to_string_lossy(),
+        worktree_path.map(std::path::Path::new),
+    )
+    .args(["mcp", "list"])
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped())
+    .output()
+    .map_err(|e| format!("Failed to run claude mcp list: {e}"))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -9135,7 +9142,10 @@ fn check_mcp_health_claude(app: &AppHandle) -> Result<McpHealthResult, String> {
     Ok(McpHealthResult { statuses })
 }
 
-fn check_mcp_health_codex(app: &AppHandle) -> Result<McpHealthResult, String> {
+fn check_mcp_health_codex(
+    app: &AppHandle,
+    worktree_path: Option<&str>,
+) -> Result<McpHealthResult, String> {
     let cli_path = crate::codex_cli::resolve_cli_binary(app)?;
     if !cli_path.exists() {
         return Err("Codex CLI not installed".to_string());
@@ -9143,12 +9153,15 @@ fn check_mcp_health_codex(app: &AppHandle) -> Result<McpHealthResult, String> {
 
     log::debug!("Running: codex mcp list --json");
 
-    let output = crate::platform::cli_command(&cli_path.to_string_lossy(), None)
-        .args(["mcp", "list", "--json"])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .map_err(|e| format!("Failed to run codex mcp list: {e}"))?;
+    let output = crate::platform::cli_command(
+        &cli_path.to_string_lossy(),
+        worktree_path.map(std::path::Path::new),
+    )
+    .args(["mcp", "list", "--json"])
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped())
+    .output()
+    .map_err(|e| format!("Failed to run codex mcp list: {e}"))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -9161,7 +9174,10 @@ fn check_mcp_health_codex(app: &AppHandle) -> Result<McpHealthResult, String> {
     Ok(McpHealthResult { statuses })
 }
 
-fn check_mcp_health_opencode(app: &AppHandle) -> Result<McpHealthResult, String> {
+fn check_mcp_health_opencode(
+    app: &AppHandle,
+    worktree_path: Option<&str>,
+) -> Result<McpHealthResult, String> {
     let cli_path = crate::opencode_cli::resolve_cli_binary(app);
     if !cli_path.exists() {
         return Err("OpenCode CLI not installed".to_string());
@@ -9169,12 +9185,15 @@ fn check_mcp_health_opencode(app: &AppHandle) -> Result<McpHealthResult, String>
 
     log::debug!("Running: opencode mcp list");
 
-    let output = crate::platform::cli_command(&cli_path.to_string_lossy(), None)
-        .args(["mcp", "list"])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .map_err(|e| format!("Failed to run opencode mcp list: {e}"))?;
+    let output = crate::platform::cli_command(
+        &cli_path.to_string_lossy(),
+        worktree_path.map(std::path::Path::new),
+    )
+    .args(["mcp", "list"])
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped())
+    .output()
+    .map_err(|e| format!("Failed to run opencode mcp list: {e}"))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -9207,12 +9226,24 @@ fn parse_codex_mcp_list_json(output: &str) -> std::collections::HashMap<String, 
             .filter_map(|item| {
                 let name = item.get("name")?.as_str()?.to_string();
                 let status_str = item.get("status").and_then(|v| v.as_str()).unwrap_or("");
-                let status = match status_str {
-                    "connected" | "ok" | "ready" => McpHealthStatus::Connected,
-                    "disabled" => McpHealthStatus::Disabled,
-                    "error" | "failed" => McpHealthStatus::CouldNotConnect,
-                    s if s.contains("auth") => McpHealthStatus::NeedsAuthentication,
-                    _ => McpHealthStatus::Unknown,
+                let auth_status = item.get("auth_status").and_then(|value| value.as_str());
+                let status = if item.get("enabled").and_then(|value| value.as_bool()) == Some(false)
+                {
+                    McpHealthStatus::Disabled
+                } else {
+                    match status_str {
+                        "connected" | "ok" | "ready" => McpHealthStatus::Connected,
+                        "disabled" => McpHealthStatus::Disabled,
+                        "error" | "failed" => McpHealthStatus::CouldNotConnect,
+                        s if s.contains("auth") => McpHealthStatus::NeedsAuthentication,
+                        _ => match auth_status {
+                            Some("not_logged_in") => McpHealthStatus::NeedsAuthentication,
+                            // `mcp list` reports stored credentials, not a live
+                            // connection. Do not label these servers connected.
+                            Some("o_auth" | "bearer_token") => McpHealthStatus::Authenticated,
+                            _ => McpHealthStatus::Unknown,
+                        },
+                    }
                 };
                 Some((name, status))
             })
@@ -11545,6 +11576,28 @@ my-disabled: /usr/bin/disabled (STDIO) - disabled";
             statuses.get("my-disabled"),
             Some(&McpHealthStatus::Disabled)
         );
+    }
+
+    #[test]
+    fn test_parse_codex_mcp_auth_status() {
+        let statuses = parse_codex_mcp_list_json(
+            r#"[
+            {"name":"login", "enabled":true, "auth_status":"not_logged_in"},
+            {"name":"oauth", "enabled":true, "auth_status":"o_auth"},
+            {"name":"token", "enabled":true, "auth_status":"bearer_token"},
+            {"name":"off", "enabled":false, "auth_status":"not_logged_in"},
+            {"name":"stdio", "enabled":true, "auth_status":"unsupported"},
+            {"name":"unknown", "enabled":true, "auth_status":"unknown"},
+            {"name":"legacy", "status":"connected"}
+        ]"#,
+        );
+        assert_eq!(statuses["login"], McpHealthStatus::NeedsAuthentication);
+        assert_eq!(statuses["oauth"], McpHealthStatus::Authenticated);
+        assert_eq!(statuses["token"], McpHealthStatus::Authenticated);
+        assert_eq!(statuses["off"], McpHealthStatus::Disabled);
+        assert_eq!(statuses["stdio"], McpHealthStatus::Unknown);
+        assert_eq!(statuses["unknown"], McpHealthStatus::Unknown);
+        assert_eq!(statuses["legacy"], McpHealthStatus::Connected);
     }
 
     #[test]

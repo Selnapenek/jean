@@ -97,6 +97,13 @@ export type CliLoginModalType =
   | 'coderabbit'
   | null
 
+export interface McpLoginContext {
+  serverName: string
+  worktreePath: string
+  /** Owner of the backend CLI and terminal, not the viewing client. */
+  serverId?: string
+}
+
 export interface MinimizedCliUpdate {
   type: Exclude<CliLoginModalType, null>
   name: string
@@ -157,6 +164,7 @@ interface UIState {
   cliLoginModalCommand: string | null
   cliLoginModalCommandArgs: string[] | null
   cliLoginModalAction: 'login' | 'update' | 'install'
+  cliLoginModalMcpContext: McpLoginContext | null
   /** Active CLI update hidden from its modal while the process keeps running. */
   minimizedCliUpdate: MinimizedCliUpdate | null
   /** Worktree IDs that should auto-trigger investigate-issue when created */
@@ -288,7 +296,8 @@ interface UIState {
     type: Exclude<CliLoginModalType, null>,
     command: string,
     commandArgs?: string[],
-    action?: 'login' | 'update' | 'install'
+    action?: 'login' | 'update' | 'install',
+    mcpContext?: McpLoginContext
   ) => void
   closeCliLoginModal: () => void
   setMinimizedCliUpdate: (update: MinimizedCliUpdate | null) => void
@@ -424,6 +433,7 @@ export const useUIStore = create<UIState>()(
       cliLoginModalCommand: null,
       cliLoginModalCommandArgs: null,
       cliLoginModalAction: 'login',
+      cliLoginModalMcpContext: null,
       minimizedCliUpdate: null,
       autoInvestigateWorktreeIds: new Set(),
       autoInvestigatePRWorktreeIds: new Set(),
@@ -825,7 +835,7 @@ export const useUIStore = create<UIState>()(
           'closeCliUpdateModal'
         ),
 
-      openCliLoginModal: (type, command, commandArgs, action) =>
+      openCliLoginModal: (type, command, commandArgs, action, mcpContext) =>
         set(
           {
             cliLoginModalOpen: true,
@@ -833,6 +843,7 @@ export const useUIStore = create<UIState>()(
             cliLoginModalCommand: command,
             cliLoginModalCommandArgs: commandArgs ?? null,
             cliLoginModalAction: action ?? 'login',
+            cliLoginModalMcpContext: mcpContext ?? null,
             minimizedCliUpdate: null,
           },
           undefined,
@@ -847,6 +858,7 @@ export const useUIStore = create<UIState>()(
             cliLoginModalCommand: null,
             cliLoginModalCommandArgs: null,
             cliLoginModalAction: 'login',
+            cliLoginModalMcpContext: null,
             minimizedCliUpdate: null,
           },
           undefined,

@@ -92,6 +92,38 @@ backend/model results together so the review panel can switch between them;
 entries are created with a running status so the dropdown can show loading
 state before each result arrives.
 
+### MCP sign-in
+
+MCP rows in global and project settings offer **Sign in** for Claude and Codex
+servers that need authentication. `prepare_mcp_login` resolves the configured
+backend binary, validates the server name, and checks `mcp login --help` for
+`--no-browser` support. The command is registered in the shared core dispatch,
+which serves both native `dispatch_core_command` and Web Access.
+
+Reuse `CliLoginModal` and `StandaloneTerminalSurface`; do not implement a second
+OAuth credential store. The backend CLI owns credentials, state/PKCE validation,
+and token exchange. The user opens the authorization link and pastes the full
+callback URL into the terminal (or the Web Access/mobile paste field). This
+works even when the browser is on another device and cannot reach the callback
+page. Old CLI versions receive an update message rather than an unusable flow.
+Other backends retain their backend-specific terminal instructions.
+
+The modal's optional `McpLoginContext` records the server name, working directory,
+and owning Jean server. Remote terminal IDs are scoped to that owner. MCP query
+keys include the owner so equal directory paths on different servers cannot
+share health or configuration results. Global settings use the selected Settings
+server; project settings use the project's owner. Closing the login window
+explicitly fetches that owner's manual health queries after cancelling any
+pre-login checks. Invalidation alone does not run disabled health queries.
+
+OAuth URLs and callback output from MCP login must not enter debug logs.
+`codex mcp list --json` reports `auth_status`, not a live connection check:
+`not_logged_in` needs sign-in, while `o_auth`/`bearer_token` are **signed in**, not
+**connected**. Keep this distinction in the UI.
+
+References: [Codex MCP](https://developers.openai.com/codex/mcp), installed
+Claude/Codex `mcp login --help` (`--no-browser` and manual callback input).
+
 ### Client and Server Preference Ownership
 
 Preferences use a strict ownership boundary. Display, input, notification, and

@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useState } from 'react'
-import { Sentry, Wand2 } from '@/components/icons/reicon'
+import { Wand2 } from '@/components/icons/reicon'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -143,10 +143,7 @@ export function MobileToolbarMenu({
               {section.header}
             </div>
             {section.options.map(option => {
-              const Icon =
-                option.id === 'investigate-issue' && !hasIssueContexts
-                  ? Sentry
-                  : option.icon
+              const Icon = option.icon
               return (
                 <DropdownMenuItem
                   key={option.id}

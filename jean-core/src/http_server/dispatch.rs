@@ -3246,6 +3246,15 @@ pub async fn dispatch_command(
             let result = crate::chat::check_mcp_health(app.clone(), backend, worktree_path).await?;
             to_value(result)
         }
+        "prepare_mcp_login" => {
+            let backend: String = from_field(&args, "backend")?;
+            let server_name: String = field(&args, "serverName", "server_name")?;
+            let worktree_path: Option<String> = field_opt(&args, "worktreePath", "worktree_path")?;
+            let result =
+                crate::chat::prepare_mcp_login(app.clone(), backend, server_name, worktree_path)
+                    .await?;
+            to_value(result)
+        }
         "get_mcp_servers" => {
             let backend: Option<String> = from_field_opt(&args, "backend")?;
             let worktree_path: Option<String> = field_opt(&args, "worktreePath", "worktree_path")?;

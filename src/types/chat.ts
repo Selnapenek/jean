@@ -1618,6 +1618,7 @@ export interface McpServerInfo {
 /** Health status of an MCP server as reported by `claude mcp list` */
 export type McpHealthStatus =
   | 'connected'
+  | 'authenticated'
   | 'needsAuthentication'
   | 'couldNotConnect'
   | 'disabled'

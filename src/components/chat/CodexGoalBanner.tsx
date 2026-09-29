@@ -1,9 +1,14 @@
 import { useCallback, useState } from 'react'
-import { X } from '@/components/icons/reicon'
+import { Flag } from '@/components/icons/reicon'
 import { toast } from 'sonner'
 import { invoke } from '@/lib/transport'
 import { useChatStore } from '@/store/chat-store'
 import { Button } from '@/components/ui/button'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 
 interface CodexGoalBannerProps {
   sessionId: string | null
@@ -29,6 +34,7 @@ export function CodexGoalBanner({
     sessionId ? (state.codexGoals[sessionId] ?? null) : null
   )
   const [clearing, setClearing] = useState(false)
+  const [open, setOpen] = useState(false)
 
   const handleClear = useCallback(async () => {
     if (!sessionId || !worktreeId || !worktreePath || clearing) return
@@ -40,6 +46,7 @@ export function CodexGoalBanner({
         sessionId,
       })
       await onClearClaudeGoal?.()
+      setOpen(false)
     } catch (err) {
       toast.error(`Failed to clear goal: ${err}`)
     } finally {
@@ -50,24 +57,36 @@ export function CodexGoalBanner({
   if (!isGoalBackend || !goal) return null
 
   return (
-    <div className="mb-2 flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
-      <div className="flex-1">
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label="Show goal"
+          className="flex h-6 items-center gap-1 rounded-full border border-border/70 bg-background/90 py-0 pl-1.5 pr-2.5 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur-md transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <Flag className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>Goal</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80 p-3">
         <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Goal
         </div>
-        <div className="text-foreground">{goal}</div>
-      </div>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
-        onClick={handleClear}
-        disabled={clearing}
-        aria-label="Clear goal"
-      >
-        <X className="h-3.5 w-3.5" />
-      </Button>
-    </div>
+        <div className="mt-1 max-h-60 overflow-y-auto whitespace-pre-wrap break-words text-sm text-foreground">
+          {goal}
+        </div>
+        <div className="mt-3 flex justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleClear}
+            disabled={clearing}
+          >
+            {clearing ? 'Clearing...' : 'Clear goal'}
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }

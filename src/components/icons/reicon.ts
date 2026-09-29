@@ -44,6 +44,7 @@ export {
   EyeOff,
   File,
   FileText,
+  Flag,
   Flash,
   Flask,
   Folder,

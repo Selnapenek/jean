@@ -2460,18 +2460,33 @@ function ChatWindowContent({
                   <div className="flex h-full min-h-0 flex-col">
                     {/* Messages area */}
                     <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
-                      {/* Session label badge - absolute positioned to avoid covering content */}
-                      {sessionLabel && (
-                        <span
-                          className="absolute top-2 right-4 z-20 inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
-                          style={{
-                            backgroundColor: sessionLabel.color,
-                            color: getLabelTextColor(sessionLabel.color),
-                          }}
-                        >
-                          {sessionLabel.name}
-                        </span>
-                      )}
+                      {/* Top-right badges (goal, session label) - absolute positioned to avoid covering content */}
+                      <div className="absolute top-2 right-4 z-20 flex items-center gap-2">
+                        <CodexGoalBanner
+                          sessionId={activeSessionId ?? null}
+                          worktreeId={activeWorktreeId ?? null}
+                          worktreePath={activeWorktreePath ?? null}
+                          isGoalBackend={
+                            isCodexBackend || selectedBackend === 'claude'
+                          }
+                          onClearClaudeGoal={
+                            selectedBackend === 'claude'
+                              ? handleClearClaudeGoal
+                              : undefined
+                          }
+                        />
+                        {sessionLabel && (
+                          <span
+                            className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
+                            style={{
+                              backgroundColor: sessionLabel.color,
+                              color: getLabelTextColor(sessionLabel.color),
+                            }}
+                          >
+                            {sessionLabel.name}
+                          </span>
+                        )}
+                      </div>
                       <ChatSearchBar scrollContainerRef={scrollViewportRef} />
                       {/* Bottom fade gradient so messages don't hard-cut at the input area */}
                       <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 h-8 bg-gradient-to-b from-transparent to-background" />
@@ -2545,19 +2560,6 @@ function ChatWindowContent({
                                   }
                                 />
                               )}
-                            <CodexGoalBanner
-                              sessionId={activeSessionId ?? null}
-                              worktreeId={activeWorktreeId ?? null}
-                              worktreePath={activeWorktreePath ?? null}
-                              isGoalBackend={
-                                isCodexBackend || selectedBackend === 'claude'
-                              }
-                              onClearClaudeGoal={
-                                selectedBackend === 'claude'
-                                  ? handleClearClaudeGoal
-                                  : undefined
-                              }
-                            />
                             {isLoading ||
                             isSessionsLoading ||
                             isSessionSwitching ? (

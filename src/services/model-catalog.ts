@@ -117,7 +117,7 @@ function getBundledReasoning(
   model: string
 ): ModelReasoningCapability | undefined {
   if (backend === 'codex') {
-    const isGpt6 = model.startsWith('gpt-6-')
+    const isGpt6 = /^gpt-6[.-]/.test(model)
     const isGpt56 = model.startsWith('gpt-5.6')
     const levels = isGpt6
       ? model.includes('luna')

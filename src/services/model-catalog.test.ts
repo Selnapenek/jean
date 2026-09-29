@@ -249,21 +249,28 @@ describe('model catalog', () => {
   })
 
   it('uses the documented effort levels for bundled GPT 6 Sol', () => {
-    const reasoning = getCatalogModelReasoning(null, 'codex', 'gpt-6-sol')
+    for (const model of ['gpt-6-sol', 'gpt-6.1-sol']) {
+      const reasoning = getCatalogModelReasoning(null, 'codex', model)
 
-    expect(reasoning?.default).toBe('medium')
-    expect(reasoning?.levels.map(level => level.value)).toEqual([
-      'low',
-      'medium',
-      'high',
-      'xhigh',
-      'max',
-      'ultra',
-    ])
+      expect(reasoning?.default).toBe('medium')
+      expect(reasoning?.levels.map(level => level.value)).toEqual([
+        'low',
+        'medium',
+        'high',
+        'xhigh',
+        'max',
+        'ultra',
+      ])
+    }
   })
 
   it('exposes fast mode for bundled GPT 6 models', () => {
-    for (const model of ['gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna']) {
+    for (const model of [
+      'gpt-6.1-sol',
+      'gpt-6-astra',
+      'gpt-6-sol',
+      'gpt-6-luna',
+    ]) {
       expect(getCatalogModelFastInfo(null, 'codex', model)).toEqual({
         supportsFast: true,
         isFast: false,

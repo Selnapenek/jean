@@ -1693,6 +1693,8 @@ export const effortLevelOptions: {
 // Codex Types
 // =============================================================================
 export type CodexModel =
+  | 'gpt-6.1-sol'
+  | 'gpt-6.1-sol-fast'
   | 'gpt-6-astra'
   | 'gpt-6-astra-fast'
   | 'gpt-6-sol'
@@ -1721,6 +1723,7 @@ export type CodexModel =
 // Codex models that support fast service tier. Fast mode is exposed via a
 // separate UI toggle, not as standalone dropdown entries.
 export const CODEX_FAST_MODEL_MAP = {
+  'gpt-6.1-sol': 'gpt-6.1-sol-fast',
   'gpt-6-astra': 'gpt-6-astra-fast',
   'gpt-6-sol': 'gpt-6-sol-fast',
   'gpt-6-luna': 'gpt-6-luna-fast',
@@ -1769,6 +1772,7 @@ export function getCodexFastInfo(model: string): CodexFastInfo {
 }
 
 export const codexModelOptions: { value: CodexModel; label: string }[] = [
+  { value: 'gpt-6.1-sol', label: 'GPT 6.1 Sol' },
   { value: 'gpt-6-astra', label: 'GPT 6 Astra' },
   { value: 'gpt-6-sol', label: 'GPT 6 Sol' },
   { value: 'gpt-6-luna', label: 'GPT 6 Luna' },
@@ -1790,6 +1794,8 @@ export const codexDefaultModelOptions: {
   value: CodexModel
   label: string
 }[] = [
+  { value: 'gpt-6.1-sol', label: 'GPT 6.1 Sol' },
+  { value: 'gpt-6.1-sol-fast', label: 'GPT 6.1 Sol Fast' },
   { value: 'gpt-6-astra', label: 'GPT 6 Astra' },
   { value: 'gpt-6-sol', label: 'GPT 6 Sol' },
   { value: 'gpt-6-luna', label: 'GPT 6 Luna' },
@@ -1811,6 +1817,7 @@ export const codexDefaultModelOptions: {
   ...codexModelOptions.filter(
     option =>
       ![
+        'gpt-6.1-sol',
         'gpt-6-astra',
         'gpt-6-sol',
         'gpt-6-luna',

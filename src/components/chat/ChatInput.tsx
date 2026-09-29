@@ -1127,10 +1127,10 @@ export const ChatInput = memo(function ChatInput({
           throw new Error('Missing context information')
         }
 
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: githubQueryKeys.all }),
-          queryClient.invalidateQueries({ queryKey: linearQueryKeys.all }),
-        ])
+        // Refresh in the background. Refetching every GitHub/Linear query can
+        // take many seconds, and the investigate send must not wait for it.
+        void queryClient.invalidateQueries({ queryKey: githubQueryKeys.all })
+        void queryClient.invalidateQueries({ queryKey: linearQueryKeys.all })
       }
 
       // Replace the `#query` mention with `insertion`. Returns false when the

@@ -1,4 +1,5 @@
 import { createRef } from 'react'
+import { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@/test/test-utils'
 import { ChatInput } from './ChatInput'
@@ -228,6 +229,27 @@ describe('ChatInput attachments', () => {
       issueNumber: 123,
       projectPath: '/tmp/worktree',
     })
+  })
+
+  it('does not wait for the query refetch before sending the investigation', async () => {
+    invokeMock.mockResolvedValue(undefined)
+    const invalidate = vi
+      .spyOn(QueryClient.prototype, 'invalidateQueries')
+      .mockReturnValue(new Promise<void>(() => undefined))
+    const onSubmit = vi.fn()
+    const textarea = renderInput('session-1', undefined, undefined, onSubmit)
+
+    fireEvent.change(textarea, { target: { value: '#42' } })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Investigate selected issue' })
+    )
+
+    // A slow refetch of all GitHub/Linear queries must not delay the send.
+    await expect(
+      onSubmit.mock.calls[0]?.[1].beforeSend()
+    ).resolves.toBeUndefined()
+    expect(invalidate).toHaveBeenCalled()
+    invalidate.mockRestore()
   })
 
   it('fails beforeSend when the investigation context cannot load', async () => {

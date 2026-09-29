@@ -1671,16 +1671,11 @@ export function useWorktreeEvents() {
         const { id, project_id, error } = event.payload
         logger.error('Worktree deletion failed', { id, project_id, error })
 
-        // Revert worktree status to 'ready'
-        queryClient.setQueryData<Worktree[]>(
-          projectsQueryKeys.worktrees(project_id),
-          old => {
-            if (!old) return []
-            return old.map(w =>
-              w.id === id ? { ...w, status: 'ready' as const } : w
-            )
-          }
-        )
+        // The row was removed optimistically; the backend restores it in
+        // storage on failure, so refetch to show it again.
+        queryClient.invalidateQueries({
+          queryKey: projectsQueryKeys.worktrees(project_id),
+        })
         queryClient.invalidateQueries({ queryKey: ['recent-worktrees'] })
 
         toast.error('Failed to delete worktree', {
@@ -1929,14 +1924,14 @@ export function useDeleteWorktree() {
       return { worktreeId, projectId }
     },
     onSuccess: ({ worktreeId, projectId }) => {
-      // Mark worktree as 'deleting' in cache immediately
+      // Remove from cache now. The backend already dropped it from storage, and
+      // emits no worktree:deleting event when the worktree was already gone
+      // (e.g. its folder was deleted outside Jean).
       queryClient.setQueryData<Worktree[]>(
         projectsQueryKeys.worktrees(projectId),
         old => {
           if (!old) return []
-          return old.map(w =>
-            w.id === worktreeId ? { ...w, status: 'deleting' as const } : w
-          )
+          return old.filter(w => w.id !== worktreeId)
         }
       )
       removeWorktreeFromRecentCaches(queryClient, worktreeId)

@@ -378,6 +378,15 @@ The helpers are defined in `jean-core/src/platform/process.rs` and re-exported v
 - `SessionListRow.tsx` - Compact row component for list view
 - `session-card-utils.tsx` - `computeSessionCardData()`, `SessionCardData`, and `SessionCardProps` types
 
+#### Feature Parity: Native, Web Access, and Mobile
+
+**CRITICAL:** A feature added to the native app must also work in web access mode.
+
+- Every new Tauri command also needs a WebSocket dispatch arm (see "Adding New Tauri Commands (Web Access Dispatch)").
+- Magic menu (`src/components/magic/MagicModal.tsx`): a new native action must also be available and work in web access.
+- Mobile has its own UI, different from native desktop. Add the feature to the mobile views separately, and verify it there. Do not assume the desktop component is used on mobile.
+- Verify the change in native desktop, web access, and mobile before you mark it done.
+
 #### Keyboard Affordances in Web/Mobile
 
 Keyboard-only affordances are native-desktop only by default:

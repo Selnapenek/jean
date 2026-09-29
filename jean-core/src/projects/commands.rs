@@ -4138,10 +4138,12 @@ pub async fn delete_worktree(app: AppHandle, worktree_id: String) -> Result<(), 
 
     let data = load_projects_data(&app)?;
 
-    let worktree = data
-        .find_worktree(&worktree_id)
-        .ok_or_else(|| format!("Worktree not found: {worktree_id}"))?
-        .clone();
+    // Already gone from storage (e.g. load_projects_data drops worktrees whose folder
+    // was deleted outside Jean). Treat as a no-op so stale clients can remove the row.
+    let Some(worktree) = data.find_worktree(&worktree_id).cloned() else {
+        log::warn!("Worktree {worktree_id} not found in storage, treating delete as done");
+        return Ok(());
+    };
 
     log::trace!(
         "Found worktree: id={}, name={}, branch={}, path={}",
@@ -4854,10 +4856,11 @@ pub async fn permanently_delete_worktree(
 
     let data = load_projects_data(&app)?;
 
-    let worktree = data
-        .find_worktree(&worktree_id)
-        .ok_or_else(|| format!("Worktree not found: {worktree_id}"))?
-        .clone();
+    // Already gone from storage (e.g. its folder was deleted outside Jean): nothing to do.
+    let Some(worktree) = data.find_worktree(&worktree_id).cloned() else {
+        log::warn!("Worktree {worktree_id} not found in storage, treating delete as done");
+        return Ok(());
+    };
 
     // Verify it's archived
     if worktree.archived_at.is_none() {

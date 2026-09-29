@@ -1084,8 +1084,20 @@ fn write_claude_usage_cache_entry(entry: &ClaudeUsageCacheEntry) {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    if let Ok(serialized) = serde_json::to_string_pretty(entry) {
-        let _ = std::fs::write(path, serialized);
+    let Ok(serialized) = serde_json::to_string_pretty(entry) else {
+        return;
+    };
+    // Write to a unique temp file, then rename. Run streams update this cache on
+    // every `rate_limit_event` while the UI reads it; a plain truncate+write lets
+    // a reader see an empty file and report "rate-limited" with no stale data.
+    static WRITE_SEQ: AtomicU64 = AtomicU64::new(0);
+    let seq = WRITE_SEQ.fetch_add(1, Ordering::Relaxed);
+    let tmp = path.with_extension(format!("json.{}.{seq}.tmp", std::process::id()));
+    if std::fs::write(&tmp, serialized)
+        .and_then(|()| std::fs::rename(&tmp, &path))
+        .is_err()
+    {
+        let _ = std::fs::remove_file(&tmp);
     }
 }
 

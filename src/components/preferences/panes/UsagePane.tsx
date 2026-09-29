@@ -341,7 +341,8 @@ export const UsagePane: React.FC = () => {
     if (claudeUsage.isLoading) {
       return <LoadingLine label="Loading usage…" />
     }
-    if (claudeUsage.isError) {
+    // Keep showing last-good data when only a background refetch failed.
+    if (claudeUsage.isError && !claudeUsage.data) {
       return (
         <ErrorLine
           message={claudeErrorMessage}
@@ -384,7 +385,8 @@ export const UsagePane: React.FC = () => {
     if (codexUsage.isLoading) {
       return <LoadingLine label="Loading usage…" />
     }
-    if (codexUsage.isError) {
+    // Keep showing last-good data when only a background refetch failed.
+    if (codexUsage.isError && !codexUsage.data) {
       return (
         <ErrorLine
           message={codexErrorMessage}
@@ -457,7 +459,8 @@ export const UsagePane: React.FC = () => {
     if (grokUsage.isLoading) {
       return <LoadingLine label="Loading usage…" />
     }
-    if (grokUsage.isError) {
+    // Keep showing last-good data when only a background refetch failed.
+    if (grokUsage.isError && !grokUsage.data) {
       return (
         <ErrorLine
           message={grokErrorMessage}

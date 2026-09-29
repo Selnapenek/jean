@@ -81,8 +81,9 @@ export function shouldLetChatInputHandleAction(
 ): boolean {
   if (action === 'next_session' || action === 'previous_session') {
     // Cmd/Ctrl+Arrow moves the caret in text fields. Switch sessions only
-    // when the focused field is empty, so text editing keeps working.
-    return hasEditableText(target)
+    // when the caret already sits at the edge of the text in that direction,
+    // so the first press moves the caret and the next press switches.
+    return canCaretMove(target, action === 'next_session' ? 'end' : 'start')
   }
   return (
     action === 'approve_plan' &&
@@ -92,12 +93,22 @@ export function shouldLetChatInputHandleAction(
   )
 }
 
-function hasEditableText(target: EventTarget | null): boolean {
+function canCaretMove(
+  target: EventTarget | null,
+  toward: 'start' | 'end'
+): boolean {
   if (
     target instanceof HTMLInputElement ||
     target instanceof HTMLTextAreaElement
   ) {
-    return target.value.length > 0
+    const { selectionStart, selectionEnd, value } = target
+    // Inputs without selection support (e.g. type="number") cannot report a
+    // caret, so keep the old rule: any text means the field owns the key.
+    if (selectionStart === null || selectionEnd === null) {
+      return value.length > 0
+    }
+    if (selectionStart !== selectionEnd) return true
+    return toward === 'start' ? selectionStart > 0 : selectionEnd < value.length
   }
   return (
     target instanceof HTMLElement &&

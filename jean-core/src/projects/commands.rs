@@ -4217,7 +4217,15 @@ pub async fn delete_worktree(app: AppHandle, worktree_id: String) -> Result<(), 
     thread::spawn(move || {
         // Run teardown script before git operations (directory still exists)
         let mut teardown_output: Option<String> = None;
-        if let Some(ref script) = teardown_script {
+        // Skip teardown when the checkout is gone (folder deleted or left empty outside
+        // Jean). The script would fail and block cleanup of a worktree that no longer exists.
+        let checkout_exists = Path::new(&worktree_path).join(".git").exists();
+        if teardown_script.is_some() && !checkout_exists {
+            log::warn!(
+                "Background: Worktree checkout missing at {worktree_path}, skipping teardown script"
+            );
+        }
+        if let Some(ref script) = teardown_script.filter(|_| checkout_exists) {
             log::trace!("Background: Running teardown script for {worktree_name}");
             match git::run_teardown_script(&worktree_path, &project_path, &worktree_branch, script)
             {

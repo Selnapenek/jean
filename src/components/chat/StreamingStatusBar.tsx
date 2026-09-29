@@ -1,6 +1,5 @@
 import { memo } from 'react'
 import type { RunStatus } from '@/types/chat'
-import { StatusIndicator } from '@/components/ui/status-indicator'
 import { useElapsedTime } from './hooks/useElapsedTime'
 
 interface StreamingStatusBarProps {
@@ -53,8 +52,7 @@ export const StreamingStatusBar = memo(function StreamingStatusBar({
   if (!visible) return null
 
   return (
-    <div className="mt-1 inline-flex min-h-4 items-center gap-1.5 text-xs text-muted-foreground/40 tabular-nums font-mono select-none">
-      <StatusIndicator status="running" className="h-2 w-2" />
+    <div className="mt-1 inline-flex min-h-4 items-center text-xs text-muted-foreground/40 tabular-nums font-mono select-none">
       {showRestored ? (
         <span className="leading-none animate-dots">
           {getModeLabel(restoredExecutionMode)}

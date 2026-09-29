@@ -4768,6 +4768,12 @@ pub fn initialize_runtime(context: &RuntimeContext) -> Result<(), String> {
     if let Err(error) = chat::wakeup::load_all_from_disk(context) {
         log::warn!("Failed to restore scheduled wakeups: {error}");
     }
+    // Finish runs orphaned by a crash/reboot before any client connects.
+    // Headless servers otherwise only recover on a full page load, so an
+    // open web tab that just reconnects keeps showing the dead run as running.
+    if let Err(error) = chat::run_log::recover_incomplete_runs(context) {
+        log::warn!("Failed to recover incomplete runs: {error}");
+    }
     let task_manager = background_tasks::BackgroundTaskManager::new(context.clone());
     task_manager.start();
     context.manage(task_manager);

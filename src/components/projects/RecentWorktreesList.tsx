@@ -363,7 +363,7 @@ export function RecentWorktreesList({
       <div className="min-h-0 flex-1 overflow-y-auto">
         <ul
           aria-label="Recent sessions"
-          className="flex flex-col gap-2 px-2 py-2"
+          className="@container flex flex-col gap-2 px-2 py-2"
         >
           {displayedRows.map((row, index) => {
             const isCurrent = row.session.id === selectedSessionId
@@ -413,9 +413,28 @@ export function RecentWorktreesList({
                     </div>
                   )}
                 <div
-                  className={`flex w-full cursor-pointer flex-col gap-y-1 rounded-lg border py-2.5 pl-3 pr-3 text-left transition-[background-color,border-color,box-shadow,color] hover:bg-muted/30 hover:text-foreground has-[:focus-visible]:ring-1 has-[:focus-visible]:ring-ring ${isCurrent ? 'border-border bg-muted/50 text-foreground shadow' : 'border-transparent bg-transparent text-muted-foreground'}`}
+                  className={`relative flex w-full cursor-pointer flex-col gap-y-1 rounded-lg border py-2.5 pl-3 pr-3 text-left transition-[background-color,border-color,box-shadow,color] hover:bg-muted/30 hover:text-foreground has-[:focus-visible]:ring-1 has-[:focus-visible]:ring-ring ${isCurrent ? 'border-border bg-muted/50 text-foreground shadow' : 'border-transparent bg-transparent text-muted-foreground'}`}
                   onClick={() => handleOpen(row)}
                 >
+                  <button
+                    type="button"
+                    aria-label={isPinned ? 'Unpin session' : 'Pin session'}
+                    title={isPinned ? 'Unpin session' : 'Pin session'}
+                    className={`absolute -left-1.5 -top-1.5 z-10 flex size-5 items-center justify-center rounded-full border border-border bg-background transition-opacity hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${isPinned ? 'text-foreground' : 'text-muted-foreground md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100 md:group-focus-within:opacity-100'}`}
+                    onClick={event => {
+                      event.stopPropagation()
+                      void setRecentSessionPinned(
+                        queryClient,
+                        row.session.id,
+                        !isPinned
+                      )
+                    }}
+                  >
+                    <PinTack
+                      size={11}
+                      weight={isPinned ? 'Filled' : 'Outline'}
+                    />
+                  </button>
                   <button
                     ref={element => {
                       if (element) rowRefs.current.set(row.session.id, element)
@@ -424,86 +443,68 @@ export function RecentWorktreesList({
                     type="button"
                     aria-current={isCurrent ? 'page' : undefined}
                     aria-label={`${row.session.name}, ${row.projectName}, ${row.worktree.name}, ${status.label}${isUnread ? ', unread' : ''}, ${activityLabel}`}
-                    className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-1 text-left focus-visible:outline-none"
+                    className="flex w-full flex-col gap-y-1 text-left focus-visible:outline-none"
                   >
-                    <span className="min-w-0 truncate text-[13px] font-medium text-foreground">
-                      {namingSessionIds[row.session.id]
-                        ? 'Generating…'
-                        : row.session.name}
-                    </span>
-                    <span className="flex min-w-14 items-center justify-end gap-1.5 text-[10px]">
-                      {isUnread && (
-                        <BellDot
-                          aria-label="Unread session"
-                          className="size-3.5 shrink-0 text-warning"
-                        />
-                      )}
-                      {isWorking ? (
-                        <span
-                          aria-hidden="true"
-                          className="recent-working-waveform text-primary"
-                        >
-                          <span />
-                          <span />
-                          <span />
-                        </span>
-                      ) : (
-                        status.tone !== 'completed' && (
-                          <span className={`font-medium ${statusClassName}`}>
-                            {status.label}
+                    <span className="flex items-center gap-2">
+                      <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
+                        {namingSessionIds[row.session.id]
+                          ? 'Generating…'
+                          : row.session.name}
+                      </span>
+                      <span className="flex shrink-0 items-center justify-end gap-1.5 text-[10px] empty:hidden">
+                        {isUnread && (
+                          <BellDot
+                            aria-label="Unread session"
+                            className="size-3.5 shrink-0 text-warning"
+                          />
+                        )}
+                        {isWorking ? (
+                          <span
+                            aria-hidden="true"
+                            className="recent-working-waveform text-primary"
+                          >
+                            <span />
+                            <span />
+                            <span />
                           </span>
-                        )
-                      )}
+                        ) : (
+                          status.tone !== 'completed' && (
+                            <span className={`font-medium ${statusClassName}`}>
+                              {status.label}
+                            </span>
+                          )
+                        )}
+                      </span>
                     </span>
-                    <span className="min-w-0 truncate text-[11px]">
-                      {row.projectName} · {row.worktree.name}
+                    <span className="flex items-center gap-2">
+                      <span className="min-w-0 flex-1 truncate text-[11px]">
+                        {row.projectName} · {row.worktree.name}
+                      </span>
+                      <span className="flex shrink-0 items-center justify-end gap-2 text-[10px] tabular-nums">
+                        {(row.added > 0 || row.removed > 0) && (
+                          <span className="hidden gap-1 font-medium @[15rem]:flex">
+                            <span className="text-success">+{row.added}</span>
+                            <span className="text-destructive">
+                              -{row.removed}
+                            </span>
+                          </span>
+                        )}
+                        {showShortcutHints && index < MAX_RECENT_SHORTCUTS ? (
+                          <Kbd className="h-4 px-1 text-[10px]">
+                            {formatShortcutDisplay(`mod+${index + 1}`)}
+                          </Kbd>
+                        ) : (
+                          <time
+                            dateTime={new Date(
+                              row.lastActivityAt * 1000
+                            ).toISOString()}
+                          >
+                            {activity}
+                          </time>
+                        )}
+                      </span>
                     </span>
-                    {showShortcutHints && index < MAX_RECENT_SHORTCUTS ? (
-                      <Kbd className="h-4 justify-self-end px-1 text-[10px]">
-                        {formatShortcutDisplay(`mod+${index + 1}`)}
-                      </Kbd>
-                    ) : (
-                      <time
-                        className="justify-self-end text-[10px] tabular-nums"
-                        dateTime={new Date(
-                          row.lastActivityAt * 1000
-                        ).toISOString()}
-                      >
-                        {activity}
-                      </time>
-                    )}
                   </button>
-                  <div className="flex min-h-4 items-center justify-between">
-                    <button
-                      type="button"
-                      aria-label={isPinned ? 'Unpin session' : 'Pin session'}
-                      title={isPinned ? 'Unpin session' : 'Pin session'}
-                      className="flex size-4 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-100 transition-opacity hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
-                      onClick={event => {
-                        event.stopPropagation()
-                        void setRecentSessionPinned(
-                          queryClient,
-                          row.session.id,
-                          !isPinned
-                        )
-                      }}
-                    >
-                      <PinTack
-                        size={14}
-                        weight={isPinned ? 'Filled' : 'Outline'}
-                      />
-                    </button>
-                    <span className="flex gap-1 text-[10px] font-medium tabular-nums">
-                      {(row.added > 0 || row.removed > 0) && (
-                        <>
-                          <span className="text-success">+{row.added}</span>
-                          <span className="text-destructive">
-                            -{row.removed}
-                          </span>
-                        </>
-                      )}
-                    </span>
-                  </div>
                 </div>
               </li>
             )

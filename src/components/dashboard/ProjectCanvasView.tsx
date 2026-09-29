@@ -997,6 +997,13 @@ export function ProjectCanvasView({
     state =>
       (state.projectCanvasActiveFilters[projectId] ?? 'all') as CanvasFilterTab
   )
+  // Cmd/Ctrl+1-9 opens Recent sessions while the Recent list is visible (see
+  // isRecentSessionsShortcutActive), so hide the worktree shortcut hints then.
+  const leftSidebarVisible = useUIStore(state => state.leftSidebarVisible)
+  const recentTabActive = useProjectsStore(
+    state => state.sidebarActiveTab === 'recent'
+  )
+  const recentOwnsDigitShortcuts = leftSidebarVisible && recentTabActive
   const isMobile = useIsMobile()
   const canOpenEditor = canOpenInEditor()
   const canOpenTerminal = canOpenInTerminal()
@@ -3620,7 +3627,9 @@ export function ProjectCanvasView({
                     )
                   }
                   const thisShortcut =
-                    ++shortcutNum <= 9 ? shortcutNum : undefined
+                    ++shortcutNum <= 9 && !recentOwnsDigitShortcuts
+                      ? shortcutNum
+                      : undefined
                   return (
                     <SortableCanvasWorktreeSection
                       key={section.worktree.id}

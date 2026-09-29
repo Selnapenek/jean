@@ -43,6 +43,7 @@ import {
   useBackendAuthStatuses,
   useInstalledBackends,
 } from '@/hooks/useInstalledBackends'
+import { CODEX_GOAL_TURN_PREFIX } from '../goal-utils'
 
 interface UseMessageSendingParams {
   activeSessionId: string | null | undefined
@@ -463,7 +464,7 @@ export function useMessageSending({
         // The app-server goal is metadata only. Run the work through Jean's
         // normal turn lifecycle so progress, cancellation, and recovery stay
         // connected to the composer and the persisted RunEntry.
-        message = `Complete this goal in the current turn:\n\n${arg}`
+        message = `${CODEX_GOAL_TURN_PREFIX}${arg}`
         startedCodexGoalTurn = true
       }
       // Claude CLI runs /goal natively, so the text is sent unchanged. Jean only

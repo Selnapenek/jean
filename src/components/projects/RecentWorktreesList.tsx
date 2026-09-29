@@ -420,7 +420,7 @@ export function RecentWorktreesList({
                     type="button"
                     aria-label={isPinned ? 'Unpin session' : 'Pin session'}
                     title={isPinned ? 'Unpin session' : 'Pin session'}
-                    className={`absolute -left-1.5 -top-1.5 z-10 flex size-5 items-center justify-center rounded-full border border-border bg-background transition-opacity hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${isPinned ? 'text-foreground' : 'text-muted-foreground md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100 md:group-focus-within:opacity-100'}`}
+                    className={`absolute -left-1.5 -top-1.5 z-10 flex size-5 items-center justify-center transition-opacity hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${isPinned ? 'text-foreground' : 'text-muted-foreground md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100 md:group-focus-within:opacity-100'}`}
                     onClick={event => {
                       event.stopPropagation()
                       void setRecentSessionPinned(

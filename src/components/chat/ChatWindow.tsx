@@ -144,7 +144,6 @@ import {
   getCurrentPromptWindow,
   remapIndexForWindow,
 } from './compact-history-window'
-import { CodexGoalBanner } from './CodexGoalBanner'
 import { StreamingStatusBar } from './StreamingStatusBar'
 import { ChatErrorFallback } from './ChatErrorFallback'
 import { logger } from '@/lib/logger'
@@ -1660,6 +1659,23 @@ function ChatWindowContent({
     if (wasSending) await handleCancel()
   }, [activeSessionId, getMcpConfig, handleCancel, sendMessageNow])
 
+  // Shared by the goal badge on the /goal message: clear Jean's goal mirror,
+  // then (Claude only) clear the goal kept in the CLI session.
+  const handleClearGoal = useCallback(async () => {
+    if (!activeSessionId || !activeWorktreeId || !activeWorktreePath) return
+    await invoke('codex_goal_clear', {
+      worktreeId: activeWorktreeId,
+      worktreePath: activeWorktreePath,
+      sessionId: activeSessionId,
+    })
+    if (selectedBackendRef.current === 'claude') await handleClearClaudeGoal()
+  }, [
+    activeSessionId,
+    activeWorktreeId,
+    activeWorktreePath,
+    handleClearClaudeGoal,
+  ])
+
   const handleCommentAndCloseIssue = useCallback(() => {
     if (!loadedIssueContexts?.length) {
       toast.error('No GitHub issue attached to this session or worktree')
@@ -2460,21 +2476,8 @@ function ChatWindowContent({
                   <div className="flex h-full min-h-0 flex-col">
                     {/* Messages area */}
                     <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
-                      {/* Top-right badges (goal, session label) - absolute positioned to avoid covering content */}
+                      {/* Top-right badges (session label) - absolute positioned to avoid covering content */}
                       <div className="absolute top-2 right-4 z-20 flex items-center gap-2">
-                        <CodexGoalBanner
-                          sessionId={activeSessionId ?? null}
-                          worktreeId={activeWorktreeId ?? null}
-                          worktreePath={activeWorktreePath ?? null}
-                          isGoalBackend={
-                            isCodexBackend || selectedBackend === 'claude'
-                          }
-                          onClearClaudeGoal={
-                            selectedBackend === 'claude'
-                              ? handleClearClaudeGoal
-                              : undefined
-                          }
-                        />
                         {sessionLabel && (
                           <span
                             className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
@@ -2637,6 +2640,7 @@ function ChatWindowContent({
                                     areQuestionsSkipped={areQuestionsSkipped}
                                     isFindingFixed={isFindingFixed}
                                     onCopyToInput={handleCopyToInput}
+                                    onClearGoal={handleClearGoal}
                                     shouldScrollToBottom={isAtBottom}
                                     onScrollToBottomHandled={
                                       handleScrollToBottomHandled
@@ -2717,6 +2721,7 @@ function ChatWindowContent({
                                     areQuestionsSkipped={areQuestionsSkipped}
                                     isFindingFixed={isFindingFixed}
                                     onCopyToInput={handleCopyToInput}
+                                    onClearGoal={handleClearGoal}
                                     shouldScrollToBottom={isAtBottom}
                                     onScrollToBottomHandled={
                                       handleScrollToBottomHandled

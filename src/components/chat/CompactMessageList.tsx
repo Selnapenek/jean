@@ -101,6 +101,8 @@ interface CompactMessageListProps {
   areQuestionsSkipped: (sessionId: string) => boolean
   isFindingFixed: (sessionId: string, key: string) => boolean
   onCopyToInput?: (message: ChatMessage) => void
+  /** Clear the session's active goal (goal badge on the /goal message) */
+  onClearGoal?: () => Promise<void>
   hideApproveButtons?: boolean
   shouldScrollToBottom?: boolean
   onScrollToBottomHandled?: () => void
@@ -671,6 +673,7 @@ export const CompactMessageList = memo(
         areQuestionsSkipped,
         isFindingFixed,
         onCopyToInput,
+        onClearGoal,
         hideApproveButtons,
         shouldScrollToBottom,
         onScrollToBottomHandled,
@@ -889,6 +892,7 @@ export const CompactMessageList = memo(
             areQuestionsSkipped={areQuestionsSkipped}
             isFindingFixed={isFindingFixed}
             onCopyToInput={onCopyToInput}
+            onClearGoal={onClearGoal}
             hideApproveButtons={hideApproveButtons}
             hideCancelledIndicator={extra.hideCancelledIndicator}
             hideEditedFiles={extra.hideEditedFiles}
@@ -924,6 +928,7 @@ export const CompactMessageList = memo(
           areQuestionsSkipped,
           isFindingFixed,
           onCopyToInput,
+          onClearGoal,
           hideApproveButtons,
         ]
       )

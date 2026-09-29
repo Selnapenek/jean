@@ -1,7 +1,6 @@
 import { useCallback, useState } from 'react'
 import { Flag } from '@/components/icons/reicon'
 import { toast } from 'sonner'
-import { invoke } from '@/lib/transport'
 import { useChatStore } from '@/store/chat-store'
 import { Button } from '@/components/ui/button'
 import {
@@ -10,51 +9,39 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 
-interface CodexGoalBannerProps {
-  sessionId: string | null
-  worktreeId: string | null
-  worktreePath: string | null
-  /** Only render for Codex and Claude sessions */
-  isGoalBackend: boolean
-  /**
-   * Claude keeps its goal inside the CLI session, so clearing must go through
-   * a chat turn instead of the Codex app-server RPC.
-   */
-  onClearClaudeGoal?: () => void | Promise<void>
+interface GoalBadgeProps {
+  sessionId: string
+  /** Objective set by the user message that renders this badge */
+  objective: string
+  onClearGoal: () => Promise<void>
 }
 
-export function CodexGoalBanner({
+/** Shown on the user message that set the session's active goal. */
+export function GoalBadge({
   sessionId,
-  worktreeId,
-  worktreePath,
-  isGoalBackend,
-  onClearClaudeGoal,
-}: CodexGoalBannerProps) {
-  const goal = useChatStore(state =>
-    sessionId ? (state.codexGoals[sessionId] ?? null) : null
+  objective,
+  onClearGoal,
+}: GoalBadgeProps) {
+  const isActive = useChatStore(
+    state => state.codexGoals[sessionId]?.trim() === objective
   )
   const [clearing, setClearing] = useState(false)
   const [open, setOpen] = useState(false)
 
   const handleClear = useCallback(async () => {
-    if (!sessionId || !worktreeId || !worktreePath || clearing) return
+    if (clearing) return
     setClearing(true)
     try {
-      await invoke('codex_goal_clear', {
-        worktreeId,
-        worktreePath,
-        sessionId,
-      })
-      await onClearClaudeGoal?.()
+      await onClearGoal()
       setOpen(false)
     } catch (err) {
       toast.error(`Failed to clear goal: ${err}`)
     } finally {
       setClearing(false)
     }
-  }, [sessionId, worktreeId, worktreePath, clearing, onClearClaudeGoal])
+  }, [clearing, onClearGoal])
 
-  if (!isGoalBackend || !goal) return null
+  if (!isActive) return null
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -62,7 +49,7 @@ export function CodexGoalBanner({
         <button
           type="button"
           aria-label="Show goal"
-          className="flex h-6 items-center gap-1 rounded-full border border-border/70 bg-background/90 py-0 pl-1.5 pr-2.5 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur-md transition-colors hover:bg-muted hover:text-foreground"
+          className="flex h-6 items-center gap-1 rounded-full border border-border/70 bg-background/90 py-0 pl-1.5 pr-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <Flag className="h-3.5 w-3.5" aria-hidden="true" />
           <span>Goal</span>
@@ -73,7 +60,7 @@ export function CodexGoalBanner({
           Goal
         </div>
         <div className="mt-1 max-h-60 overflow-y-auto whitespace-pre-wrap break-words text-sm text-foreground">
-          {goal}
+          {objective}
         </div>
         <div className="mt-3 flex justify-end">
           <Button

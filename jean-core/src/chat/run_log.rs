@@ -402,6 +402,67 @@ fn reconcile_completed_running_runs(
     reconciled
 }
 
+/// Mark Running runs without a live process as Crashed. Returns true if any
+/// run changed. Caller must ensure the session is not actively managed.
+fn mark_orphaned_running_runs_crashed(
+    metadata: &mut SessionMetadata,
+    ended_at: u64,
+    mut is_alive: impl FnMut(u32) -> bool,
+) -> bool {
+    let mut changed = false;
+    for run in &mut metadata.runs {
+        if run.status != RunStatus::Running || run.pid.is_some_and(&mut is_alive) {
+            continue;
+        }
+        log::warn!(
+            "Marking orphaned Running run {} as crashed (pid: {:?})",
+            run.run_id,
+            run.pid
+        );
+        run.status = RunStatus::Crashed;
+        run.ended_at.get_or_insert(ended_at);
+        run.recovered = true;
+        if run.assistant_message_id.is_none() {
+            run.assistant_message_id = Some(Uuid::new_v4().to_string());
+        }
+        changed = true;
+    }
+    changed
+}
+
+/// Finish stale Running/Resumable runs for a session that has no managed
+/// process (orphaned by a Jean crash). Runs with a result line become
+/// Completed, the rest Cancelled. Returns true if any run changed.
+pub fn finish_orphaned_runs(app: &tauri::AppHandle, session_id: &str) -> Result<bool, String> {
+    let Some(mut metadata) = load_metadata(app, session_id)? else {
+        return Ok(false);
+    };
+    let now = now_timestamp();
+    let mut changed = reconcile_completed_running_runs(
+        &mut metadata,
+        now,
+        |run_id| jsonl_has_result_line(app, session_id, run_id),
+        |run_id| extract_session_id_from_jsonl(app, session_id, run_id),
+    );
+    for run in &mut metadata.runs {
+        if run.status != RunStatus::Running && run.status != RunStatus::Resumable {
+            continue;
+        }
+        run.status = RunStatus::Cancelled;
+        run.cancelled = true;
+        run.ended_at.get_or_insert(now);
+        run.recovered = true;
+        if run.assistant_message_id.is_none() {
+            run.assistant_message_id = Some(Uuid::new_v4().to_string());
+        }
+        changed = true;
+    }
+    if changed {
+        save_metadata(app, &metadata)?;
+    }
+    Ok(changed)
+}
+
 /// Start a new run - creates JSONL file and updates metadata
 #[allow(clippy::too_many_arguments)]
 pub fn start_run(
@@ -497,6 +558,14 @@ pub fn start_run(
                 |run_id| jsonl_has_result_line(app, session_id, run_id),
                 |run_id| extract_session_id_from_jsonl(app, session_id, run_id),
             );
+
+            // send_chat_message already rejected sessions with a live managed
+            // process, so a Running run whose process is gone was orphaned by a
+            // Jean crash (e.g. disk full) and never recovered. Mark it crashed
+            // instead of blocking every new prompt forever.
+            mark_orphaned_running_runs_crashed(metadata, now, |pid| {
+                super::detached::is_process_alive(pid)
+            });
 
             // Guard: if there's already a Running run, reject to prevent duplicates.
             // This is a safety net — the primary guard is in send_chat_message.
@@ -1847,6 +1916,44 @@ mod tests {
     }
 
     #[test]
+    fn orphaned_running_run_no_longer_blocks_the_next_run() {
+        let mut metadata = SessionMetadata::new(
+            "session-123".to_string(),
+            "worktree-123".to_string(),
+            "Test session".to_string(),
+            0,
+        );
+        let mut dead = sample_run();
+        dead.status = RunStatus::Running;
+        dead.ended_at = None;
+        dead.assistant_message_id = None;
+        dead.pid = Some(111);
+        let mut no_pid = dead.clone();
+        no_pid.run_id = "run-no-pid".to_string();
+        no_pid.pid = None;
+        let mut alive = dead.clone();
+        alive.run_id = "run-alive".to_string();
+        alive.pid = Some(222);
+        metadata.runs.extend([dead, no_pid, alive]);
+
+        let changed = mark_orphaned_running_runs_crashed(&mut metadata, 42, |pid| pid == 222);
+
+        assert!(changed);
+        for run_id in ["run-123", "run-no-pid"] {
+            let run = metadata.find_run(run_id).unwrap();
+            assert_eq!(run.status, RunStatus::Crashed);
+            assert_eq!(run.ended_at, Some(42));
+            assert!(run.recovered);
+            assert!(run.assistant_message_id.is_some());
+        }
+        // A live process (e.g. detached CLI still working) must keep blocking.
+        assert_eq!(
+            metadata.find_run("run-alive").unwrap().status,
+            RunStatus::Running
+        );
+    }
+
+    #[test]
     fn reconciled_run_preserves_provider_session_context() {
         let mut metadata = SessionMetadata::new(
             "session-123".to_string(),
@@ -2913,9 +3020,15 @@ pub fn recover_incomplete_runs(app: &tauri::AppHandle) -> Result<Vec<RecoveredRu
         if actively_managed.contains(&session_id) {
             continue;
         }
-        let mut metadata = match load_metadata(app, &session_id)? {
-            Some(m) => m,
-            None => continue,
+        // One unreadable/unwritable session (corrupt file, full disk) must not
+        // block recovery of every other session.
+        let mut metadata = match load_metadata(app, &session_id) {
+            Ok(Some(m)) => m,
+            Ok(None) => continue,
+            Err(e) => {
+                log::warn!("Skipping run recovery for session {session_id}: {e}");
+                continue;
+            }
         };
         let metadata_backend = metadata.backend.clone();
 
@@ -3038,7 +3151,10 @@ pub fn recover_incomplete_runs(app: &tauri::AppHandle) -> Result<Vec<RecoveredRu
         }
 
         if modified {
-            save_metadata(app, &metadata)?;
+            if let Err(e) = save_metadata(app, &metadata) {
+                log::warn!("Failed to save recovered runs for session {session_id}: {e}");
+                recovered.retain(|r| r.session_id != session_id);
+            }
         }
     }
 

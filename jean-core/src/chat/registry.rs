@@ -122,7 +122,12 @@ fn lock_recover<'a, T>(mutex: &'a Mutex<T>, name: &str) -> std::sync::MutexGuard
     }
 }
 
-fn emit_cancelled_event(app: &AppHandle, session_id: &str, worktree_id: &str, undo_send: bool) {
+pub(crate) fn emit_cancelled_event(
+    app: &AppHandle,
+    session_id: &str,
+    worktree_id: &str,
+    undo_send: bool,
+) {
     let emitted_at_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_millis() as u64)

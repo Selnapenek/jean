@@ -6108,6 +6108,15 @@ pub async fn cancel_chat_message(
             "Ignoring cancel request for idle session: {session_id} (no active send/process)"
         );
         super::registry::cleanup_session_registrations(&session_id);
+        // No live process, but metadata may still say Running/Resumable after a
+        // Jean crash. Finish those runs so the session stops showing as busy.
+        match super::run_log::finish_orphaned_runs(&app, &session_id) {
+            Ok(true) => {
+                super::registry::emit_cancelled_event(&app, &session_id, &worktree_id, false)
+            }
+            Ok(false) => {}
+            Err(e) => log::warn!("Failed to finish orphaned runs for {session_id}: {e}"),
+        }
         return Ok(false);
     }
     let cancelled = cancel_process(&app, &session_id, &worktree_id)?;

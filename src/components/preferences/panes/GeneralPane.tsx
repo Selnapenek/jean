@@ -3183,7 +3183,7 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
 
             <InlineField
               label="Goal execution mode"
-              description="Mode used when starting a Codex /goal"
+              description="Mode used when starting a Codex or Claude /goal"
             >
               <Select
                 value={preferences?.codex_goal_execution_mode ?? 'build'}

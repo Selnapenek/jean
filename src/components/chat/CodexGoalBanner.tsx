@@ -9,15 +9,21 @@ interface CodexGoalBannerProps {
   sessionId: string | null
   worktreeId: string | null
   worktreePath: string | null
-  /** Only render for codex backend sessions */
-  isCodexBackend: boolean
+  /** Only render for Codex and Claude sessions */
+  isGoalBackend: boolean
+  /**
+   * Claude keeps its goal inside the CLI session, so clearing must go through
+   * a chat turn instead of the Codex app-server RPC.
+   */
+  onClearClaudeGoal?: () => void | Promise<void>
 }
 
 export function CodexGoalBanner({
   sessionId,
   worktreeId,
   worktreePath,
-  isCodexBackend,
+  isGoalBackend,
+  onClearClaudeGoal,
 }: CodexGoalBannerProps) {
   const goal = useChatStore(state =>
     sessionId ? (state.codexGoals[sessionId] ?? null) : null
@@ -33,14 +39,15 @@ export function CodexGoalBanner({
         worktreePath,
         sessionId,
       })
+      await onClearClaudeGoal?.()
     } catch (err) {
       toast.error(`Failed to clear goal: ${err}`)
     } finally {
       setClearing(false)
     }
-  }, [sessionId, worktreeId, worktreePath, clearing])
+  }, [sessionId, worktreeId, worktreePath, clearing, onClearClaudeGoal])
 
-  if (!isCodexBackend || !goal) return null
+  if (!isGoalBackend || !goal) return null
 
   return (
     <div className="mb-2 flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">

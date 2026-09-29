@@ -5659,6 +5659,13 @@ pub async fn send_chat_message(
     // Emit cache invalidation so all clients (native + web) refetch authoritative state
     emit_sessions_cache_invalidation(&app);
 
+    // Claude CLI runs a `/goal` loop to completion inside one `--print` run, so a
+    // finished (not cancelled) run means the goal was met, judged impossible, or
+    // cleared. Only a bare `/goal` status check leaves it active.
+    if response_backend == Backend::Claude && !was_cancelled && message.trim() != "/goal" {
+        clear_claude_goal_banner(&app, &worktree_id, &worktree_path, &session_id);
+    }
+
     // Claude and Codex send the authoritative completion event after the run log
     // and session metadata are persisted. This also carries plain-text plan state.
     if matches!(response_backend, Backend::Claude | Backend::Codex) && !was_cancelled {
@@ -5879,7 +5886,7 @@ pub async fn set_session_backend(
 }
 
 // =============================================================================
-// Codex `/goal` long-horizon mode (codex backend only)
+// `/goal` long-horizon mode (Codex app-server goals; Claude banner mirror)
 // =============================================================================
 //
 // Wraps the codex app-server experimental `thread/goal/{set,get,clear}` RPCs.
@@ -5978,8 +5985,8 @@ pub fn codex_goal_clear(
 }
 
 /// Resolve the codex thread ID for a session, returning `None` if no thread
-/// has been started yet. Errors only when the session is missing or the
-/// backend is not codex.
+/// has been started yet or the session is a Claude session. Errors only when
+/// the session is missing or the backend supports no goals.
 fn codex_thread_id_for_session(
     app: &AppHandle,
     worktree_id: &str,
@@ -5990,10 +5997,13 @@ fn codex_thread_id_for_session(
         let session = sessions
             .find_session(session_id)
             .ok_or_else(|| format!("Session not found: {session_id}"))?;
-        if !matches!(session.backend, super::types::Backend::Codex) {
-            return Err("/goal is only available on codex sessions".to_string());
+        match session.backend {
+            super::types::Backend::Codex => Ok(session.codex_thread_id.clone()),
+            // Claude CLI owns its goal natively (`/goal` is sent as the prompt);
+            // Jean only persists the objective for the banner.
+            super::types::Backend::Claude => Ok(None),
+            _ => Err("/goal is only available on Codex and Claude sessions".to_string()),
         }
-        Ok(session.codex_thread_id.clone())
     })
 }
 
@@ -6058,6 +6068,24 @@ pub(crate) fn persist_codex_goal(
         },
     );
     Ok(())
+}
+
+/// Drop the persisted goal banner for a Claude session, if one is set.
+fn clear_claude_goal_banner(
+    app: &AppHandle,
+    worktree_id: &str,
+    worktree_path: &str,
+    session_id: &str,
+) {
+    let has_goal = super::storage::with_existing_metadata_mut(app, session_id, |meta| {
+        meta.codex_goal.is_some()
+    })
+    .unwrap_or(false);
+    if has_goal {
+        if let Err(e) = persist_codex_goal(app, worktree_id, worktree_path, session_id, None) {
+            log::warn!("Failed to clear Claude goal banner: {e}");
+        }
+    }
 }
 
 #[derive(serde::Serialize, Clone)]

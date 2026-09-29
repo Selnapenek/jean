@@ -97,7 +97,9 @@ export function SlashPopover({
     if (
       triggerKind !== 'skill' &&
       isAtPromptStart &&
-      (sessionBackend === 'codex' || sessionBackend === 'grok')
+      (sessionBackend === 'codex' ||
+        sessionBackend === 'grok' ||
+        sessionBackend === 'claude')
     ) {
       fuzzySearchItems([GOAL_BUILTIN], searchQuery, 1).forEach(cmd => {
         items.push({ type: 'command', backend: sessionBackend, data: cmd })

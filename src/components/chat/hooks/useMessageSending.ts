@@ -88,6 +88,16 @@ interface UseMessageSendingParams {
   clearChatInputState: () => void
 }
 
+/** `/goal` arguments the Claude CLI treats as "clear". */
+const CLAUDE_GOAL_CLEAR_ARGS = new Set([
+  'clear',
+  'stop',
+  'off',
+  'reset',
+  'none',
+  'cancel',
+])
+
 /**
  * Core message sending pipeline: resolveCustomProfile, buildMessageWithRefs,
  * sendMessageNow, handleSubmit, handleGitDiff handlers, and review-fix-message listener.
@@ -455,6 +465,35 @@ export function useMessageSending({
         // connected to the composer and the persisted RunEntry.
         message = `Complete this goal in the current turn:\n\n${arg}`
         startedCodexGoalTurn = true
+      }
+      // Claude CLI runs /goal natively, so the text is sent unchanged. Jean only
+      // mirrors the objective for the banner and switches to the goal mode.
+      if (
+        selectedBackendRef.current === 'claude' &&
+        /^\/goal(\s|$)/.test(textMessage)
+      ) {
+        const arg = textMessage.replace(/^\/goal\s*/, '').trim()
+        const goalTarget = {
+          worktreeId: activeWorktreeId,
+          worktreePath: activeWorktreePath,
+          sessionId: activeSessionId,
+        }
+        if (CLAUDE_GOAL_CLEAR_ARGS.has(arg)) {
+          void invoke('codex_goal_clear', goalTarget).catch(err =>
+            toast.error(`/goal failed: ${err}`)
+          )
+        } else if (arg) {
+          try {
+            await invoke('codex_goal_set', { ...goalTarget, objective: arg })
+          } catch (err) {
+            toast.error(`/goal failed: ${err}`)
+            return
+          }
+          const goalMode: ExecutionMode =
+            preferences?.codex_goal_execution_mode === 'yolo' ? 'yolo' : 'build'
+          setExecutionMode(activeSessionId, goalMode)
+          executionModeRef.current = goalMode
+        }
       }
       if (!startedCodexGoalTurn && textMessage.startsWith('/')) {
         const slashName = textMessage.slice(1).split(/\s/)[0] ?? ''

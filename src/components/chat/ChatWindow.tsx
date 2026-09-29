@@ -1634,6 +1634,32 @@ function ChatWindowContent({
     })
   }, [getMcpConfig, sendMessageNow])
 
+  // Claude's goal lives in the CLI session: queue `/goal clear` (a local CLI
+  // command, no model turn) and cancel a running goal loop so the queue drains.
+  const handleClearClaudeGoal = useCallback(async () => {
+    if (!activeSessionId) return
+    const wasSending = useChatStore.getState().isSending(activeSessionId)
+    sendMessageNow({
+      id: generateId(),
+      message: '/goal clear',
+      pendingImages: [],
+      pendingFiles: [],
+      pendingSkills: [],
+      pendingTextFiles: [],
+      model: selectedModelRef.current,
+      provider: selectedProviderRef.current,
+      executionMode: executionModeRef.current,
+      thinkingLevel: selectedThinkingLevelRef.current,
+      effortLevel: useAdaptiveThinkingRef.current
+        ? selectedEffortLevelRef.current
+        : undefined,
+      mcpConfig: getMcpConfig(),
+      backend: selectedBackendRef.current,
+      queuedAt: Date.now(),
+    })
+    if (wasSending) await handleCancel()
+  }, [activeSessionId, getMcpConfig, handleCancel, sendMessageNow])
+
   const handleCommentAndCloseIssue = useCallback(() => {
     if (!loadedIssueContexts?.length) {
       toast.error('No GitHub issue attached to this session or worktree')
@@ -2523,7 +2549,14 @@ function ChatWindowContent({
                               sessionId={activeSessionId ?? null}
                               worktreeId={activeWorktreeId ?? null}
                               worktreePath={activeWorktreePath ?? null}
-                              isCodexBackend={isCodexBackend}
+                              isGoalBackend={
+                                isCodexBackend || selectedBackend === 'claude'
+                              }
+                              onClearClaudeGoal={
+                                selectedBackend === 'claude'
+                                  ? handleClearClaudeGoal
+                                  : undefined
+                              }
                             />
                             {isLoading ||
                             isSessionsLoading ||

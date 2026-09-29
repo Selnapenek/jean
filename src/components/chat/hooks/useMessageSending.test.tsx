@@ -472,6 +472,95 @@ describe('useMessageSending Grok /goal', () => {
   })
 })
 
+describe('useMessageSending Claude /goal', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockInvoke.mockResolvedValue(undefined)
+    resetInstalledBackendsMock()
+    useChatStore.setState({
+      inputDrafts: {},
+      pendingImages: {},
+      pendingFiles: {},
+      pendingTextFiles: {},
+      pendingSkills: {},
+      sendingSessionIds: {},
+      executionModes: {},
+      selectedModels: {},
+      executingModes: {},
+      errors: {},
+      lastSentMessages: {},
+      reviewingSessions: {},
+      waitingForInputSessionIds: {},
+      messageQueues: {},
+      approvedTools: {},
+      streamingContents: {},
+      activeToolCalls: {},
+      streamingContentBlocks: {},
+      streamingThinkingContent: {},
+    })
+  })
+
+  it('passes /goal through to Claude, mirrors the goal, and switches mode', async () => {
+    const { result, sendMessage, executionModeRef } = renderUseMessageSending({
+      selectedBackend: 'claude',
+      selectedModel: 'claude-sonnet-4-6',
+      inputValue: '/goal all tests pass',
+      goalMode: 'yolo',
+    })
+
+    await act(async () => {
+      await result.current.handleSubmit({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent)
+    })
+
+    expect(mockInvoke).toHaveBeenCalledWith('codex_goal_set', {
+      worktreeId: 'worktree-1',
+      worktreePath: '/tmp/worktree',
+      sessionId: 'session-1',
+      objective: 'all tests pass',
+    })
+    expect(executionModeRef.current).toBe('yolo')
+    expect(sendMessage.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        backend: 'claude',
+        executionMode: 'yolo',
+        message: '/goal all tests pass',
+      }),
+      expect.any(Object)
+    )
+  })
+
+  it('clears the mirrored goal for clear aliases and still sends to Claude', async () => {
+    const { result, sendMessage, executionModeRef } = renderUseMessageSending({
+      selectedBackend: 'claude',
+      selectedModel: 'claude-sonnet-4-6',
+      inputValue: '/goal stop',
+    })
+
+    await act(async () => {
+      await result.current.handleSubmit({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent)
+    })
+
+    expect(mockInvoke).toHaveBeenCalledWith('codex_goal_clear', {
+      worktreeId: 'worktree-1',
+      worktreePath: '/tmp/worktree',
+      sessionId: 'session-1',
+    })
+    expect(mockInvoke).not.toHaveBeenCalledWith(
+      'codex_goal_set',
+      expect.anything()
+    )
+    expect(executionModeRef.current).toBe('plan')
+    expect(sendMessage.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ message: '/goal stop' }),
+      expect.any(Object)
+    )
+  })
+})
+
 describe('useMessageSending PI effort', () => {
   beforeEach(() => {
     vi.clearAllMocks()

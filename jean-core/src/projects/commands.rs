@@ -12975,10 +12975,11 @@ pub async fn delete_folder(app: AppHandle, folder_id: String) -> Result<(), Stri
 
     let mut data = load_projects_data(&app)?;
 
-    // Verify it's a folder
-    let folder = data
-        .find_project(&folder_id)
-        .ok_or_else(|| format!("Folder not found: {folder_id}"))?;
+    // Already gone: treat as deleted so stale entries can always be removed
+    let Some(folder) = data.find_project(&folder_id) else {
+        log::warn!("Folder not found, treating as already deleted: {folder_id}");
+        return Ok(());
+    };
 
     if !folder.is_folder {
         return Err("Cannot delete: not a folder".to_string());

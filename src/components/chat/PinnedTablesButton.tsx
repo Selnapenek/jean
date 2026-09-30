@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { toast } from 'sonner'
 import { MessageSquare, PinTack } from '@/components/icons/reicon'
 import {
   Dialog,
@@ -29,30 +28,20 @@ export function pinnedTableTitle(markdown: string): string {
   return cells.join(' · ') || 'Table'
 }
 
-/** Scroll the chat to the original table and flash it. */
-function jumpToTable(tableKey: string): boolean {
-  const target = Array.from(
-    document.querySelectorAll<HTMLElement>(
-      `[data-table-key="${CSS.escape(tableKey)}"]`
-    )
-  ).find(el => !el.closest('[role="dialog"]'))
-  if (!target) return false
-  target.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  target.classList.remove('pinned-table-highlight')
-  void target.offsetWidth // restart the animation on repeat jumps
-  target.classList.add('pinned-table-highlight')
-  return true
-}
-
 interface PinnedTablesButtonProps {
   sessionId: string | null | undefined
+  /** Scroll the chat to the table, loading hidden history when needed */
+  onShowInChat: (tableKey: string) => void
 }
 
 /**
  * Floating pill in the chat's top-right corner. Opens the session's pinned
  * tables, each on a card with a link back to its message.
  */
-export function PinnedTablesButton({ sessionId }: PinnedTablesButtonProps) {
+export function PinnedTablesButton({
+  sessionId,
+  onShowInChat,
+}: PinnedTablesButtonProps) {
   const [open, setOpen] = useState(false)
   const isMobile = useIsMobile()
   const pins = useChatStore(state =>
@@ -73,11 +62,7 @@ export function PinnedTablesButton({ sessionId }: PinnedTablesButtonProps) {
   const handleJump = (tableKey: string) => {
     setOpen(false)
     // Wait for the dialog to close so focus restore does not undo the scroll.
-    setTimeout(() => {
-      if (!jumpToTable(tableKey)) {
-        toast.info('The message with this table is not loaded in the chat')
-      }
-    }, 200)
+    setTimeout(() => onShowInChat(tableKey), 200)
   }
 
   return (

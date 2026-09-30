@@ -16,7 +16,7 @@ interface AgentWidgetProps {
   className?: string
   /** Callback to dismiss the widget */
   onClose?: () => void
-  /** Whether the panel is expanded (default: true) */
+  /** Whether the panel is expanded (default: false) */
   open?: boolean
   /** Callback when the panel is expanded or collapsed */
   onOpenChange?: (open: boolean) => void
@@ -68,7 +68,7 @@ export function AgentWidget({
   agents,
   className,
   onClose,
-  open = true,
+  open = false,
   onOpenChange,
   onFileClick,
 }: AgentWidgetProps) {

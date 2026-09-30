@@ -1001,22 +1001,22 @@ describe('ChatStore', () => {
       expect(areQuestionsSkipped('session-1')).toBe(false)
     })
 
-    it('tracks subagents panel collapse per session', () => {
-      useChatStore.setState({ collapsedAgentWidgetSessions: {} })
-      const { setAgentWidgetCollapsed } = useChatStore.getState()
+    it('tracks subagents panel expansion per session', () => {
+      useChatStore.setState({ expandedAgentWidgetSessions: {} })
+      const { setAgentWidgetExpanded } = useChatStore.getState()
 
-      setAgentWidgetCollapsed('session-1', true)
-      expect(useChatStore.getState().collapsedAgentWidgetSessions).toEqual({
+      setAgentWidgetExpanded('session-1', true)
+      expect(useChatStore.getState().expandedAgentWidgetSessions).toEqual({
         'session-1': true,
       })
 
       // No-op update keeps the same reference
-      const before = useChatStore.getState().collapsedAgentWidgetSessions
-      setAgentWidgetCollapsed('session-1', true)
-      expect(useChatStore.getState().collapsedAgentWidgetSessions).toBe(before)
+      const before = useChatStore.getState().expandedAgentWidgetSessions
+      setAgentWidgetExpanded('session-1', true)
+      expect(useChatStore.getState().expandedAgentWidgetSessions).toBe(before)
 
-      setAgentWidgetCollapsed('session-1', false)
-      expect(useChatStore.getState().collapsedAgentWidgetSessions).toEqual({})
+      setAgentWidgetExpanded('session-1', false)
+      expect(useChatStore.getState().expandedAgentWidgetSessions).toEqual({})
     })
   })
 

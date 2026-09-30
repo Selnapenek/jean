@@ -289,8 +289,8 @@ interface ChatUIState {
   // Sessions where user skipped questions (auto-skip all subsequent questions)
   skippedQuestionSessions: Record<string, boolean>
 
-  // Sessions where the user collapsed the Subagents panel
-  collapsedAgentWidgetSessions: Record<string, boolean>
+  // Sessions where the user expanded the Subagents panel (collapsed by default)
+  expandedAgentWidgetSessions: Record<string, boolean>
 
   // Worktree loading operations (commit, pr, review, merge, pull)
   worktreeLoadingOperations: Record<string, string | null>
@@ -537,7 +537,7 @@ interface ChatUIState {
   // Actions - Question skipping (session-based, auto-skips all subsequent questions)
   setQuestionsSkipped: (sessionId: string, skipped: boolean) => void
   areQuestionsSkipped: (sessionId: string) => boolean
-  setAgentWidgetCollapsed: (sessionId: string, collapsed: boolean) => void
+  setAgentWidgetExpanded: (sessionId: string, expanded: boolean) => void
 
   // Actions - Error handling (session-based)
   setError: (sessionId: string, error: string | null) => void
@@ -809,7 +809,7 @@ const SESSION_SCOPED_RECORD_KEYS = [
   'pendingPlanMessageIds',
   'savingContext',
   'skippedQuestionSessions',
-  'collapsedAgentWidgetSessions',
+  'expandedAgentWidgetSessions',
   'sessionLabels',
   'codexGoals',
 ] as const
@@ -973,7 +973,7 @@ export const useChatStore = create<ChatUIState>()(
       pendingPlanMessageIds: {},
       savingContext: {},
       skippedQuestionSessions: {},
-      collapsedAgentWidgetSessions: {},
+      expandedAgentWidgetSessions: {},
       worktreeLoadingOperations: {},
       sessionLabels: {},
       codexGoals: {},
@@ -2740,27 +2740,27 @@ export const useChatStore = create<ChatUIState>()(
       areQuestionsSkipped: sessionId =>
         get().skippedQuestionSessions[sessionId] ?? false,
 
-      // Subagents panel collapsed state (session-based)
-      setAgentWidgetCollapsed: (sessionId, collapsed) =>
+      // Subagents panel expanded state (session-based, collapsed by default)
+      setAgentWidgetExpanded: (sessionId, expanded) =>
         set(
           state => {
-            if (!!state.collapsedAgentWidgetSessions[sessionId] === collapsed) {
+            if (!!state.expandedAgentWidgetSessions[sessionId] === expanded) {
               return state
             }
-            if (collapsed) {
+            if (expanded) {
               return {
-                collapsedAgentWidgetSessions: {
-                  ...state.collapsedAgentWidgetSessions,
+                expandedAgentWidgetSessions: {
+                  ...state.expandedAgentWidgetSessions,
                   [sessionId]: true,
                 },
               }
             }
             const { [sessionId]: _, ...rest } =
-              state.collapsedAgentWidgetSessions
-            return { collapsedAgentWidgetSessions: rest }
+              state.expandedAgentWidgetSessions
+            return { expandedAgentWidgetSessions: rest }
           },
           undefined,
-          'setAgentWidgetCollapsed'
+          'setAgentWidgetExpanded'
         ),
 
       // Error handling (session-based)

@@ -1386,7 +1386,6 @@ function ChatWindowContent({
     setDismissedTodoMessageId,
     activeAgents,
     agentSourceMessageId,
-    agentIsFromStreaming,
     dismissedAgentMessageId,
     setDismissedAgentMessageId,
   } = useActiveTodosAndAgents({
@@ -3010,6 +3009,24 @@ function ChatWindowContent({
                           data-chat-composer=""
                           className="relative sm:mx-auto sm:mb-3 sm:max-w-3xl xl:max-w-4xl"
                         >
+                          {/* Subagents panel - separate section above the chat input */}
+                          {!zenMode &&
+                            activeAgents.length > 0 &&
+                            (dismissedAgentMessageId === null ||
+                              (agentSourceMessageId !== null &&
+                                agentSourceMessageId !==
+                                  dismissedAgentMessageId)) && (
+                              <AgentWidget
+                                key={activeSessionId ?? undefined}
+                                className="sm:mb-2"
+                                agents={activeAgents}
+                                onClose={() =>
+                                  setDismissedAgentMessageId(
+                                    agentSourceMessageId ?? '__streaming__'
+                                  )
+                                }
+                              />
+                            )}
                           {/* Queued prompts - rendered as an extension above the chat input */}
                           {activeSessionId &&
                             currentQueuedMessages.length > 0 && (
@@ -3101,32 +3118,6 @@ function ChatWindowContent({
                                     onClose={() =>
                                       setDismissedTodoMessageId(
                                         todoSourceMessageId ?? '__streaming__'
-                                      )
-                                    }
-                                  />
-                                </div>
-                              )}
-
-                            {/* Agent widget - inline fallback for narrow screens */}
-                            {!zenMode &&
-                              activeAgents.length > 0 &&
-                              (dismissedAgentMessageId === null ||
-                                (agentSourceMessageId !== null &&
-                                  agentSourceMessageId !==
-                                    dismissedAgentMessageId)) && (
-                                <div
-                                  className={
-                                    terminalPanelOpen
-                                      ? 'px-4 md:px-6 pt-2'
-                                      : 'px-4 md:px-6 pt-2 xl:hidden'
-                                  }
-                                >
-                                  <AgentWidget
-                                    agents={activeAgents}
-                                    isStreaming={agentIsFromStreaming}
-                                    onClose={() =>
-                                      setDismissedAgentMessageId(
-                                        agentSourceMessageId ?? '__streaming__'
                                       )
                                     }
                                   />
@@ -3387,11 +3378,10 @@ function ChatWindowContent({
                             </div>
                           </form>
 
-                          {/* Side panel widgets (Tasks + Agents) for wide screens */}
+                          {/* Side panel widget (Tasks) for wide screens */}
                           {!zenMode &&
                             !terminalPanelOpen &&
-                            (activeTodos.length > 0 ||
-                              activeAgents.length > 0) && (
+                            activeTodos.length > 0 && (
                               <div className="hidden xl:flex flex-col gap-2 absolute left-full bottom-0 ml-3 w-64 z-20">
                                 {activeTodos.length > 0 &&
                                   (dismissedTodoMessageId === null ||
@@ -3409,22 +3399,6 @@ function ChatWindowContent({
                                       onClose={() =>
                                         setDismissedTodoMessageId(
                                           todoSourceMessageId ?? '__streaming__'
-                                        )
-                                      }
-                                    />
-                                  )}
-                                {activeAgents.length > 0 &&
-                                  (dismissedAgentMessageId === null ||
-                                    (agentSourceMessageId !== null &&
-                                      agentSourceMessageId !==
-                                        dismissedAgentMessageId)) && (
-                                    <AgentWidget
-                                      agents={activeAgents}
-                                      isStreaming={agentIsFromStreaming}
-                                      onClose={() =>
-                                        setDismissedAgentMessageId(
-                                          agentSourceMessageId ??
-                                            '__streaming__'
                                         )
                                       }
                                     />

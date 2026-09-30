@@ -1,6 +1,7 @@
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import {
+  extractClaudeAgents,
   extractCodexAgents,
   useActiveTodosAndAgents,
 } from './useActiveTodosAndAgents'
@@ -167,5 +168,58 @@ describe('useActiveTodosAndAgents', () => {
     rerender({ isSending: true })
 
     expect(result.current.activeAgents).toEqual([])
+  })
+})
+
+describe('extractClaudeAgents', () => {
+  const tools: ToolCall[] = [
+    toolCall('Agent', {
+      id: 'agent-1',
+      description: 'Review snapshot stills',
+      prompt: 'Long prompt',
+      subagent_type: 'Explore',
+    }),
+    toolCall(
+      'Task',
+      { id: 'task-2', prompt: 'Fix caption overlap' },
+      'Report: fixed'
+    ),
+    toolCall('Agent', { id: 'agent-3', description: 'Broken' }, 'boom'),
+    { ...toolCall('Read', { id: 'read-1' }), parent_tool_use_id: 'agent-1' },
+    { ...toolCall('Grep', { id: 'grep-1' }), parent_tool_use_id: 'agent-1' },
+  ]
+  tools[2] = { ...tools[2]!, is_error: true }
+
+  it('maps Task/Agent calls with status, label and tool count', () => {
+    expect(extractClaudeAgents(tools, true)).toEqual([
+      {
+        id: 'agent-1',
+        prompt: 'Review snapshot stills',
+        status: 'in_progress',
+        label: 'Explore',
+        toolCount: 2,
+      },
+      {
+        id: 'task-2',
+        prompt: 'Fix caption overlap',
+        status: 'completed',
+        label: 'Task',
+        toolCount: 0,
+      },
+      {
+        id: 'agent-3',
+        prompt: 'Broken',
+        status: 'errored',
+        label: 'Agent',
+        toolCount: 0,
+      },
+    ])
+  })
+
+  it('marks agents without output done or interrupted after the turn', () => {
+    expect(extractClaudeAgents(tools, false)[0]?.status).toBe('completed')
+    expect(extractClaudeAgents(tools, false, true)[0]?.status).toBe(
+      'interrupted'
+    )
   })
 })

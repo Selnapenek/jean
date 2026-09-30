@@ -1265,17 +1265,22 @@ export function getTodoWriteTodos(toolCall: ToolCall): Todo[] {
 }
 
 /**
- * A Codex multi-agent entry extracted from collab_tool_call events
+ * A subagent entry shown in the Subagents panel above the chat input.
+ * Extracted from Codex collab_tool_call events or Claude Task/Agent tool calls.
  */
-export interface CodexAgent {
-  /** Tool call ID of the SpawnAgent collab_tool_call */
+export interface SubAgent {
+  /** Codex thread ID or Claude Task/Agent tool call ID */
   id: string
-  /** The prompt given to the agent (truncated for display) */
+  /** The prompt or description given to the agent (truncated for display) */
   prompt: string
   /** Agent lifecycle status */
   status: 'in_progress' | 'completed' | 'errored' | 'interrupted'
   /** Completion message from agents_states */
   message?: string
+  /** Bold label before the prompt (e.g. Claude subagent_type) */
+  label?: string
+  /** Number of tool calls the agent made (Claude only) */
+  toolCount?: number
 }
 
 /** Names of collab tool calls that should be shown in the AgentWidget, not the timeline */

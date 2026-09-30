@@ -4233,10 +4233,29 @@ fn process_codex_event(
                             &ToolUseEvent {
                                 session_id: session_id.to_string(),
                                 worktree_id: worktree_id.to_string(),
-                                id: tool_id,
+                                id: tool_id.clone(),
                                 name: tool_name.to_string(),
                                 input,
                                 parent_tool_use_id: None,
+                            },
+                        );
+                        // Without a tool block the live message has no content
+                        // blocks and falls back to the raw JSON tool list.
+                        let _ = app.emit_all(
+                            "chat:tool_block",
+                            &ToolBlockEvent {
+                                session_id: session_id.to_string(),
+                                worktree_id: worktree_id.to_string(),
+                                tool_call_id: tool_id.clone(),
+                            },
+                        );
+                        let _ = app.emit_all(
+                            "chat:tool_result",
+                            &ToolResultEvent {
+                                session_id: session_id.to_string(),
+                                worktree_id: worktree_id.to_string(),
+                                tool_use_id: tool_id,
+                                output: "completed".to_string(),
                             },
                         );
                     }

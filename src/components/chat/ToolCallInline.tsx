@@ -152,6 +152,27 @@ function formatInputForExpanded(
   return toolCall.output?.trim() || 'No details available'
 }
 
+/** Readable details for Codex `sub_agent_activity` items (else undefined). */
+function formatSubAgentActivity(
+  input: Record<string, unknown>
+): string | undefined {
+  if (input.type !== 'sub_agent_activity') return undefined
+  const threadIds = Array.isArray(input.receiver_thread_ids)
+    ? (input.receiver_thread_ids as string[])
+    : []
+  const states = (input.agents_states ?? {}) as Record<
+    string,
+    { status?: string } | undefined
+  >
+  const lines = [`Agent: ${String(input.prompt ?? 'sub-agent')}`]
+  for (const id of threadIds) {
+    lines.push(`Thread: ${id}`)
+    const status = states[id]?.status
+    if (status) lines.push(`Status: ${status}`)
+  }
+  return lines.join('\n')
+}
+
 /** Best-effort one-line detail from common tool input fields. */
 function firstStringField(
   input: Record<string, unknown>,
@@ -1382,6 +1403,14 @@ function getToolSummaryName(toolCall: ToolCall): string {
       return 'Image View'
     case 'CodexContextCompaction':
       return 'Context Compaction'
+    case 'SpawnAgent':
+      return 'Spawn Agent'
+    case 'SendInput':
+      return 'Send Input'
+    case 'WaitForAgents':
+      return 'Waiting for Agents'
+    case 'CloseAgent':
+      return 'Close Agent'
     default: {
       const normalized = normalizeToolCallForDisplay(
         toolCall.name,
@@ -1456,6 +1485,7 @@ export function summarizeToolCall(toolCall: ToolCall): {
       'backend',
       'tool_name',
       'toolName',
+      'prompt',
     ])
   return { label, detail: detail ? truncateOneLine(detail, 80) : undefined }
 }
@@ -1728,17 +1758,22 @@ function getToolDisplay(toolCall: ToolCall): ToolDisplay {
         icon: <Users className="h-4 w-4 shrink-0" />,
         label: 'Spawn Agent',
         detail: truncatedPrompt ?? 'sub-agent',
-        expandedContent: prompt ?? JSON.stringify(input, null, 2),
+        expandedContent:
+          formatSubAgentActivity(input) ??
+          prompt ??
+          JSON.stringify(input, null, 2),
       }
     }
 
     case 'SendInput': {
-      const agentId = input.agent_id as string | undefined
+      // Codex sub_agent_activity puts the agent path in `prompt`
+      const agentId = (input.agent_id ?? input.prompt) as string | undefined
       return {
         icon: <Send className="h-4 w-4 shrink-0" />,
         label: 'Send Input',
         detail: agentId ? `to agent ${agentId}` : undefined,
-        expandedContent: JSON.stringify(input, null, 2),
+        expandedContent:
+          formatSubAgentActivity(input) ?? JSON.stringify(input, null, 2),
       }
     }
 
@@ -1756,12 +1791,13 @@ function getToolDisplay(toolCall: ToolCall): ToolDisplay {
     }
 
     case 'CloseAgent': {
-      const agentId = input.agent_id as string | undefined
+      const agentId = (input.agent_id ?? input.prompt) as string | undefined
       return {
         icon: <XCircle className="h-4 w-4 shrink-0" />,
         label: 'Close Agent',
         detail: agentId,
-        expandedContent: JSON.stringify(input, null, 2),
+        expandedContent:
+          formatSubAgentActivity(input) ?? JSON.stringify(input, null, 2),
       }
     }
 

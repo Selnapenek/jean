@@ -3,7 +3,7 @@ import { foldTodoWriteToolCalls, isPlanToolCall } from '@/types/chat'
 import type {
   ToolCall,
   ChatMessage,
-  CodexAgent,
+  SubAgent,
   Todo,
   PlanToolInput,
   PlanStep,
@@ -81,7 +81,7 @@ function agentStatesField(
 function normalizeCodexAgentStatus(
   agentStatus: unknown,
   toolCallStatus?: unknown
-): CodexAgent['status'] {
+): SubAgent['status'] {
   if (agentStatus === 'completed' || agentStatus === 'shutdown') {
     return 'completed'
   }
@@ -107,8 +107,8 @@ export function extractCodexAgents(
   toolCalls: ToolCall[],
   isSending: boolean,
   parentTurnCancelled = false
-): CodexAgent[] {
-  const agents = new Map<string, CodexAgent>()
+): SubAgent[] {
+  const agents = new Map<string, SubAgent>()
 
   for (const tc of toolCalls) {
     const input = asRecord(tc.input)
@@ -171,6 +171,51 @@ export function extractCodexAgents(
         : agent.message,
     }
   })
+}
+
+/**
+ * Extract Claude subagents from Task/Agent tool calls. The tool call stays in
+ * the timeline; this only feeds the Subagents panel above the input.
+ */
+export function extractClaudeAgents(
+  toolCalls: ToolCall[],
+  isSending: boolean,
+  parentTurnCancelled = false
+): SubAgent[] {
+  const toolCounts = new Map<string, number>()
+  for (const tc of toolCalls) {
+    if (tc.parent_tool_use_id) {
+      toolCounts.set(
+        tc.parent_tool_use_id,
+        (toolCounts.get(tc.parent_tool_use_id) ?? 0) + 1
+      )
+    }
+  }
+
+  const agents: SubAgent[] = []
+  for (const tc of toolCalls) {
+    if (tc.name !== 'Task' && tc.name !== 'Agent') continue
+    const input = asRecord(tc.input) ?? {}
+    const description =
+      stringField(input, 'description', 'description') ??
+      stringField(input, 'prompt', 'prompt') ??
+      ''
+
+    let status: SubAgent['status']
+    if (tc.is_error) status = 'errored'
+    else if (tc.output?.trim()) status = 'completed'
+    else if (isSending) status = 'in_progress'
+    else status = parentTurnCancelled ? 'interrupted' : 'completed'
+
+    agents.push({
+      id: tc.id,
+      prompt: truncateAgentPrompt(description),
+      status,
+      label: stringField(input, 'subagent_type', 'subagentType') ?? tc.name,
+      toolCount: toolCounts.get(tc.id) ?? 0,
+    })
+  }
+  return agents
 }
 
 interface UseActiveTodosAndAgentsParams {
@@ -254,7 +299,7 @@ export function useActiveTodosAndAgents({
     string | null
   >(null)
 
-  // Get active agents from Codex collab tool calls
+  // Get active agents from Codex collab tool calls and Claude Task/Agent calls
   const {
     agents: activeAgents,
     sourceMessageId: agentSourceMessageId,
@@ -269,11 +314,11 @@ export function useActiveTodosAndAgents({
       ? currentToolCalls
       : (lastAssistantMessage?.tool_calls ?? [])
 
-    const agents = extractCodexAgents(
-      toolCalls,
-      isSending,
-      lastAssistantMessage?.cancelled === true
-    )
+    const cancelled = lastAssistantMessage?.cancelled === true
+    const agents = [
+      ...extractCodexAgents(toolCalls, isSending, cancelled),
+      ...extractClaudeAgents(toolCalls, isSending, cancelled),
+    ]
 
     const sourceId = isSending ? null : (lastAssistantMessage?.id ?? null)
     return {

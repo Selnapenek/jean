@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/collapsible'
 import { TaskCallDetails } from './ToolCallInline'
 import { formatTokens } from '@/lib/session-debug'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 interface AgentWidgetProps {
   agents: SubAgent[]
@@ -129,6 +130,7 @@ interface AgentItemProps {
 
 function AgentItem({ agent, now, onFileClick }: AgentItemProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const isMobile = useIsMobile()
   const isDone = agent.status !== 'in_progress'
   const timing = agentTimings.get(agent.id)
   const clientMs = timing ? (timing.end ?? now) - timing.start : undefined
@@ -153,22 +155,36 @@ function AgentItem({ agent, now, onFileClick }: AgentItemProps) {
           title={agent.message}
         >
           <span
-            className={cn(
-              'h-1.5 w-1.5 shrink-0 rounded-full',
-              agent.status === 'in_progress' && 'bg-primary animate-pulse',
-              agent.status === 'completed' && 'bg-success',
-              agent.status === 'errored' && 'bg-warning',
-              agent.status === 'interrupted' && 'bg-muted-foreground/60'
-            )}
+            className="flex w-2.5 shrink-0 justify-center"
             aria-label={agent.status.replace('_', ' ')}
-          />
+          >
+            {agent.status === 'in_progress' ? (
+              <span
+                aria-hidden="true"
+                className="recent-working-waveform text-primary"
+              >
+                <span />
+                <span />
+                <span />
+              </span>
+            ) : (
+              <span
+                className={cn(
+                  'h-1.5 w-1.5 rounded-full',
+                  agent.status === 'completed' && 'bg-success',
+                  agent.status === 'errored' && 'bg-warning',
+                  agent.status === 'interrupted' && 'bg-muted-foreground/60'
+                )}
+              />
+            )}
+          </span>
           <span
             className={cn(
               'flex min-w-0 items-center gap-1.5',
               isDone && 'text-muted-foreground/70'
             )}
           >
-            {agent.label && (
+            {agent.label && !isMobile && (
               <>
                 <span className="shrink-0 font-semibold">{agent.label}</span>
                 <span className="shrink-0 text-muted-foreground/60">›</span>

@@ -839,9 +839,6 @@ function executeKeybindingAction(
     case 'open_quick_menu':
       window.dispatchEvent(new CustomEvent('toggle-quick-menu'))
       break
-    case 'open_usage_dropdown':
-      window.dispatchEvent(new CustomEvent('toggle-usage-menu'))
-      break
     case 'toggle_session_label': {
       logger.debug('Keybinding: toggle_session_label')
       // Works when a session is active (modal open or in session view) or on project canvas

@@ -188,12 +188,6 @@ interface UIState {
   pendingAutoOpenSessionIds: Record<string, string>
   /** Whether a session chat modal is open (for magic command keybinding checks) */
   sessionChatModalOpen: boolean
-  /** Whether the chat toolbar is mounted — used to hide the global FloatingDock
-   *  because its burger-menu counterpart now lives in the chat toolbar. */
-  chatToolbarMounted: boolean
-  /** Whether the full-width review results surface is mounted — used to hide the
-   *  global FloatingDock so it does not overlap the review Send buttons. */
-  reviewSurfaceMounted: boolean
   /** Which worktree the session chat modal is for (for magic command worktree resolution) */
   sessionChatModalWorktreeId: string | null
   /** Per-session primary surface shown inside the chat bounds */
@@ -344,8 +338,6 @@ interface UIState {
   ) => void
   openNewSessionModeModal: (target: NewSessionModeTarget) => void
   closeNewSessionModeModal: () => void
-  setChatToolbarMounted: (mounted: boolean) => void
-  setReviewSurfaceMounted: (mounted: boolean) => void
   setGitDiffModalOpen: (open: boolean) => void
   toggleGitDiffSelectedFile: (filePath: string) => void
   clearGitDiffSelectedFiles: () => void
@@ -450,8 +442,6 @@ export const useUIStore = create<UIState>()(
       sessionPrimarySurface: {},
       sessionTerminalIds: {},
       newSessionModeTarget: null,
-      chatToolbarMounted: false,
-      reviewSurfaceMounted: false,
       gitDiffModalOpen: false,
       gitDiffSelectedFiles: new Set<string>(),
       planDialogOpen: false,
@@ -1371,20 +1361,6 @@ export const useUIStore = create<UIState>()(
               : { newSessionModeTarget: null },
           undefined,
           'closeNewSessionModeModal'
-        ),
-
-      setChatToolbarMounted: (mounted: boolean) =>
-        set(state =>
-          state.chatToolbarMounted === mounted
-            ? state
-            : { chatToolbarMounted: mounted }
-        ),
-
-      setReviewSurfaceMounted: (mounted: boolean) =>
-        set(state =>
-          state.reviewSurfaceMounted === mounted
-            ? state
-            : { reviewSurfaceMounted: mounted }
         ),
 
       setGitDiffModalOpen: (open: boolean) =>

@@ -167,7 +167,6 @@ const CloseWorktreeDialog = lazy(() =>
     default: mod.CloseWorktreeDialog,
   }))
 )
-import { FloatingDock } from '@/components/ui/floating-dock'
 import { Toaster } from '@/components/ui/sonner'
 import { MobileLeftSidebar } from './MobileLeftSidebar'
 import { BrowserSidePane } from '@/components/browser/BrowserSidePane'
@@ -640,7 +639,6 @@ export function MainWindow() {
                   : undefined
               }
             />
-            <FloatingDock />
           </div>
           {/* Browser bottom panel - native-only, pinned to bottom */}
           <BrowserPanel />

@@ -124,6 +124,24 @@ OAuth URLs and callback output from MCP login must not enter debug logs.
 References: [Codex MCP](https://developers.openai.com/codex/mcp), installed
 Claude/Codex `mcp login --help` (`--no-browser` and manual callback input).
 
+### MCP servers outside config files
+
+Config-file discovery misses servers the CLI resolves itself: claude.ai
+connectors and plugins (`claude mcp list`), Codex plugins and ChatGPT apps
+(`codex_apps`, app-server `mcpServerStatus/list`), Grok plugins and gateways
+(`grok mcp doctor --json`), and servers from other Cursor/OpenCode sources
+(`mcp list`). `jean-core/src/chat/mcp_external.rs` caches them per backend and
+worktree and appends them to each `*_cli::mcp::get_mcp_servers`.
+`get_mcp_servers` refreshes the cache in the background (at most every 5
+minutes), and health checks refresh it at once. A change emits
+`cache:invalidate` with `mcp-servers`.
+
+External entries have `config: { "jeanExternal": true, "target": ... }`. Never
+pass them as a server definition. Claude drops `--strict-mcp-config` when one
+is enabled and uses `deniedMcpServers` for known servers that are off. Grok
+disables them through `disabled_mcp_servers`, and Cursor through
+`mcp enable|disable`. Other backends load them automatically.
+
 ### Client and Server Preference Ownership
 
 Preferences use a strict ownership boundary. Display, input, notification, and

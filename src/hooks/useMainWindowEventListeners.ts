@@ -10,6 +10,7 @@ import { isPanelTerminal, useTerminalStore } from '@/store/terminal-store'
 import { useBrowserStore } from '@/store/browser-store'
 import { projectsQueryKeys } from '@/services/projects'
 import { chatQueryKeys } from '@/services/chat'
+import { MCP_SERVERS_KEY } from '@/services/mcp'
 import { claudeCliQueryKeys } from '@/services/claude-cli'
 import type {
   AllSessionsResponse,
@@ -206,9 +207,17 @@ export function applyCacheInvalidationKeys(
           queryKey: ['recent-worktrees'],
         })
         break
+      case 'mcp-servers':
+        // claude.ai connectors / plugin servers found by `claude mcp list`.
+        queryClient.invalidateQueries({ queryKey: [MCP_SERVERS_KEY] })
+        break
       case 'projects':
         queryClient.invalidateQueries({
           queryKey: projectsQueryKeys.all,
+        })
+        // Native sidebar also reads the multi-server project list.
+        queryClient.invalidateQueries({
+          queryKey: ['multi-server', 'projects'],
         })
         break
       case 'preferences':

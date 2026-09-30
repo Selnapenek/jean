@@ -8997,6 +8997,7 @@ pub struct McpHealthResult {
 /// - Grok:     ~/.grok/config.toml + project .grok/config.toml (+ Claude/Cursor/.mcp.json compat)
 /// - Antigravity: ~/.gemini/config/mcp_config.json + <worktree>/.agents/mcp_config.json
 pub async fn get_mcp_servers(
+    app: AppHandle,
     backend: Option<String>,
     worktree_path: Option<String>,
 ) -> Result<Vec<McpServerInfo>, String> {
@@ -9010,6 +9011,13 @@ pub async fn get_mcp_servers(
         Some("grok") => crate::grok_cli::mcp::get_mcp_servers(wt),
         _ => crate::claude_cli::mcp::get_mcp_servers(wt),
     };
+    // Some servers come only from the CLI (connectors, plugins, apps). Return the
+    // cached list now; refresh it in the background.
+    super::mcp_external::refresh_if_stale(
+        &app,
+        backend.as_deref().unwrap_or("claude"),
+        worktree_path.clone(),
+    );
     Ok(servers)
 }
 
@@ -9030,21 +9038,25 @@ fn parse_mcp_list_output(output: &str) -> std::collections::HashMap<String, McpH
             continue;
         }
 
-        // Extract server name (everything before first ':')
-        let Some((name, rest)) = line.split_once(':') else {
+        // Extract server name (everything before first ": "). Names such as
+        // `plugin:tools:search` contain ':' themselves.
+        let Some((name, rest)) = line.split_once(": ").or_else(|| line.split_once(':')) else {
             continue;
         };
         let name = name.trim().to_string();
 
         // Extract status (everything after last " - ")
-        let status_str = rest.rsplit_once(" - ").map(|(_, s)| s.trim()).unwrap_or("");
+        let status_str = rest
+            .rsplit_once(" - ")
+            .map(|(_, s)| s.trim().to_lowercase())
+            .unwrap_or_default();
 
-        let status = if status_str.contains("connected") {
-            McpHealthStatus::Connected
-        } else if status_str.contains("Needs authentication") {
+        let status = if status_str.contains("needs authentication") {
             McpHealthStatus::NeedsAuthentication
-        } else if status_str.contains("Could not connect") {
+        } else if status_str.contains("could not connect") || status_str.contains("failed") {
             McpHealthStatus::CouldNotConnect
+        } else if status_str.contains("connected") {
+            McpHealthStatus::Connected
         } else if status_str.contains("disabled") {
             McpHealthStatus::Disabled
         } else {
@@ -9114,29 +9126,14 @@ fn check_mcp_health_claude(
     app: &AppHandle,
     worktree_path: Option<&str>,
 ) -> Result<McpHealthResult, String> {
-    let cli_path = resolve_cli_binary(app);
-    if !cli_path.exists() {
-        return Err("Claude CLI not installed".to_string());
-    }
-
-    log::debug!("Running: claude mcp list");
-
-    let output = crate::platform::cli_command(
-        &cli_path.to_string_lossy(),
-        worktree_path.map(std::path::Path::new),
-    )
-    .args(["mcp", "list"])
-    .stdout(Stdio::piped())
-    .stderr(Stdio::piped())
-    .output()
-    .map_err(|e| format!("Failed to run claude mcp list: {e}"))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("claude mcp list failed: {stderr}"));
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = crate::claude_cli::mcp::run_mcp_list(app, worktree_path)?;
+    // The same output lists claude.ai connectors and plugin servers.
+    super::mcp_external::store(
+        app,
+        "claude",
+        worktree_path,
+        crate::claude_cli::mcp::parse_external_servers(&stdout),
+    );
     let statuses = parse_mcp_list_output(&stdout);
     log::debug!("MCP health check (Claude): {} servers", statuses.len());
     Ok(McpHealthResult { statuses })
@@ -9169,7 +9166,14 @@ fn check_mcp_health_codex(
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let statuses = parse_codex_mcp_list_json(&stdout);
+    let mut statuses = parse_codex_mcp_list_json(&stdout);
+    // `codex mcp list` only knows config servers. Plugin servers and ChatGPT
+    // apps come from the app-server.
+    match crate::codex_cli::mcp::list_app_server_servers(app, worktree_path) {
+        Ok(servers) => super::mcp_external::store(app, "codex", worktree_path, servers),
+        Err(e) => log::debug!("Could not list Codex app-server MCP servers: {e}"),
+    }
+    super::mcp_external::merge_statuses("codex", worktree_path, &mut statuses);
     log::debug!("MCP health check (Codex): {} servers", statuses.len());
     Ok(McpHealthResult { statuses })
 }
@@ -9178,31 +9182,13 @@ fn check_mcp_health_opencode(
     app: &AppHandle,
     worktree_path: Option<&str>,
 ) -> Result<McpHealthResult, String> {
-    let cli_path = crate::opencode_cli::resolve_cli_binary(app);
-    if !cli_path.exists() {
-        return Err("OpenCode CLI not installed".to_string());
-    }
-
-    log::debug!("Running: opencode mcp list");
-
-    let output = crate::platform::cli_command(
-        &cli_path.to_string_lossy(),
-        worktree_path.map(std::path::Path::new),
-    )
-    .args(["mcp", "list"])
-    .stdout(Stdio::piped())
-    .stderr(Stdio::piped())
-    .output()
-    .map_err(|e| format!("Failed to run opencode mcp list: {e}"))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("opencode mcp list failed: {stderr}"));
-    }
-
-    // Reuse the same text parser — OpenCode uses a similar line format
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let statuses = parse_mcp_list_output(&stdout);
+    let stdout = crate::opencode_cli::mcp::run_mcp_list(app, worktree_path)?;
+    let servers = crate::opencode_cli::mcp::parse_mcp_list_output(&stdout);
+    let statuses = servers
+        .iter()
+        .filter_map(|s| Some((s.name.clone(), s.status.clone()?)))
+        .collect::<std::collections::HashMap<_, _>>();
+    super::mcp_external::store(app, "opencode", worktree_path, servers);
     log::debug!("MCP health check (OpenCode): {} servers", statuses.len());
     Ok(McpHealthResult { statuses })
 }
@@ -11556,10 +11542,20 @@ Checking MCP server health...
 notion: https://mcp.notion.com/mcp (HTTP) - ! Needs authentication
 filesystem: /usr/bin/fs-server (STDIO) - connected
 broken: http://localhost:9999 (HTTP) - ! Could not connect
-my-disabled: /usr/bin/disabled (STDIO) - disabled";
+my-disabled: /usr/bin/disabled (STDIO) - disabled
+claude.ai Gmail: https://gmailmcp.googleapis.com/mcp/v1 - ✔ Connected
+plugin:tools:search: npx -y search-mcp - ✘ Failed to connect";
 
         let statuses = parse_mcp_list_output(output);
-        assert_eq!(statuses.len(), 4);
+        assert_eq!(statuses.len(), 6);
+        assert_eq!(
+            statuses.get("claude.ai Gmail"),
+            Some(&McpHealthStatus::Connected)
+        );
+        assert_eq!(
+            statuses.get("plugin:tools:search"),
+            Some(&McpHealthStatus::CouldNotConnect)
+        );
         assert_eq!(
             statuses.get("notion"),
             Some(&McpHealthStatus::NeedsAuthentication)

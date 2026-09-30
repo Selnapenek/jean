@@ -66,6 +66,7 @@ pub async fn prepare_mcp_login(
         return Err("The MCP project directory does not exist".to_string());
     }
     let servers = super::get_mcp_servers(
+        app.clone(),
         Some(backend.clone()),
         Some(cwd.to_string_lossy().to_string()),
     )

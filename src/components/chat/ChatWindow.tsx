@@ -50,6 +50,7 @@ import {
   useRunScripts,
   usePackageScripts,
   type PackageScript,
+  invalidateProjectLists,
   projectsQueryKeys,
 } from '@/services/projects'
 import { useProjectsStore } from '@/store/projects-store'
@@ -1906,7 +1907,7 @@ function ChatWindowContent({
         chatQueryKeys.session(forkedSession.id),
         forkedSession
       )
-      queryClient.invalidateQueries({ queryKey: projectsQueryKeys.list() })
+      invalidateProjectLists(queryClient)
       queryClient.invalidateQueries({
         queryKey: projectsQueryKeys.worktrees(forkedWorktree.project_id),
       })

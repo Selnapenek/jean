@@ -1389,6 +1389,13 @@ function ChatWindowContent({
     return () => useUIStore.getState().setGitDiffModalOpen(false)
   }, [diffRequest])
 
+  // Subagents panel collapsed state, remembered per session
+  const isAgentWidgetCollapsed = useChatStore(state =>
+    activeSessionId
+      ? (state.collapsedAgentWidgetSessions[activeSessionId] ?? false)
+      : false
+  )
+
   // Active todos and agents from streaming/persisted tool calls (with dismissal tracking)
   const {
     activeTodos,
@@ -3069,6 +3076,16 @@ function ChatWindowContent({
                                 className="sm:mb-2"
                                 agents={activeAgents}
                                 onFileClick={setViewingFilePath}
+                                open={!isAgentWidgetCollapsed}
+                                onOpenChange={open =>
+                                  activeSessionId &&
+                                  useChatStore
+                                    .getState()
+                                    .setAgentWidgetCollapsed(
+                                      activeSessionId,
+                                      !open
+                                    )
+                                }
                                 onClose={() =>
                                   setDismissedAgentMessageId(
                                     agentSourceMessageId ?? '__streaming__'

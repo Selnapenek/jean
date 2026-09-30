@@ -16,8 +16,10 @@ interface AgentWidgetProps {
   className?: string
   /** Callback to dismiss the widget */
   onClose?: () => void
-  /** Whether to start expanded (default: true) */
-  defaultOpen?: boolean
+  /** Whether the panel is expanded (default: true) */
+  open?: boolean
+  /** Callback when the panel is expanded or collapsed */
+  onOpenChange?: (open: boolean) => void
   /** Callback when a file path in a tool call is clicked */
   onFileClick?: (filePath: string) => void
 }
@@ -66,10 +68,10 @@ export function AgentWidget({
   agents,
   className,
   onClose,
-  defaultOpen = true,
+  open = true,
+  onOpenChange,
   onFileClick,
 }: AgentWidgetProps) {
-  const [isOpen, setIsOpen] = useState(defaultOpen)
   const [now, setNow] = useState(() => Date.now())
 
   const runningCount = agents.filter(a => a.status === 'in_progress').length
@@ -91,14 +93,14 @@ export function AgentWidget({
   }, [runningCount])
 
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen} className={className}>
+    <Collapsible open={open} onOpenChange={onOpenChange} className={className}>
       <div className="overflow-hidden border-t border-border bg-card sm:rounded-lg sm:border">
         <div className="flex items-center text-xs text-muted-foreground">
           <CollapsibleTrigger className="flex flex-1 min-w-0 items-center gap-2 select-none text-left cursor-pointer px-3 py-1.5 hover:bg-muted/50">
             <Users className="h-4 w-4 shrink-0" />
             <span className="font-medium">Subagents</span>
             {/* Collapsed panels hide the rows, so show their running state here */}
-            {!isOpen && runningCount > 0 && <WorkingWaveform />}
+            {!open && runningCount > 0 && <WorkingWaveform />}
             <span className="rounded bg-muted/50 px-1.5 py-0.5 text-xs">
               {runningCount > 0
                 ? `${runningCount} running`

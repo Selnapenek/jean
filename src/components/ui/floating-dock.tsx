@@ -422,7 +422,6 @@ export function FloatingDock() {
           side={popoverSide}
           align={popoverAlign}
           className="min-w-[200px]"
-          onEscapeKeyDown={e => e.stopPropagation()}
         >
           <DropdownMenuItem
             onClick={() =>
@@ -556,7 +555,6 @@ export function FloatingDock() {
             side={popoverSide}
             align={popoverAlign}
             className="min-w-[240px]"
-            onEscapeKeyDown={e => e.stopPropagation()}
           >
             {usageEntries.map(entry => (
               <UsageMenuItem key={entry.id} entry={entry} />

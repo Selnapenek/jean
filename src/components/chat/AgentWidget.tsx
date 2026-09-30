@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ChevronDown, Users, X } from '@/components/icons/reicon'
+import { ChevronDown, ChevronRight, Users, X } from '@/components/icons/reicon'
 import type { SubAgent } from '@/types/chat'
 import { cn } from '@/lib/utils'
 import {
@@ -7,6 +7,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { TaskCallDetails } from './ToolCallInline'
+import { formatTokens } from '@/lib/session-debug'
 
 interface AgentWidgetProps {
   agents: SubAgent[]
@@ -15,6 +17,8 @@ interface AgentWidgetProps {
   onClose?: () => void
   /** Whether to start expanded (default: true) */
   defaultOpen?: boolean
+  /** Callback when a file path in a tool call is clicked */
+  onFileClick?: (filePath: string) => void
 }
 
 /**
@@ -52,6 +56,7 @@ export function AgentWidget({
   className,
   onClose,
   defaultOpen = true,
+  onFileClick,
 }: AgentWidgetProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen)
   const [now, setNow] = useState(() => Date.now())
@@ -60,6 +65,12 @@ export function AgentWidget({
   const completedCount = agents.filter(a => a.status === 'completed').length
 
   for (const agent of agents) trackTiming(agent, now)
+
+  // Running agents first, finished ones below; keep start order in each group
+  const sortedAgents = [
+    ...agents.filter(a => a.status === 'in_progress'),
+    ...agents.filter(a => a.status !== 'in_progress'),
+  ]
 
   // Tick once per second while any agent runs, for the elapsed time
   useEffect(() => {
@@ -99,9 +110,14 @@ export function AgentWidget({
           )}
         </div>
         <CollapsibleContent>
-          <ul className="max-h-48 overflow-y-auto px-4 pb-2.5 space-y-1.5">
-            {agents.map(agent => (
-              <AgentItem key={agent.id} agent={agent} now={now} />
+          <ul className="max-h-[50vh] overflow-y-auto px-4 pb-2.5 space-y-1.5">
+            {sortedAgents.map(agent => (
+              <AgentItem
+                key={agent.id}
+                agent={agent}
+                now={now}
+                onFileClick={onFileClick}
+              />
             ))}
           </ul>
         </CollapsibleContent>
@@ -113,62 +129,91 @@ export function AgentWidget({
 interface AgentItemProps {
   agent: SubAgent
   now: number
+  onFileClick?: (filePath: string) => void
 }
 
-function AgentItem({ agent, now }: AgentItemProps) {
+function AgentItem({ agent, now, onFileClick }: AgentItemProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const isDone = agent.status !== 'in_progress'
   const timing = agentTimings.get(agent.id)
-  const elapsed = timing
-    ? formatAgentElapsed((timing.end ?? now) - timing.start)
-    : null
+  const clientMs = timing ? (timing.end ?? now) - timing.start : undefined
+  // CLI-reported time is exact once done; while running it only updates on
+  // progress events, so the local ticking timer can be ahead of it.
+  const elapsedMs = isDone
+    ? (agent.durationMs ?? clientMs)
+    : Math.max(clientMs ?? 0, agent.durationMs ?? 0) || undefined
   const meta = [
     agent.toolCount
       ? `${agent.toolCount} tool${agent.toolCount === 1 ? '' : 's'}`
       : null,
-    elapsed,
+    agent.tokens ? `${formatTokens(agent.tokens)} tokens` : null,
+    elapsedMs !== undefined ? formatAgentElapsed(elapsedMs) : null,
   ].filter(Boolean)
-  const isDone = agent.status !== 'in_progress'
 
   return (
-    <li
-      className="flex min-w-0 items-center gap-2 text-xs"
-      title={agent.message}
-    >
-      <span
-        className={cn(
-          'h-1.5 w-1.5 shrink-0 rounded-full',
-          agent.status === 'in_progress' && 'bg-primary animate-pulse',
-          agent.status === 'completed' && 'bg-success',
-          agent.status === 'errored' && 'bg-warning',
-          agent.status === 'interrupted' && 'bg-muted-foreground/60'
-        )}
-        aria-label={agent.status.replace('_', ' ')}
-      />
-      <span
-        className={cn(
-          'flex min-w-0 items-center gap-1.5',
-          isDone && 'text-muted-foreground/70'
-        )}
-      >
-        {agent.label && (
-          <>
-            <span className="shrink-0 font-semibold">{agent.label}</span>
-            <span className="shrink-0 text-muted-foreground/60">›</span>
-          </>
-        )}
-        <span className="truncate text-muted-foreground">
-          {agent.prompt}
-          {agent.status === 'interrupted' && (
-            <span className="ml-1 text-[10px] uppercase tracking-wide">
-              Interrupted
+    <li className="min-w-0 text-xs">
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <CollapsibleTrigger
+          className="flex w-full min-w-0 items-center gap-2 rounded text-left hover:bg-muted/50"
+          title={agent.message}
+        >
+          <span
+            className={cn(
+              'h-1.5 w-1.5 shrink-0 rounded-full',
+              agent.status === 'in_progress' && 'bg-primary animate-pulse',
+              agent.status === 'completed' && 'bg-success',
+              agent.status === 'errored' && 'bg-warning',
+              agent.status === 'interrupted' && 'bg-muted-foreground/60'
+            )}
+            aria-label={agent.status.replace('_', ' ')}
+          />
+          <span
+            className={cn(
+              'flex min-w-0 items-center gap-1.5',
+              isDone && 'text-muted-foreground/70'
+            )}
+          >
+            {agent.label && (
+              <>
+                <span className="shrink-0 font-semibold">{agent.label}</span>
+                <span className="shrink-0 text-muted-foreground/60">›</span>
+              </>
+            )}
+            <span className="truncate text-muted-foreground">
+              {agent.prompt}
+              {agent.status === 'interrupted' && (
+                <span className="ml-1 text-[10px] uppercase tracking-wide">
+                  Interrupted
+                </span>
+              )}
+            </span>
+          </span>
+          {meta.length > 0 && (
+            <span className="ml-auto shrink-0 pl-2 tabular-nums text-muted-foreground">
+              {meta.join(' • ')}
             </span>
           )}
-        </span>
-      </span>
-      {meta.length > 0 && (
-        <span className="ml-auto shrink-0 pl-2 tabular-nums text-muted-foreground">
-          {meta.join(' • ')}
-        </span>
-      )}
+          <ChevronRight
+            className={cn(
+              'h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-200',
+              meta.length === 0 && 'ml-auto',
+              isOpen && 'rotate-90'
+            )}
+          />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <TaskCallDetails
+            className="mt-1.5 mb-1 ml-3.5 rounded-md border border-border/50 bg-muted/30 px-3 py-2"
+            prompt={agent.fullPrompt}
+            report={agent.report ?? agent.message}
+            subToolCalls={agent.toolCalls ?? []}
+            allToolCalls={agent.allToolCalls}
+            onFileClick={onFileClick}
+            isStreaming={agent.status === 'in_progress'}
+            isIncomplete={agent.status === 'in_progress'}
+          />
+        </CollapsibleContent>
+      </Collapsible>
     </li>
   )
 }

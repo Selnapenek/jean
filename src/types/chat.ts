@@ -128,6 +128,16 @@ export interface ToolCall {
   events?: ToolLiveEvent[]
   /** Current lifecycle status for long-running tools. */
   status?: 'armed' | 'running' | 'done' | 'timeout' | 'error'
+  /** Token/tool/time totals of a Claude Task/Agent subagent run */
+  subagent_usage?: SubagentUsage
+}
+
+/** Claude subagent totals (from task_progress events and the final result) */
+export interface SubagentUsage {
+  /** Context tokens of the subagent's latest API call */
+  total_tokens: number
+  tool_uses: number
+  duration_ms: number
 }
 
 export interface PlanStep {
@@ -596,6 +606,14 @@ export interface ToolResultEvent {
  * Unlike tool_result (atomic), tool_event arrives incrementally while a
  * long-running tool is armed.
  */
+/** Event payload for chat:subagent_usage (Claude Task/Agent totals) */
+export interface SubagentUsageEvent {
+  session_id: string
+  worktree_id: string
+  tool_use_id: string
+  usage: SubagentUsage
+}
+
 export interface ToolEventEvent {
   session_id: string
   worktree_id: string
@@ -1281,6 +1299,18 @@ export interface SubAgent {
   label?: string
   /** Number of tool calls the agent made (Claude only) */
   toolCount?: number
+  /** Context tokens of the agent's latest API call (Claude only) */
+  tokens?: number
+  /** Run time reported by the CLI (Claude only) */
+  durationMs?: number
+  /** Full prompt, for the expanded detail view */
+  fullPrompt?: string
+  /** Final report the agent returned (Claude Task/Agent output) */
+  report?: string
+  /** Tool calls shown in the expanded detail view */
+  toolCalls?: ToolCall[]
+  /** All turn tool calls, to resolve nested Claude Task/Agent sub-tools */
+  allToolCalls?: ToolCall[]
 }
 
 /** Names of collab tool calls that should be shown in the AgentWidget, not the timeline */

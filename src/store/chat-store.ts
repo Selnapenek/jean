@@ -4,6 +4,7 @@ import {
   isAskUserQuestion,
   type ToolCall,
   type ToolLiveEvent,
+  type SubagentUsage,
   type QuestionAnswer,
   type SetupScriptResult,
   type ThinkingLevel,
@@ -433,6 +434,12 @@ interface ChatUIState {
     sessionId: string,
     toolUseId: string,
     event: ToolLiveEvent
+  ) => void
+  /** Set a Claude subagent's token/tool/time totals on its Task/Agent call. */
+  setToolCallSubagentUsage: (
+    sessionId: string,
+    toolUseId: string,
+    usage: SubagentUsage
   ) => void
   /** Set a tool call's lifecycle status (armed/running/done/timeout/error). */
   setToolCallStatus: (
@@ -1851,6 +1858,33 @@ export const useChatStore = create<ChatUIState>()(
           },
           undefined,
           'appendToolEvent'
+        ),
+
+      setToolCallSubagentUsage: (sessionId, toolUseId, usage) =>
+        set(
+          state => {
+            const toolCalls = state.activeToolCalls[sessionId] ?? []
+            const existing = toolCalls.find(tc => tc.id === toolUseId)
+            const prev = existing?.subagent_usage
+            if (
+              !existing ||
+              (prev?.total_tokens === usage.total_tokens &&
+                prev.tool_uses === usage.tool_uses &&
+                prev.duration_ms === usage.duration_ms)
+            ) {
+              return state
+            }
+            return {
+              activeToolCalls: {
+                ...state.activeToolCalls,
+                [sessionId]: toolCalls.map(tc =>
+                  tc.id === toolUseId ? { ...tc, subagent_usage: usage } : tc
+                ),
+              },
+            }
+          },
+          undefined,
+          'setToolCallSubagentUsage'
         ),
 
       setToolCallStatus: (sessionId, toolUseId, status) =>

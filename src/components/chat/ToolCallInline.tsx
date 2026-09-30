@@ -785,66 +785,108 @@ export function TaskCallInline({
           )}
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <div className="border-t border-border/50 px-3 py-2 space-y-2">
-            {/* Show prompt/instructions */}
-            {prompt && (
-              <div className="text-xs text-muted-foreground bg-muted/50 rounded p-2 whitespace-pre-wrap max-h-32 overflow-y-auto">
-                {prompt}
-              </div>
-            )}
-            {/* Show sub-tools as compact list */}
-            {subToolCalls.length > 0 ? (
-              <div className="space-y-1">
-                {subToolCalls.map(subTool =>
-                  (subTool.name === 'Task' || subTool.name === 'Agent') &&
-                  (allToolCalls || nestedSubTools) ? (
-                    <TaskCallInline
-                      key={subTool.id}
-                      taskToolCall={subTool}
-                      subToolCalls={
-                        nestedSubTools?.[subTool.id] ??
-                        (allToolCalls ?? []).filter(
-                          t => t.parent_tool_use_id === subTool.id
-                        )
-                      }
-                      allToolCalls={allToolCalls}
-                      nestedSubTools={nestedSubTools}
-                      onFileClick={onFileClick}
-                      isStreaming={isStreaming}
-                      // A nested agent is still running while its parent is
-                      // and it has not returned its report yet.
-                      isIncomplete={
-                        Boolean(isIncomplete) && !subTool.output?.trim()
-                      }
-                    />
-                  ) : (
-                    <SubToolItem
-                      key={subTool.id}
-                      toolCall={subTool}
-                      onFileClick={onFileClick}
-                    />
-                  )
-                )}
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground/60 italic">
-                No sub-tools recorded
-              </p>
-            )}
-            {/* Subagent final report returned to the parent agent */}
-            {report && (
-              <div className="space-y-1">
-                <div className="border-t border-border/30" />
-                <div className="text-xs text-muted-foreground/60">Report:</div>
-                <div className="max-h-64 overflow-y-auto text-xs text-foreground/80 bg-muted/50 rounded p-2">
-                  <Markdown variant="tool-call">{report}</Markdown>
-                </div>
-              </div>
-            )}
-          </div>
+          <TaskCallDetails
+            className="border-t border-border/50 px-3 py-2"
+            prompt={prompt}
+            report={report}
+            subToolCalls={subToolCalls}
+            allToolCalls={allToolCalls}
+            nestedSubTools={nestedSubTools}
+            onFileClick={onFileClick}
+            isStreaming={isStreaming}
+            isIncomplete={isIncomplete}
+          />
         </CollapsibleContent>
       </div>
     </Collapsible>
+  )
+}
+
+interface TaskCallDetailsProps {
+  /** Instructions given to the subagent */
+  prompt?: string
+  /** Final report the subagent returned */
+  report?: string
+  subToolCalls: ToolCall[]
+  allToolCalls?: ToolCall[]
+  nestedSubTools?: Record<string, ToolCall[]>
+  className?: string
+  onFileClick?: (filePath: string) => void
+  isStreaming?: boolean
+  isIncomplete?: boolean
+}
+
+/**
+ * Expanded subagent body: prompt, sub-tool calls, and final report.
+ * Shared by TaskCallInline and the Subagents panel above the input.
+ */
+export function TaskCallDetails({
+  prompt,
+  report,
+  subToolCalls,
+  allToolCalls,
+  nestedSubTools,
+  className,
+  onFileClick,
+  isStreaming,
+  isIncomplete,
+}: TaskCallDetailsProps) {
+  return (
+    <div className={cn('space-y-2', className)}>
+      {/* Show prompt/instructions */}
+      {prompt && (
+        <div className="text-xs text-muted-foreground bg-muted/50 rounded p-2 whitespace-pre-wrap max-h-32 overflow-y-auto">
+          {prompt}
+        </div>
+      )}
+      {/* Show sub-tools as compact list */}
+      {subToolCalls.length > 0 ? (
+        <div className="space-y-1">
+          {subToolCalls.map(subTool =>
+            (subTool.name === 'Task' || subTool.name === 'Agent') &&
+            (allToolCalls || nestedSubTools) ? (
+              <TaskCallInline
+                key={subTool.id}
+                taskToolCall={subTool}
+                subToolCalls={
+                  nestedSubTools?.[subTool.id] ??
+                  (allToolCalls ?? []).filter(
+                    t => t.parent_tool_use_id === subTool.id
+                  )
+                }
+                allToolCalls={allToolCalls}
+                nestedSubTools={nestedSubTools}
+                onFileClick={onFileClick}
+                isStreaming={isStreaming}
+                // A nested agent is still running while its parent is
+                // and it has not returned its report yet.
+                isIncomplete={Boolean(isIncomplete) && !subTool.output?.trim()}
+              />
+            ) : (
+              <SubToolItem
+                key={subTool.id}
+                toolCall={subTool}
+                onFileClick={onFileClick}
+              />
+            )
+          )}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground/60 italic">
+          No sub-tools recorded
+        </p>
+      )}
+      {/* Subagent final report returned to the parent agent */}
+      {report && (
+        <div className="space-y-1">
+          <div className="border-t border-border/30" />
+          <div className="text-xs text-muted-foreground/60">Report:</div>
+          <div className="max-h-64 overflow-y-auto text-xs text-foreground/80 bg-muted/50 rounded p-2">
+            <Markdown variant="tool-call">{report}</Markdown>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 

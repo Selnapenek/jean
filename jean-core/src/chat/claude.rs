@@ -1,8 +1,8 @@
 use super::coalesce::ChunkCoalescer;
-use super::run_log::{tool_result_content_to_string, tool_result_is_error};
+use super::run_log::{claude_subagent_usage, tool_result_content_to_string, tool_result_is_error};
 use super::types::{
     is_claude_compaction_summary_text, CompactMetadata, ContentBlock, EffortLevel,
-    PermissionDenial, PermissionDeniedEvent, ThinkingLevel, ToolCall, UsageData,
+    PermissionDenial, PermissionDeniedEvent, SubagentUsage, ThinkingLevel, ToolCall, UsageData,
 };
 use crate::http_server::EmitExt;
 use crate::projects::github_issues::{
@@ -228,6 +228,15 @@ struct ToolResultEvent {
     /// `Some(true)` when the tool result was flagged `is_error`
     #[serde(skip_serializing_if = "Option::is_none")]
     is_error: Option<bool>,
+}
+
+/// Payload for Claude subagent (Task/Agent) token/tool/time totals
+#[derive(serde::Serialize, Clone)]
+struct SubagentUsageEvent {
+    session_id: String,
+    worktree_id: String,
+    tool_use_id: String,
+    usage: SubagentUsage,
 }
 
 /// Payload for live tool-event (e.g. Monitor notifications) streamed to frontend.
@@ -1847,6 +1856,23 @@ pub fn tail_claude_output(
                 flush_pending_chunks(app, session_id, worktree_id, &run_id, &mut chunk_coalescer);
             }
 
+            if let Some((tool_use_id, subagent_usage)) = claude_subagent_usage(&msg) {
+                if let Some(tc) = tool_calls.iter_mut().find(|t| t.id == tool_use_id) {
+                    if tc.subagent_usage.as_ref() != Some(&subagent_usage) {
+                        tc.subagent_usage = Some(subagent_usage.clone());
+                        let event = SubagentUsageEvent {
+                            session_id: session_id.to_string(),
+                            worktree_id: worktree_id.to_string(),
+                            tool_use_id,
+                            usage: subagent_usage,
+                        };
+                        if let Err(e) = app.emit_all("chat:subagent_usage", &event) {
+                            log::error!("Failed to emit subagent_usage: {e}");
+                        }
+                    }
+                }
+            }
+
             if msg_type == "stream_event" {
                 if let Some(tool) = stream_event_tool_use(&msg) {
                     pending_stream_tool_inputs.remove(&tool.index);
@@ -1882,6 +1908,7 @@ pub fn tail_claude_output(
                             output: None,
                             parent_tool_use_id: current_parent_tool_use_id.clone(),
                             is_error: None,
+                            subagent_usage: None,
                         });
                         content_blocks.push(ContentBlock::ToolUse {
                             tool_call_id: id.clone(),
@@ -2117,6 +2144,7 @@ pub fn tail_claude_output(
                                             output: None,
                                             parent_tool_use_id: current_parent_tool_use_id.clone(),
                                             is_error: None,
+                                            subagent_usage: None,
                                         });
 
                                         content_blocks.push(ContentBlock::ToolUse {

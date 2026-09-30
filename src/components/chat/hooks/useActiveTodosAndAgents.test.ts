@@ -58,7 +58,7 @@ describe('extractCodexAgents', () => {
       }),
     ]
 
-    expect(extractCodexAgents(tools, true)).toEqual([
+    expect(extractCodexAgents(tools, true)).toMatchObject([
       {
         id: 'agent-a',
         prompt: 'Batch A investigate advisories',
@@ -72,6 +72,22 @@ describe('extractCodexAgents', () => {
         message: 'B failed',
       },
     ])
+  })
+
+  it('collects the full prompt and related tool calls per agent', () => {
+    const spawn = toolCall('SpawnAgent', {
+      prompt: 'x'.repeat(100),
+      receiver_thread_ids: ['agent-a'],
+    })
+    const wait = toolCall('WaitForAgents', {
+      receiver_thread_ids: ['agent-a', 'agent-b'],
+      agents_states: { 'agent-a': { status: 'completed', message: 'done' } },
+    })
+
+    const [agentA, agentB] = extractCodexAgents([spawn, wait], true)
+    expect(agentA?.fullPrompt).toBe('x'.repeat(100))
+    expect(agentA?.toolCalls).toEqual([spawn, wait])
+    expect(agentB?.toolCalls).toEqual([wait])
   })
 
   it('marks interrupted v2 agents as interrupted (not completed/errored)', () => {
@@ -91,7 +107,7 @@ describe('extractCodexAgents', () => {
       }),
     ]
 
-    expect(extractCodexAgents(tools, true)).toEqual([
+    expect(extractCodexAgents(tools, true)).toMatchObject([
       {
         id: 'agent-a',
         prompt: '/root/reviewer',
@@ -112,7 +128,7 @@ describe('extractCodexAgents', () => {
       }),
     ]
 
-    expect(extractCodexAgents(tools, false)).toEqual([
+    expect(extractCodexAgents(tools, false)).toMatchObject([
       {
         id: 'agent-a',
         prompt: 'Still working',
@@ -124,7 +140,7 @@ describe('extractCodexAgents', () => {
     // While parent is still sending, leave as in_progress
     expect(extractCodexAgents(tools, true)[0]?.status).toBe('in_progress')
 
-    expect(extractCodexAgents(tools, false, true)).toEqual([
+    expect(extractCodexAgents(tools, false, true)).toMatchObject([
       {
         id: 'agent-a',
         prompt: 'Still working',
@@ -191,7 +207,7 @@ describe('extractClaudeAgents', () => {
   tools[2] = { ...tools[2]!, is_error: true }
 
   it('maps Task/Agent calls with status, label and tool count', () => {
-    expect(extractClaudeAgents(tools, true)).toEqual([
+    expect(extractClaudeAgents(tools, true)).toMatchObject([
       {
         id: 'agent-1',
         prompt: 'Review snapshot stills',
@@ -214,6 +230,26 @@ describe('extractClaudeAgents', () => {
         toolCount: 0,
       },
     ])
+  })
+
+  it('exposes full prompt, report and sub-tool calls for the detail view', () => {
+    const [agent1, task2] = extractClaudeAgents(tools, true)
+    expect(agent1?.fullPrompt).toBe('Long prompt')
+    expect(agent1?.toolCalls?.map(tc => tc.id)).toEqual(['read-1', 'grep-1'])
+    expect(agent1?.allToolCalls).toBe(tools)
+    expect(task2?.report).toBe('Report: fixed')
+  })
+
+  it('reads tokens, tool count and time from subagent usage', () => {
+    const withUsage: ToolCall = {
+      ...toolCall('Agent', { id: 'agent-u', description: 'Usage' }),
+      subagent_usage: { total_tokens: 48804, tool_uses: 8, duration_ms: 61421 },
+    }
+    expect(extractClaudeAgents([withUsage], true)[0]).toMatchObject({
+      toolCount: 8,
+      tokens: 48804,
+      durationMs: 61421,
+    })
   })
 
   it('marks agents without output done or interrupted after the turn', () => {

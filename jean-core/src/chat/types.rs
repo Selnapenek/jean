@@ -386,6 +386,19 @@ pub struct ToolCall {
     /// `Some(true)` when the tool result was flagged `is_error` (failed tool)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub is_error: Option<bool>,
+    /// Token/tool/time totals of a Claude Task/Agent subagent run
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subagent_usage: Option<SubagentUsage>,
+}
+
+/// Running totals for a Claude subagent (from `task_progress` events and the
+/// final `tool_use_result`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SubagentUsage {
+    /// Context tokens of the subagent's latest API call
+    pub total_tokens: u64,
+    pub tool_uses: u64,
+    pub duration_ms: u64,
 }
 
 /// A permission denial when a tool requires approval
@@ -2400,6 +2413,7 @@ mod tests {
             output: Some("file contents".to_string()),
             parent_tool_use_id: None,
             is_error: None,
+            subagent_usage: None,
         };
 
         let json = serde_json::to_string(&tool_call).unwrap();
@@ -2418,6 +2432,7 @@ mod tests {
             output: None,
             parent_tool_use_id: Some("call-123".to_string()),
             is_error: None,
+            subagent_usage: None,
         };
 
         let json = serde_json::to_string(&tool_call).unwrap();

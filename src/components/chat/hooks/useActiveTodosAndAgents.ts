@@ -109,6 +109,7 @@ export function extractCodexAgents(
   parentTurnCancelled = false
 ): SubAgent[] {
   const agents = new Map<string, SubAgent>()
+  const agentToolCalls = new Map<string, ToolCall[]>()
 
   for (const tc of toolCalls) {
     const input = asRecord(tc.input)
@@ -122,6 +123,17 @@ export function extractCodexAgents(
     const agentsStates = agentStatesField(input)
     const toolCallStatus = input.status
 
+    const threadIds = new Set([
+      ...receiverThreadIds,
+      ...Object.keys(agentsStates),
+    ])
+    if (tc.name === 'SpawnAgent') threadIds.add(receiverThreadIds[0] ?? tc.id)
+    for (const threadId of threadIds) {
+      const calls = agentToolCalls.get(threadId) ?? []
+      calls.push(tc)
+      agentToolCalls.set(threadId, calls)
+    }
+
     if (tc.name === 'SpawnAgent') {
       const prompt = stringField(input, 'prompt', 'prompt') ?? ''
       const threadId = receiverThreadIds[0] ?? tc.id
@@ -129,6 +141,7 @@ export function extractCodexAgents(
       agents.set(threadId, {
         id: threadId,
         prompt: truncateAgentPrompt(prompt),
+        fullPrompt: prompt,
         status: normalizeCodexAgentStatus(state?.status, toolCallStatus),
         message: typeof state?.message === 'string' ? state.message : undefined,
       })
@@ -147,6 +160,7 @@ export function extractCodexAgents(
     for (const [threadId, state] of Object.entries(agentsStates)) {
       const existing = agents.get(threadId)
       agents.set(threadId, {
+        ...existing,
         id: existing?.id ?? threadId,
         prompt: existing?.prompt ?? threadId,
         status: normalizeCodexAgentStatus(state.status, toolCallStatus),
@@ -159,7 +173,8 @@ export function extractCodexAgents(
   // Codex sub_agent_activity has no "completed" kind. A normal parent turn end
   // is therefore the terminal completion signal for agents that still have a
   // running state. Keep cancellation distinct so abandoned work is not green.
-  return Array.from(agents.values()).map(agent => {
+  return Array.from(agents.values()).map(rawAgent => {
+    const agent = { ...rawAgent, toolCalls: agentToolCalls.get(rawAgent.id) }
     if (isSending || agent.status !== 'in_progress') return agent
     return {
       ...agent,
@@ -182,13 +197,12 @@ export function extractClaudeAgents(
   isSending: boolean,
   parentTurnCancelled = false
 ): SubAgent[] {
-  const toolCounts = new Map<string, number>()
+  const subToolCalls = new Map<string, ToolCall[]>()
   for (const tc of toolCalls) {
     if (tc.parent_tool_use_id) {
-      toolCounts.set(
-        tc.parent_tool_use_id,
-        (toolCounts.get(tc.parent_tool_use_id) ?? 0) + 1
-      )
+      const calls = subToolCalls.get(tc.parent_tool_use_id) ?? []
+      calls.push(tc)
+      subToolCalls.set(tc.parent_tool_use_id, calls)
     }
   }
 
@@ -207,12 +221,20 @@ export function extractClaudeAgents(
     else if (isSending) status = 'in_progress'
     else status = parentTurnCancelled ? 'interrupted' : 'completed'
 
+    const calls = subToolCalls.get(tc.id) ?? []
+    const usage = tc.subagent_usage
     agents.push({
       id: tc.id,
       prompt: truncateAgentPrompt(description),
       status,
       label: stringField(input, 'subagent_type', 'subagentType') ?? tc.name,
-      toolCount: toolCounts.get(tc.id) ?? 0,
+      toolCount: Math.max(calls.length, usage?.tool_uses ?? 0),
+      tokens: usage?.total_tokens,
+      durationMs: usage?.duration_ms || undefined,
+      fullPrompt: stringField(input, 'prompt', 'prompt'),
+      report: tc.output?.trim() || undefined,
+      toolCalls: calls,
+      allToolCalls: toolCalls,
     })
   }
   return agents

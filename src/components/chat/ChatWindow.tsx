@@ -3020,6 +3020,7 @@ function ChatWindowContent({
                                 key={activeSessionId ?? undefined}
                                 className="sm:mb-2"
                                 agents={activeAgents}
+                                onFileClick={setViewingFilePath}
                                 onClose={() =>
                                   setDismissedAgentMessageId(
                                     agentSourceMessageId ?? '__streaming__'

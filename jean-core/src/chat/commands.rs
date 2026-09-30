@@ -10669,6 +10669,7 @@ mod tests {
             output: Some("<tool_use_error>Error: No such tool available: AskUserQuestion. AskUserQuestion exists but is not enabled in this context. Use one of the available tools instead.</tool_use_error>".to_string()),
             parent_tool_use_id: None,
             is_error: None,
+            subagent_usage: None,
         };
 
         assert!(!is_pending_blocking_tool_call(&tool));
@@ -10683,6 +10684,7 @@ mod tests {
             output: None,
             parent_tool_use_id: None,
             is_error: None,
+            subagent_usage: None,
         };
 
         assert!(!is_pending_blocking_tool_call_for_mode(&tool, Some("yolo")));

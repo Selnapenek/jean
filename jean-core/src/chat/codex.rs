@@ -628,6 +628,7 @@ fn upsert_codex_plan_tool_call(
         output: None,
         parent_tool_use_id: None,
         is_error: None,
+        subagent_usage: None,
     });
     content_blocks.push(ContentBlock::ToolUse {
         tool_call_id: tool_id.to_string(),
@@ -3640,6 +3641,7 @@ fn upsert_file_change_tool_call(
             output: None,
             parent_tool_use_id: None,
             is_error: None,
+            subagent_usage: None,
         });
         content_blocks.push(ContentBlock::ToolUse {
             tool_call_id: tool_id.clone(),
@@ -3699,6 +3701,7 @@ fn process_codex_event(
                         output: None,
                         parent_tool_use_id: None,
                         is_error: None,
+                        subagent_usage: None,
                     });
                     content_blocks.push(ContentBlock::ToolUse {
                         tool_call_id: tool_id.clone(),
@@ -3784,6 +3787,7 @@ fn process_codex_event(
                         output: None,
                         parent_tool_use_id: None,
                         is_error: None,
+                        subagent_usage: None,
                     });
                     content_blocks.push(ContentBlock::ToolUse {
                         tool_call_id: tool_id.clone(),
@@ -3830,6 +3834,7 @@ fn process_codex_event(
                         output: None,
                         parent_tool_use_id: None,
                         is_error: None,
+                        subagent_usage: None,
                     });
                     content_blocks.push(ContentBlock::ToolUse {
                         tool_call_id: tool_id.clone(),
@@ -3871,6 +3876,7 @@ fn process_codex_event(
                         output: None,
                         parent_tool_use_id: None,
                         is_error: None,
+                        subagent_usage: None,
                     });
                     content_blocks.push(ContentBlock::ToolUse {
                         tool_call_id: tool_id.clone(),
@@ -3920,6 +3926,7 @@ fn process_codex_event(
                         output: None,
                         parent_tool_use_id: None,
                         is_error: None,
+                        subagent_usage: None,
                     });
                     content_blocks.push(ContentBlock::ToolUse {
                         tool_call_id: tool_id.clone(),
@@ -3991,6 +3998,7 @@ fn process_codex_event(
                         output: None,
                         parent_tool_use_id: None,
                         is_error: None,
+                        subagent_usage: None,
                     });
                     content_blocks.push(ContentBlock::ToolUse {
                         tool_call_id: tool_id.clone(),
@@ -4223,6 +4231,7 @@ fn process_codex_event(
                                 output: Some("completed".to_string()),
                                 parent_tool_use_id: None,
                                 is_error: None,
+                                subagent_usage: None,
                             });
                             content_blocks.push(ContentBlock::ToolUse {
                                 tool_call_id: tool_id.clone(),
@@ -4288,6 +4297,7 @@ fn process_codex_event(
                             output: (!output.is_empty()).then_some(output.clone()),
                             parent_tool_use_id: None,
                             is_error: None,
+                            subagent_usage: None,
                         });
                         content_blocks.push(ContentBlock::ToolUse {
                             tool_call_id: tool_id.clone(),
@@ -4675,6 +4685,7 @@ pub fn parse_codex_run_to_message(
                             output: None,
                             parent_tool_use_id: None,
                             is_error: None,
+                            subagent_usage: None,
                         });
                         content_blocks.push(ContentBlock::ToolUse {
                             tool_call_id: tool_id.clone(),
@@ -4722,6 +4733,7 @@ pub fn parse_codex_run_to_message(
                             output: None,
                             parent_tool_use_id: None,
                             is_error: None,
+                            subagent_usage: None,
                         });
                         content_blocks.push(ContentBlock::ToolUse {
                             tool_call_id: tool_id.clone(),
@@ -4749,6 +4761,7 @@ pub fn parse_codex_run_to_message(
                             output: None,
                             parent_tool_use_id: None,
                             is_error: None,
+                            subagent_usage: None,
                         });
                         content_blocks.push(ContentBlock::ToolUse {
                             tool_call_id: tool_id.clone(),
@@ -4771,6 +4784,7 @@ pub fn parse_codex_run_to_message(
                             output: None,
                             parent_tool_use_id: None,
                             is_error: None,
+                            subagent_usage: None,
                         });
                         content_blocks.push(ContentBlock::ToolUse {
                             tool_call_id: tool_id.clone(),
@@ -4795,6 +4809,7 @@ pub fn parse_codex_run_to_message(
                             output: None,
                             parent_tool_use_id: None,
                             is_error: None,
+                            subagent_usage: None,
                         });
                         content_blocks.push(ContentBlock::ToolUse {
                             tool_call_id: tool_id.clone(),
@@ -5005,6 +5020,7 @@ pub fn parse_codex_run_to_message(
                                 output: Some("completed".to_string()),
                                 parent_tool_use_id: None,
                                 is_error: None,
+                                subagent_usage: None,
                             });
                             content_blocks.push(ContentBlock::ToolUse {
                                 tool_call_id: tool_id,
@@ -5036,6 +5052,7 @@ pub fn parse_codex_run_to_message(
                                 output: (!output.is_empty()).then_some(output),
                                 parent_tool_use_id: None,
                                 is_error: None,
+                                subagent_usage: None,
                             });
                             content_blocks.push(ContentBlock::ToolUse {
                                 tool_call_id: tool_id,

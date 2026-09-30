@@ -38,6 +38,16 @@ function trackTiming(agent: SubAgent, now: number) {
   }
 }
 
+function WorkingWaveform() {
+  return (
+    <span aria-hidden="true" className="recent-working-waveform text-primary">
+      <span />
+      <span />
+      <span />
+    </span>
+  )
+}
+
 export function formatAgentElapsed(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000))
   const hours = Math.floor(totalSeconds / 3600)
@@ -87,6 +97,8 @@ export function AgentWidget({
           <CollapsibleTrigger className="flex flex-1 min-w-0 items-center gap-2 select-none text-left cursor-pointer px-3 py-1.5 hover:bg-muted/50">
             <Users className="h-4 w-4 shrink-0" />
             <span className="font-medium">Subagents</span>
+            {/* Collapsed panels hide the rows, so show their running state here */}
+            {!isOpen && runningCount > 0 && <WorkingWaveform />}
             <span className="rounded bg-muted/50 px-1.5 py-0.5 text-xs">
               {runningCount > 0
                 ? `${runningCount} running`
@@ -159,14 +171,7 @@ function AgentItem({ agent, now, onFileClick }: AgentItemProps) {
             aria-label={agent.status.replace('_', ' ')}
           >
             {agent.status === 'in_progress' ? (
-              <span
-                aria-hidden="true"
-                className="recent-working-waveform text-primary"
-              >
-                <span />
-                <span />
-                <span />
-              </span>
+              <WorkingWaveform />
             ) : (
               <span
                 className={cn(

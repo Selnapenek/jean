@@ -112,7 +112,7 @@ export const FloatingButtons = memo(function FloatingButtons({
       )}
 
       {/* Right side - Approve, Findings, Bottom buttons */}
-      <div className="absolute bottom-4 right-4 flex gap-2">
+      <div className="absolute bottom-[calc(var(--chat-composer-height,0px)+1rem)] right-4 flex gap-2">
         {/* Floating approval buttons with dropdowns - shown when main approve buttons are not visible */}
         {showApproveButton && (
           <div className="flex gap-2">

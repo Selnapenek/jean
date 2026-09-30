@@ -1362,6 +1362,34 @@ function ChatWindowContent({
     isSending,
   })
 
+  // The composer floats over the messages so text stays visible beside it.
+  // Publish its height as a CSS var: messages pad by it so the last line can
+  // scroll above the composer, and floating buttons sit above it.
+  const composerOverlayObserverRef = useRef<ResizeObserver | null>(null)
+  const setComposerOverlayNode = useCallback(
+    (node: HTMLDivElement | null) => {
+      composerOverlayObserverRef.current?.disconnect()
+      composerOverlayObserverRef.current = null
+      const container = node?.parentElement
+      if (!node || !container || typeof ResizeObserver === 'undefined') return
+      const observer = new ResizeObserver(() => {
+        const viewport = scrollViewportRef.current
+        const wasAtBottom =
+          !!viewport &&
+          viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 2
+        container.style.setProperty(
+          '--chat-composer-height',
+          `${node.offsetHeight}px`
+        )
+        // Keep the tail visible when the composer grows (subagents, queue)
+        if (wasAtBottom && viewport) viewport.scrollTop = viewport.scrollHeight
+      })
+      observer.observe(node)
+      composerOverlayObserverRef.current = observer
+    },
+    [scrollViewportRef]
+  )
+
   // Drag and drop images into chat input
   const { isDragging } = useDragAndDropImages(activeSessionId)
 
@@ -2473,7 +2501,7 @@ function ChatWindowContent({
                   minSize={isMobile || isModal ? 0 : 30}
                   className="min-h-0"
                 >
-                  <div className="flex h-full min-h-0 flex-col">
+                  <div className="relative flex h-full min-h-0 flex-col">
                     {/* Messages area */}
                     <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
                       {/* Top-right badges (session label) - absolute positioned to avoid covering content */}
@@ -2499,7 +2527,7 @@ function ChatWindowContent({
                         viewportClassName="will-change-scroll"
                         onScroll={handleScroll}
                       >
-                        <div className="mx-auto max-w-7xl px-4 pt-4 pb-6 md:px-6 min-w-0 w-full">
+                        <div className="mx-auto max-w-7xl px-4 pt-4 pb-[calc(var(--chat-composer-height,0px)+1.5rem)] md:px-6 min-w-0 w-full">
                           <div
                             className="select-text space-y-4 font-mono text-sm min-w-0 break-words overflow-x-hidden"
                             // Suppress browser default menu on empty thread chrome
@@ -2991,23 +3019,27 @@ function ChatWindowContent({
                       />
                     </div>
 
-                    {/* Error banner - shows when request fails */}
-                    {currentError && (
-                      <ErrorBanner
-                        error={currentError}
-                        onDismiss={() =>
-                          activeSessionId && setError(activeSessionId, null)
-                        }
-                      />
-                    )}
-
-                    {/* Input container - full width, centered content */}
-                    <div className="bg-background">
+                    {/* Input container - floats over the messages so the sides stay see-through */}
+                    <div
+                      ref={setComposerOverlayNode}
+                      className="pointer-events-none absolute inset-x-0 bottom-0 z-20"
+                    >
+                      {/* Error banner - shows when request fails */}
+                      {currentError && (
+                        <div className="pointer-events-auto bg-background">
+                          <ErrorBanner
+                            error={currentError}
+                            onDismiss={() =>
+                              activeSessionId && setError(activeSessionId, null)
+                            }
+                          />
+                        </div>
+                      )}
                       <div className="mx-auto max-w-7xl">
                         <div
                           ref={setChatComposerNode}
                           data-chat-composer=""
-                          className="relative sm:mx-auto sm:mb-3 sm:max-w-3xl xl:max-w-4xl"
+                          className="pointer-events-auto relative sm:mx-auto sm:mb-3 sm:max-w-3xl xl:max-w-4xl"
                         >
                           {/* Subagents panel - separate section above the chat input */}
                           {!zenMode &&

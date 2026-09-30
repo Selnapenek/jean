@@ -71,6 +71,7 @@ import { parseServerResourceKey } from '@/lib/server-resource'
 import { SettingsTargetProvider } from '@/lib/settings-target'
 import {
   DEFAULT_PARALLEL_EXECUTION_PROMPT,
+  DEFAULT_PRE_RELEASE_REVIEW_PROMPT,
   PREDEFINED_CLI_PROFILES,
   resolveMagicPromptBackend,
   resolveMagicPromptProvider,
@@ -1661,6 +1662,33 @@ function ChatWindowContent({
     })
   }, [getMcpConfig, sendMessageNow])
 
+  const handlePreReleaseReview = useCallback(() => {
+    sendMessageNow({
+      id: generateId(),
+      message:
+        preferences?.magic_prompts?.pre_release_review ??
+        DEFAULT_PRE_RELEASE_REVIEW_PROMPT,
+      pendingImages: [],
+      pendingFiles: [],
+      pendingSkills: [],
+      pendingTextFiles: [],
+      model: selectedModelRef.current,
+      provider: selectedProviderRef.current,
+      executionMode: executionModeRef.current,
+      thinkingLevel: selectedThinkingLevelRef.current,
+      effortLevel: useAdaptiveThinkingRef.current
+        ? selectedEffortLevelRef.current
+        : undefined,
+      mcpConfig: getMcpConfig(),
+      backend: selectedBackendRef.current,
+      queuedAt: Date.now(),
+    })
+  }, [
+    getMcpConfig,
+    preferences?.magic_prompts?.pre_release_review,
+    sendMessageNow,
+  ])
+
   // Claude's goal lives in the CLI session: queue `/goal clear` (a local CLI
   // command, no model turn) and cancel a running goal loop so the queue drains.
   const handleClearClaudeGoal = useCallback(async () => {
@@ -1988,6 +2016,7 @@ function ChatWindowContent({
     handleLinkedProjects,
     handleForkSession,
     handleCheckGitHubIssues,
+    handlePreReleaseReview,
     handleCommit,
     handleCommitAndPush: handleCommitAndPushWithPicker,
     handleCommentAndCloseIssue,
@@ -3045,6 +3074,9 @@ function ChatWindowContent({
                           {!zenMode &&
                             activeAgents.length > 0 &&
                             (dismissedAgentMessageId === null ||
+                              activeAgents.some(
+                                agent => agent.status === 'in_progress'
+                              ) ||
                               (agentSourceMessageId !== null &&
                                 agentSourceMessageId !==
                                   dismissedAgentMessageId)) && (

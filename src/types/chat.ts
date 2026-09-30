@@ -217,6 +217,15 @@ export interface DeniedMessageContext {
 }
 
 /**
+ * A chat table pinned for quick access. `key` is the checklist table key
+ * ("{messageId}:{markdownOffset}"); `markdown` is the table source.
+ */
+export interface PinnedTable {
+  key: string
+  markdown: string
+}
+
+/**
  * A chat session within a worktree (supports multiple sessions per worktree)
  */
 export interface Session {
@@ -329,6 +338,8 @@ export interface Session {
   enabled_mcp_servers?: string[]
   /** Per-table checklist state: tableKey -> checked row indices */
   table_checked_rows?: Record<string, number[]>
+  /** Tables pinned for quick access, in pin order */
+  pinned_tables?: PinnedTable[]
   /** Unix timestamp when session was last opened/viewed by the user */
   last_opened_at?: number
   /** Primary surface for this session. Terminal sessions render as full-screen CLI sessions. */

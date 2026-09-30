@@ -611,6 +611,14 @@ pub struct CodexDynamicToolCallRequestEvent {
     pub request: CodexDynamicToolCallRequest,
 }
 
+/// A chat table pinned for quick access. `key` matches the checklist table
+/// key ("{messageId}:{markdownOffset}"); `markdown` is the table source.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PinnedTable {
+    pub key: String,
+    pub markdown: String,
+}
+
 /// Context for a denied message that can be re-sent after permission approval
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeniedMessageContext {
@@ -938,6 +946,9 @@ pub struct Session {
     /// Key = "{messageId}:{markdownOffset}". Presence = checklist mode on.
     #[serde(default)]
     pub table_checked_rows: HashMap<String, Vec<u32>>,
+    /// Tables pinned by the user for quick access, in pin order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pinned_tables: Vec<PinnedTable>,
     // ========================================================================
     // Run recovery state (for showing correct status on app restart)
     // ========================================================================
@@ -1076,6 +1087,7 @@ impl Session {
             pending_plan_message_id: None,
             enabled_mcp_servers: None,
             table_checked_rows: HashMap::new(),
+            pinned_tables: vec![],
             last_run_status: None,
             last_run_execution_mode: None,
             last_run_started_at: None,
@@ -1425,6 +1437,7 @@ impl SessionMetadata {
             pending_plan_message_id: self.pending_plan_message_id.clone(),
             enabled_mcp_servers: self.enabled_mcp_servers.clone(),
             table_checked_rows: self.table_checked_rows.clone(),
+            pinned_tables: self.pinned_tables.clone(),
             // Populate from last run for status recovery on app restart
             last_run_status: last_run.map(|r| r.status.clone()),
             last_run_execution_mode: last_run.and_then(|r| r.execution_mode.clone()),
@@ -1489,6 +1502,7 @@ impl SessionMetadata {
         self.pending_plan_message_id = session.pending_plan_message_id.clone();
         self.enabled_mcp_servers = session.enabled_mcp_servers.clone();
         self.table_checked_rows = session.table_checked_rows.clone();
+        self.pinned_tables = session.pinned_tables.clone();
         self.label = session.label.clone();
         self.scheduled_wakeup = session.scheduled_wakeup.clone();
         // NOTE: Do NOT overwrite queued_messages here. Queue state is managed
@@ -1919,6 +1933,9 @@ pub struct SessionMetadata {
     /// Per-table checklist state: tableKey -> checked row indices.
     #[serde(default)]
     pub table_checked_rows: HashMap<String, Vec<u32>>,
+    /// Tables pinned by the user for quick access, in pin order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pinned_tables: Vec<PinnedTable>,
     /// User-assigned label with color (e.g. "Needs testing")
     #[serde(
         default,
@@ -2075,6 +2092,7 @@ impl SessionMetadata {
             pending_plan_message_id: None,
             enabled_mcp_servers: None,
             table_checked_rows: HashMap::new(),
+            pinned_tables: vec![],
             label: None,
             queued_messages: vec![],
             last_opened_at: None,

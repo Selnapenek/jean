@@ -1,7 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import {
   Check,
-  ChevronRight,
   Clock,
   Paperclip,
   Pencil,
@@ -145,15 +144,9 @@ export const QueuedPromptsPanel = memo(function QueuedPromptsPanel({
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       {/* Styled to read as an extension of the chat input card below */}
-      <div className="border-t border-border bg-card sm:rounded-t-lg sm:border sm:border-b-0">
+      <div className="overflow-hidden border-t border-border bg-card sm:rounded-t-lg sm:border sm:border-b-0">
         <div className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground">
-          <CollapsibleTrigger className="flex flex-1 items-center gap-2 hover:bg-muted/50 select-none -ml-3 -my-2 pl-3 py-2 rounded-l-md">
-            <ChevronRight
-              className={cn(
-                'h-3.5 w-3.5 shrink-0 transition-transform duration-200',
-                isOpen && 'rotate-90'
-              )}
-            />
+          <CollapsibleTrigger className="flex flex-1 min-w-0 items-center gap-2 select-none text-left cursor-pointer -mx-3 -my-1.5 px-3 py-1.5 hover:bg-muted/50">
             <Clock className="h-4 w-4 shrink-0" />
             <span className="font-medium">Queued prompts</span>
             <span className="rounded bg-muted/50 px-1.5 py-0.5 text-xs">

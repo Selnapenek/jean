@@ -18,7 +18,13 @@ import rehypeRaw from 'rehype-raw'
 import remarkGfm from 'remark-gfm'
 import remend from 'remend'
 import { remarkFixInterruptedLists } from '@/lib/remark-fix-interrupted-lists'
-import { Copy, Check, Table, ListChecks } from '@/components/icons/reicon'
+import {
+  Copy,
+  Check,
+  Table,
+  ListChecks,
+  PinTack,
+} from '@/components/icons/reicon'
 import { toast } from 'sonner'
 import { copyToClipboard } from '@/lib/clipboard'
 import { extractFilePath, openLocalFile } from '@/lib/local-file'
@@ -49,16 +55,25 @@ interface MarkdownProps {
   sessionId?: string
   /** Smaller mobile heading + spacing for narrow modal contexts */
   compact?: boolean
+  /**
+   * Fixed key for every table in this markdown. Used to render a pinned table
+   * outside its message so checklist and pin state stay shared.
+   */
+  tableKey?: string
 }
 
 interface MarkdownTableContextValue {
   messageId: string | null
   sessionId: string | null
+  tableKey: string | null
+  source: string
 }
 
 const MarkdownTableContext = createContext<MarkdownTableContextValue>({
   messageId: null,
   sessionId: null,
+  tableKey: null,
+  source: '',
 })
 
 interface ChecklistInjectionContextValue {
@@ -234,17 +249,27 @@ function ChecklistAwareTbody({ children }: { children?: ReactNode }) {
 interface TableBlockProps {
   children: ReactNode
   tableOffset: number
+  tableEndOffset: number | undefined
 }
 
-function TableBlock({ children, tableOffset }: TableBlockProps) {
+function TableBlock({
+  children,
+  tableOffset,
+  tableEndOffset,
+}: TableBlockProps) {
   const tableRef = useRef<HTMLTableElement>(null)
   const [copiedFormat, setCopiedFormat] = useState<'markdown' | 'tsv' | null>(
     null
   )
 
-  const { messageId, sessionId: ctxSessionId } =
-    useContext(MarkdownTableContext)
-  const tableKey = messageId ? `${messageId}:${tableOffset}` : null
+  const {
+    messageId,
+    sessionId: ctxSessionId,
+    tableKey: fixedTableKey,
+    source,
+  } = useContext(MarkdownTableContext)
+  const tableKey =
+    fixedTableKey ?? (messageId ? `${messageId}:${tableOffset}` : null)
 
   const storeSessionId = useChatStore(state => {
     if (state.activeWorktreeId) {
@@ -260,6 +285,11 @@ function TableBlock({ children, tableOffset }: TableBlockProps) {
   )
   const checklistEnabled = checkedRows !== null
   const canUseChecklist = Boolean(sessionId && tableKey)
+  const isPinned = useChatStore(state =>
+    sessionId && tableKey
+      ? (state.pinnedTables[sessionId]?.some(p => p.key === tableKey) ?? false)
+      : false
+  )
 
   const handleCopy = useCallback((format: 'markdown' | 'tsv') => {
     if (!tableRef.current) return
@@ -284,6 +314,22 @@ function TableBlock({ children, tableOffset }: TableBlockProps) {
     }
   }, [sessionId, tableKey])
 
+  const handleTogglePin = useCallback(() => {
+    if (!sessionId || !tableKey) return
+    const fromSource =
+      tableEndOffset !== undefined
+        ? source.slice(tableOffset, tableEndOffset).trim()
+        : ''
+    const markdown =
+      fromSource ||
+      (tableRef.current
+        ? tableToMarkdown(extractTableData(tableRef.current))
+        : '')
+    useChatStore
+      .getState()
+      .togglePinnedTable(sessionId, { key: tableKey, markdown })
+  }, [sessionId, tableKey, source, tableOffset, tableEndOffset])
+
   const handleToggleRow = useCallback(
     (rowIndex: number) => {
       if (!sessionId || !tableKey) return
@@ -307,6 +353,27 @@ function TableBlock({ children, tableOffset }: TableBlockProps) {
   return (
     <div className="my-5">
       <div className="mb-2 flex justify-end gap-0.5">
+        {canUseChecklist && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={handleTogglePin}
+                className={isPinned ? activeBtnClass : btnClass}
+                aria-label={isPinned ? 'Unpin table' : 'Pin table'}
+                aria-pressed={isPinned}
+              >
+                <PinTack
+                  className="size-4"
+                  weight={isPinned ? 'Filled' : 'Outline'}
+                />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {isPinned ? 'Unpin table' : 'Pin table'}
+            </TooltipContent>
+          </Tooltip>
+        )}
         {canUseChecklist && (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -527,7 +594,14 @@ const components: Components = {
   // Tables
   table: ({ children, node }) => {
     const offset = node?.position?.start?.offset ?? 0
-    return <TableBlock tableOffset={offset}>{children}</TableBlock>
+    return (
+      <TableBlock
+        tableOffset={offset}
+        tableEndOffset={node?.position?.end?.offset}
+      >
+        {children}
+      </TableBlock>
+    )
   },
   thead: ({ children }) => (
     <ChecklistAwareThead>{children}</ChecklistAwareThead>
@@ -630,6 +704,7 @@ const Markdown = memo(function Markdown({
   messageId,
   sessionId,
   compact = false,
+  tableKey,
 }: MarkdownProps) {
   // Apply remend preprocessing for streaming content to auto-close incomplete
   // markdown. remend strips a single trailing space (incomplete-markdown
@@ -647,8 +722,13 @@ const Markdown = memo(function Markdown({
     : children
 
   const contextValue = useMemo(
-    () => ({ messageId: messageId ?? null, sessionId: sessionId ?? null }),
-    [messageId, sessionId]
+    () => ({
+      messageId: messageId ?? null,
+      sessionId: sessionId ?? null,
+      tableKey: tableKey ?? null,
+      source: content,
+    }),
+    [messageId, sessionId, tableKey, content]
   )
 
   const componentsToUse = streaming

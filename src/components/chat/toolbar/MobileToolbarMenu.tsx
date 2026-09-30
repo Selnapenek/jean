@@ -101,6 +101,8 @@ export function MobileToolbarMenu({
     'merge-pr': onMergePr,
     'release-notes': () => useUIStore.getState().setReleaseNotesModalOpen(true),
     'update-pr': () => useUIStore.getState().setUpdatePrModalOpen(true),
+    'pre-release-review': () =>
+      dispatchMagicCommand({ command: 'pre-release-review' }),
     'investigate-issue': () =>
       dispatchMagicCommand({
         command: 'investigate',

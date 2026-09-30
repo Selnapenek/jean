@@ -2280,6 +2280,8 @@ pub async fn dispatch_command(
                 field_opt(&args, "selectedExecutionMode", "selected_execution_mode")?;
             let table_checked_rows: Option<std::collections::HashMap<String, Vec<u32>>> =
                 field_opt(&args, "tableCheckedRows", "table_checked_rows")?;
+            let pinned_tables: Option<Vec<crate::chat::types::PinnedTable>> =
+                field_opt(&args, "pinnedTables", "pinned_tables")?;
             crate::chat::update_session_state(
                 app.clone(),
                 worktree_id,
@@ -2308,6 +2310,7 @@ pub async fn dispatch_command(
                 enabled_mcp_servers,
                 selected_execution_mode,
                 table_checked_rows,
+                pinned_tables,
             )
             .await?;
             emit_cache_invalidation(app, &["sessions"]);

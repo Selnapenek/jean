@@ -33,6 +33,7 @@ import { DockBurgerButton } from '@/components/chat/toolbar/DockBurgerButton'
 import { ExecutionModeDropdown } from '@/components/chat/toolbar/ExecutionModeDropdown'
 import { SendCancelButton } from '@/components/chat/toolbar/SendCancelButton'
 import { ContextViewerDialog } from '@/components/chat/toolbar/ContextViewerDialog'
+import { PinnedTablesButton } from '@/components/chat/toolbar/PinnedTablesButton'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -682,6 +683,8 @@ export const ChatToolbar = memo(function ChatToolbar({
               handleViewSentry={handleViewSentry}
               handleViewSavedContext={handleViewSavedContext}
             />
+
+            <PinnedTablesButton sessionId={activeSessionId} />
 
             <div className="h-4 w-px shrink-0 bg-border/50" />
           </div>

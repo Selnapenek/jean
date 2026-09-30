@@ -37,6 +37,7 @@ describe('ChatStore', () => {
       reviewSidebarVisible: false,
       fixedReviewFindings: {},
       tableCheckedRows: {},
+      pinnedTables: {},
       worktreePaths: {},
       sendingSessionIds: {},
       namingSessionIds: {},
@@ -1998,6 +1999,33 @@ describe('ChatStore', () => {
       expect(
         useChatStore.getState().pendingFiles['session-1']?.map(file => file.id)
       ).toEqual(['file-current', 'file-linked'])
+    })
+  })
+
+  describe('pinned tables', () => {
+    const tableA = { key: 'msg-1:10', markdown: '| a |\n| - |\n| 1 |' }
+    const tableB = { key: 'msg-2:0', markdown: '| b |\n| - |\n| 2 |' }
+
+    it('pins tables in order and unpins by key', () => {
+      const { togglePinnedTable } = useChatStore.getState()
+      togglePinnedTable('session-1', tableA)
+      togglePinnedTable('session-1', tableB)
+      expect(useChatStore.getState().pinnedTables['session-1']).toEqual([
+        tableA,
+        tableB,
+      ])
+
+      togglePinnedTable('session-1', { ...tableA, markdown: 'changed' })
+      expect(useChatStore.getState().pinnedTables['session-1']).toEqual([
+        tableB,
+      ])
+    })
+
+    it('removes the session entry when the last pin is removed', () => {
+      const { togglePinnedTable } = useChatStore.getState()
+      togglePinnedTable('session-1', tableA)
+      togglePinnedTable('session-1', tableA)
+      expect('session-1' in useChatStore.getState().pinnedTables).toBe(false)
     })
   })
 })

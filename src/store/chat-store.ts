@@ -26,6 +26,7 @@ import {
   type ExecutionMode,
   type LabelData,
   type ScheduledWakeup,
+  type PinnedTable,
   EXECUTION_MODE_CYCLE,
   isPlanToolCall,
 } from '@/types/chat'
@@ -106,6 +107,9 @@ interface ChatUIState {
   // Per-table checklist state: sessionId → (tableKey → Set of checked row indices)
   // Presence of tableKey = checklist mode enabled for that table
   tableCheckedRows: Record<string, Record<string, Set<number>>>
+
+  // Pinned tables per session, in pin order (persisted)
+  pinnedTables: Record<string, PinnedTable[]>
 
   // Mapping of worktree IDs to paths (for looking up paths by ID)
   worktreePaths: Record<string, string>
@@ -337,6 +341,7 @@ interface ChatUIState {
     tableKey: string,
     rowIndex: number
   ) => void
+  togglePinnedTable: (sessionId: string, table: PinnedTable) => void
   // Actions - ScheduleWakeup indicator state (keyed by tool_call_id)
   setScheduledWakeup: (
     toolCallId: string,
@@ -750,6 +755,7 @@ const SESSION_SCOPED_RECORD_KEYS = [
   'fixedReviewFindings',
   'fixedFindings',
   'tableCheckedRows',
+  'pinnedTables',
   'sendingSessionIds',
   'sendStartedAt',
   'completedDurations',
@@ -904,6 +910,7 @@ export const useChatStore = create<ChatUIState>()(
       reviewSidebarVisible: false,
       fixedReviewFindings: {},
       tableCheckedRows: {},
+      pinnedTables: {},
       worktreePaths: {},
       sendingSessionIds: {},
       namingSessionIds: {},
@@ -1150,6 +1157,25 @@ export const useChatStore = create<ChatUIState>()(
           },
           undefined,
           'toggleTableRowChecked'
+        ),
+
+      togglePinnedTable: (sessionId, table) =>
+        set(
+          state => {
+            const pins = state.pinnedTables[sessionId] ?? []
+            const next = pins.some(p => p.key === table.key)
+              ? pins.filter(p => p.key !== table.key)
+              : [...pins, table]
+            if (next.length === 0) {
+              const { [sessionId]: _removed, ...rest } = state.pinnedTables
+              return { pinnedTables: rest }
+            }
+            return {
+              pinnedTables: { ...state.pinnedTables, [sessionId]: next },
+            }
+          },
+          undefined,
+          'togglePinnedTable'
         ),
 
       // ScheduleWakeup indicator state

@@ -5,6 +5,34 @@ import { useChatStore } from '@/store/chat-store'
 import { useUIStore } from '@/store/ui-store'
 
 describe('Markdown', () => {
+  it('pins a table with its exact markdown source and shares state by key', () => {
+    useChatStore.setState({ pinnedTables: {} })
+    const table = '| Name | Value |\n| --- | --- |\n| **a** | `1` |'
+    const content = `Intro text\n\n${table}\n\nOutro`
+
+    const { unmount } = render(
+      <Markdown messageId="msg-1" sessionId="session-1">
+        {content}
+      </Markdown>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Pin table' }))
+
+    const pins = useChatStore.getState().pinnedTables['session-1']
+    expect(pins).toEqual([
+      { key: `msg-1:${content.indexOf(table)}`, markdown: table },
+    ])
+    unmount()
+
+    // Rendered alone (pinned view), the fixed key keeps it pinned.
+    render(
+      <Markdown sessionId="session-1" tableKey={pins?.[0]?.key}>
+        {table}
+      </Markdown>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Unpin table' }))
+    expect(useChatStore.getState().pinnedTables['session-1']).toBeUndefined()
+  })
+
   it('opens relative file links in the active worktree viewer', () => {
     useChatStore.setState({ activeWorktreePath: '/repo/worktree' })
     useUIStore.getState().setViewingFilePath(null)

@@ -56,6 +56,12 @@ describe('table rows prompt', () => {
 
   it('creates one chip, adds rows in table order, and deletes it when empty', async () => {
     await toggleTableRowInPrompt('s1', 'm:0', 1, DATA)
+    // sessionId routes the file to the session's Jean server (remote servers)
+    expect(mockInvoke).toHaveBeenCalledWith('save_pasted_text', {
+      content: formatTableRowsPrompt(DATA, [1]),
+      filename: 'table-rows',
+      sessionId: 's1',
+    })
     expect(chip()?.tableRows).toEqual({ tableKey: 'm:0', rows: [1] })
     expect(chip()?.content).toContain('| #2 | Closed |')
 
@@ -65,6 +71,7 @@ describe('table rows prompt', () => {
     expect(mockInvoke).toHaveBeenCalledWith('update_pasted_text', {
       path: '/p/tf-1.txt',
       content: formatTableRowsPrompt(DATA, [0, 1]),
+      sessionId: 's1',
     })
 
     await toggleTableRowInPrompt('s1', 'm:0', 0, DATA)
@@ -72,6 +79,7 @@ describe('table rows prompt', () => {
     expect(useChatStore.getState().pendingTextFiles['s1']).toEqual([])
     expect(mockInvoke).toHaveBeenCalledWith('delete_pasted_text', {
       path: '/p/tf-1.txt',
+      sessionId: 's1',
     })
   })
 

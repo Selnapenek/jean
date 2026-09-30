@@ -52,7 +52,7 @@ async function applyToggle(
 
   if (existing && rows.length === 0) {
     useChatStore.getState().removePendingTextFile(sessionId, existing.id)
-    await invoke('delete_pasted_text', { path: existing.path })
+    await invoke('delete_pasted_text', { path: existing.path, sessionId })
     return
   }
 
@@ -61,6 +61,7 @@ async function applyToggle(
     const size = await invoke<number>('update_pasted_text', {
       path: existing.path,
       content,
+      sessionId,
     })
     useChatStore
       .getState()
@@ -74,6 +75,7 @@ async function applyToggle(
   const result = await invoke<SaveTextResponse>('save_pasted_text', {
     content,
     filename: 'table-rows',
+    sessionId,
   })
   useChatStore.getState().addPendingTextFile(sessionId, {
     ...result,

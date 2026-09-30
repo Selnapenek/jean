@@ -271,10 +271,10 @@ function ChecklistAwareTbody({ children }: { children?: ReactNode }) {
             aria-pressed={inPrompt}
             title={label}
             className={cn(
-              'flex size-6 items-center justify-center rounded-md transition-opacity cursor-pointer',
+              'flex size-6 items-center justify-center rounded-md transition-colors cursor-pointer',
               inPrompt
                 ? 'bg-primary text-primary-foreground opacity-100'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-60'
+                : 'text-foreground/70 hover:bg-muted hover:text-foreground'
             )}
           >
             {inPrompt ? (
@@ -688,9 +688,7 @@ const components: Components = {
   tbody: ({ children }) => (
     <ChecklistAwareTbody>{children}</ChecklistAwareTbody>
   ),
-  tr: ({ children }) => (
-    <tr className="group/row border-b border-border">{children}</tr>
-  ),
+  tr: ({ children }) => <tr className="border-b border-border">{children}</tr>,
   th: ({ children }) => (
     <th className="px-4 py-2.5 text-left font-semibold">{children}</th>
   ),

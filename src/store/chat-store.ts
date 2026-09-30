@@ -585,7 +585,8 @@ interface ChatUIState {
     sessionId: string,
     textFileId: string,
     content: string,
-    size: number
+    size: number,
+    tableRows?: PendingTextFile['tableRows']
   ) => void
   removePendingTextFile: (sessionId: string, textFileId: string) => void
   clearPendingTextFiles: (sessionId: string) => void
@@ -3032,13 +3033,21 @@ export const useChatStore = create<ChatUIState>()(
           'addPendingTextFile'
         ),
 
-      updatePendingTextFile: (sessionId, textFileId, content, size) =>
+      updatePendingTextFile: (
+        sessionId,
+        textFileId,
+        content,
+        size,
+        tableRows
+      ) =>
         set(
           state => ({
             pendingTextFiles: {
               ...state.pendingTextFiles,
               [sessionId]: (state.pendingTextFiles[sessionId] ?? []).map(tf =>
-                tf.id === textFileId ? { ...tf, content, size } : tf
+                tf.id === textFileId
+                  ? { ...tf, content, size, ...(tableRows && { tableRows }) }
+                  : tf
               ),
             },
           }),

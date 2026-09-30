@@ -1407,6 +1407,11 @@ export interface PendingTextFile {
   size: number
   /** Full content for preview */
   content: string
+  /**
+   * Set when this chip holds rows picked from a chat table. `rows` are body
+   * row indices in table order. In-memory only (not restored on restart).
+   */
+  tableRows?: { tableKey: string; rows: number[] }
 }
 
 /**

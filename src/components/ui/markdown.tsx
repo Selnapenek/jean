@@ -24,6 +24,7 @@ import {
   Table,
   ListChecks,
   PinTack,
+  Plus,
 } from '@/components/icons/reicon'
 import { toast } from 'sonner'
 import { copyToClipboard } from '@/lib/clipboard'
@@ -37,6 +38,10 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/store/chat-store'
 import { convertFileSrc } from '@/lib/transport'
+import {
+  tableToMarkdown,
+  toggleTableRowInPrompt,
+} from '@/lib/table-rows-prompt'
 
 interface MarkdownProps {
   children: string
@@ -76,17 +81,21 @@ const MarkdownTableContext = createContext<MarkdownTableContextValue>({
   source: '',
 })
 
-interface ChecklistInjectionContextValue {
+interface TableRowsContextValue {
+  /** Checked row indices, or null when checklist mode is off */
   checkedRows: Set<number> | null
   onToggle: (rowIndex: number) => void
+  /** Rows added to the prompt chip, or null when rows cannot be added */
+  promptRows: Set<number> | null
+  onTogglePromptRow: (rowIndex: number) => void
 }
 
-const ChecklistInjectionContext = createContext<ChecklistInjectionContextValue>(
-  {
-    checkedRows: null,
-    onToggle: () => undefined,
-  }
-)
+const TableRowsContext = createContext<TableRowsContextValue>({
+  checkedRows: null,
+  onToggle: () => undefined,
+  promptRows: null,
+  onTogglePromptRow: () => undefined,
+})
 
 function extractText(node: ReactNode): string {
   if (typeof node === 'string') return node
@@ -165,16 +174,6 @@ function tableToTsv(data: string[][]): string {
   return data.map(row => row.join('\t')).join('\n')
 }
 
-function tableToMarkdown(data: string[][]): string {
-  if (data.length === 0) return ''
-  const [header, ...rows] = data
-  if (!header) return ''
-  const headerLine = `| ${header.join(' | ')} |`
-  const separator = `| ${header.map(() => '---').join(' | ')} |`
-  const bodyLines = rows.map(row => `| ${row.join(' | ')} |`)
-  return [headerLine, separator, ...bodyLines].join('\n')
-}
-
 function markdownImageSrc(src: string | undefined): string | undefined {
   if (!src) return src
   if (/^(https?:|data:|blob:|asset:|\/api\/|#)/i.test(src)) return src
@@ -182,19 +181,18 @@ function markdownImageSrc(src: string | undefined): string | undefined {
 }
 
 /**
- * Prepend a leading checkbox cell into a row by cloning the tr element and
- * injecting the new cell before the original children. `leading` must be a
- * cell element (th/td) carrying data-checklist-cell so extraction ignores it
- * for markdown / TSV copy.
+ * Prepend leading cells into a row by cloning the tr element. Each leading
+ * cell must carry data-checklist-cell so extraction ignores it for markdown /
+ * TSV copy.
  */
-function cloneRowWithLeadingCell(
+function cloneRowWithLeadingCells(
   row: ReactNode,
-  leading: ReactNode
+  leading: ReactNode[]
 ): ReactNode {
-  if (!isValidElement(row)) return row
+  if (!isValidElement(row) || leading.length === 0) return row
   const rowEl = row as ReactElement<{ children?: ReactNode }>
   const original = rowEl.props.children
-  return cloneElement(rowEl, {}, [leading, original])
+  return cloneElement(rowEl, {}, [...leading, original])
 }
 
 const CHECKLIST_THEAD_LEADING = (
@@ -206,45 +204,94 @@ const CHECKLIST_THEAD_LEADING = (
   />
 )
 
+const PROMPT_THEAD_LEADING = (
+  <th
+    key="__prompt__"
+    data-checklist-cell="true"
+    className="w-8 !px-1"
+    aria-hidden
+  />
+)
+
 function ChecklistAwareThead({ children }: { children?: ReactNode }) {
-  const { checkedRows } = useContext(ChecklistInjectionContext)
-  if (!checkedRows) {
-    return <thead className="bg-muted/50">{children}</thead>
-  }
-  const augmented = Children.map(children, row =>
-    cloneRowWithLeadingCell(row, CHECKLIST_THEAD_LEADING)
-  )
+  const { checkedRows, promptRows } = useContext(TableRowsContext)
+  const leading = [
+    ...(checkedRows ? [CHECKLIST_THEAD_LEADING] : []),
+    ...(promptRows ? [PROMPT_THEAD_LEADING] : []),
+  ]
+  const augmented =
+    leading.length > 0
+      ? Children.map(children, row => cloneRowWithLeadingCells(row, leading))
+      : children
   return <thead className="bg-muted/50">{augmented}</thead>
 }
 
 function ChecklistAwareTbody({ children }: { children?: ReactNode }) {
-  const { checkedRows, onToggle } = useContext(ChecklistInjectionContext)
-  if (!checkedRows) {
+  const { checkedRows, onToggle, promptRows, onTogglePromptRow } =
+    useContext(TableRowsContext)
+  if (!checkedRows && !promptRows) {
     return <tbody>{children}</tbody>
   }
   let rowIdx = 0
   const augmented = Children.map(children, row => {
     if (!isValidElement(row)) return row
     const idx = rowIdx++
-    const isChecked = checkedRows.has(idx)
-    const leading = (
-      <td
-        key="__checklist__"
-        data-checklist-cell="true"
-        className="w-10 px-2 align-middle"
-      >
-        <Checkbox
-          checked={isChecked}
-          onCheckedChange={() => onToggle(idx)}
-          aria-label={`Toggle row ${idx + 1}`}
-          className="cursor-pointer"
-        />
-      </td>
-    )
-    return cloneRowWithLeadingCell(row, leading)
+    const leading: ReactNode[] = []
+    if (checkedRows) {
+      leading.push(
+        <td
+          key="__checklist__"
+          data-checklist-cell="true"
+          className="w-10 px-2 align-middle"
+        >
+          <Checkbox
+            checked={checkedRows.has(idx)}
+            onCheckedChange={() => onToggle(idx)}
+            aria-label={`Toggle row ${idx + 1}`}
+            className="cursor-pointer"
+          />
+        </td>
+      )
+    }
+    if (promptRows) {
+      const inPrompt = promptRows.has(idx)
+      const label = inPrompt
+        ? `Remove row ${idx + 1} from prompt`
+        : `Add row ${idx + 1} to prompt`
+      leading.push(
+        <td
+          key="__prompt__"
+          data-checklist-cell="true"
+          className="w-8 !px-1 align-middle"
+        >
+          <button
+            type="button"
+            onClick={() => onTogglePromptRow(idx)}
+            aria-label={label}
+            aria-pressed={inPrompt}
+            title={label}
+            className={cn(
+              'flex size-6 items-center justify-center rounded-md transition-opacity cursor-pointer',
+              inPrompt
+                ? 'bg-primary text-primary-foreground opacity-100'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-60'
+            )}
+          >
+            {inPrompt ? (
+              <Check className="size-3.5" />
+            ) : (
+              <Plus className="size-3.5" />
+            )}
+          </button>
+        </td>
+      )
+    }
+    return cloneRowWithLeadingCells(row, leading)
   })
   return <tbody>{augmented}</tbody>
 }
+
+const NO_ROWS: number[] = []
 
 interface TableBlockProps {
   children: ReactNode
@@ -285,6 +332,17 @@ function TableBlock({
   )
   const checklistEnabled = checkedRows !== null
   const canUseChecklist = Boolean(sessionId && tableKey)
+  const promptRowList = useChatStore(state =>
+    sessionId && tableKey
+      ? (state.pendingTextFiles[sessionId]?.find(
+          tf => tf.tableRows?.tableKey === tableKey
+        )?.tableRows?.rows ?? NO_ROWS)
+      : null
+  )
+  const promptRows = useMemo(
+    () => (promptRowList ? new Set(promptRowList) : null),
+    [promptRowList]
+  )
   const isPinned = useChatStore(state =>
     sessionId && tableKey
       ? (state.pinnedTables[sessionId]?.some(p => p.key === tableKey) ?? false)
@@ -330,6 +388,19 @@ function TableBlock({
       .togglePinnedTable(sessionId, { key: tableKey, markdown })
   }, [sessionId, tableKey, source, tableOffset, tableEndOffset])
 
+  const handleTogglePromptRow = useCallback(
+    (rowIndex: number) => {
+      if (!sessionId || !tableKey || !tableRef.current) return
+      void toggleTableRowInPrompt(
+        sessionId,
+        tableKey,
+        rowIndex,
+        extractTableData(tableRef.current)
+      )
+    },
+    [sessionId, tableKey]
+  )
+
   const handleToggleRow = useCallback(
     (rowIndex: number) => {
       if (!sessionId || !tableKey) return
@@ -340,9 +411,14 @@ function TableBlock({
     [sessionId, tableKey]
   )
 
-  const checklistCtxValue = useMemo(
-    () => ({ checkedRows, onToggle: handleToggleRow }),
-    [checkedRows, handleToggleRow]
+  const rowsCtxValue = useMemo(
+    () => ({
+      checkedRows,
+      onToggle: handleToggleRow,
+      promptRows,
+      onTogglePromptRow: handleTogglePromptRow,
+    }),
+    [checkedRows, handleToggleRow, promptRows, handleTogglePromptRow]
   )
 
   const btnClass =
@@ -351,7 +427,10 @@ function TableBlock({
     'opacity-100 transition-opacity p-1.5 rounded-md bg-background/80 text-foreground cursor-pointer'
 
   return (
-    <div className="my-5">
+    <div
+      className="my-5 scroll-mt-12 rounded-md"
+      data-table-key={tableKey ?? undefined}
+    >
       <div className="mb-2 flex justify-end gap-0.5">
         {canUseChecklist && (
           <Tooltip>
@@ -430,11 +509,11 @@ function TableBlock({
         </Tooltip>
       </div>
       <div className="overflow-x-auto">
-        <ChecklistInjectionContext.Provider value={checklistCtxValue}>
+        <TableRowsContext.Provider value={rowsCtxValue}>
           <table ref={tableRef} className="min-w-full border-collapse text-sm">
             {children}
           </table>
-        </ChecklistInjectionContext.Provider>
+        </TableRowsContext.Provider>
       </div>
     </div>
   )
@@ -609,7 +688,9 @@ const components: Components = {
   tbody: ({ children }) => (
     <ChecklistAwareTbody>{children}</ChecklistAwareTbody>
   ),
-  tr: ({ children }) => <tr className="border-b border-border">{children}</tr>,
+  tr: ({ children }) => (
+    <tr className="group/row border-b border-border">{children}</tr>
+  ),
   th: ({ children }) => (
     <th className="px-4 py-2.5 text-left font-semibold">{children}</th>
   ),

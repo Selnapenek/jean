@@ -685,6 +685,10 @@ body:not(.native-app) kbd {
   animation: settings-highlight-flash 1.8s ease-out;
   border-radius: calc(var(--radius) - 2px);
 }
+/* Pinned table "Show in chat" flash */
+.pinned-table-highlight {
+  animation: settings-highlight-flash 1.8s ease-out;
+}
 
 /* Number input spinners inherit color-scheme from .dark (light arrows).
    Keep an explicit rule so nested light color-scheme overrides can't darken them. */

@@ -137,6 +137,7 @@ import { ReviewMethodModal } from './ReviewMethodModal'
 import { QueuedPromptsPanel } from './QueuedPromptsPanel'
 import { useQueuedPromptActions } from './hooks/useQueuedPromptActions'
 import { FloatingButtons } from './FloatingButtons'
+import { PinnedTablesButton } from './PinnedTablesButton'
 import type { ApprovalModelOverride } from './ApprovalModelSubmenu'
 import { resolveApprovalLabel } from './approval-label-utils'
 import { StreamingMessage } from './StreamingMessage'
@@ -2533,8 +2534,9 @@ function ChatWindowContent({
                   <div className="relative flex h-full min-h-0 flex-col">
                     {/* Messages area */}
                     <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
-                      {/* Top-right badges (session label) - absolute positioned to avoid covering content */}
+                      {/* Top-right badges (pinned tables, session label) - absolute positioned to avoid covering content */}
                       <div className="absolute top-2 right-4 z-20 flex items-center gap-2">
+                        <PinnedTablesButton sessionId={activeSessionId} />
                         {sessionLabel && (
                           <span
                             className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"

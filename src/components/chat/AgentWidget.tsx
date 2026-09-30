@@ -83,8 +83,8 @@ export function AgentWidget({
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen} className={className}>
       <div className="overflow-hidden border-t border-border bg-card sm:rounded-lg sm:border">
-        <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground">
-          <CollapsibleTrigger className="flex flex-1 min-w-0 items-center gap-2 select-none text-left cursor-pointer -ml-3 -my-1.5 pl-3 py-1.5 hover:bg-muted/50">
+        <div className="flex items-center text-xs text-muted-foreground">
+          <CollapsibleTrigger className="flex flex-1 min-w-0 items-center gap-2 select-none text-left cursor-pointer px-3 py-1.5 hover:bg-muted/50">
             <Users className="h-4 w-4 shrink-0" />
             <span className="font-medium">Subagents</span>
             <span className="rounded bg-muted/50 px-1.5 py-0.5 text-xs">
@@ -98,7 +98,7 @@ export function AgentWidget({
             <button
               type="button"
               onClick={onClose}
-              className="p-0.5 rounded hover:bg-muted transition-colors"
+              className="mx-2 p-0.5 rounded hover:bg-muted transition-colors"
               aria-label="Dismiss subagents"
             >
               <X className="h-3.5 w-3.5" />

@@ -106,10 +106,10 @@ describe('WebAccessPane', () => {
       expect(screen.getByText('Running')).toBeInTheDocument()
     })
     // Buttons: token show, token copy, localhost open, localhost copy
-    fireEvent.click(screen.getAllByRole('button')[3]!)
+    fireEvent.click(screen.getAllByRole('button')[3] as HTMLElement)
 
     await waitFor(() => expect(copyToClipboard).toHaveBeenCalled())
-    const copied = vi.mocked(copyToClipboard).mock.calls[0]![0]
+    const copied = vi.mocked(copyToClipboard).mock.calls[0]?.[0] as string
     expect(new URL(copied).searchParams.get('token')).toBe(token)
   })
 })

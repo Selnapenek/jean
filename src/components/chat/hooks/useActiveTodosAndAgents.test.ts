@@ -200,11 +200,13 @@ describe('extractClaudeAgents', () => {
       { id: 'task-2', prompt: 'Fix caption overlap' },
       'Report: fixed'
     ),
-    toolCall('Agent', { id: 'agent-3', description: 'Broken' }, 'boom'),
+    {
+      ...toolCall('Agent', { id: 'agent-3', description: 'Broken' }, 'boom'),
+      is_error: true,
+    },
     { ...toolCall('Read', { id: 'read-1' }), parent_tool_use_id: 'agent-1' },
     { ...toolCall('Grep', { id: 'grep-1' }), parent_tool_use_id: 'agent-1' },
   ]
-  tools[2] = { ...tools[2]!, is_error: true }
 
   it('maps Task/Agent calls with status, label and tool count', () => {
     expect(extractClaudeAgents(tools, true)).toMatchObject([

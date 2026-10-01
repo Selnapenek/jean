@@ -135,7 +135,7 @@ mod tests {
         let binary = dir.path().join("fake-cli");
         std::fs::write(
             &binary,
-            "#!/bin/sh\n[ \"$PWD\" = \"$(dirname \"$0\")\" ] || exit 1\n[ \"$*\" = 'mcp login --help' ] || exit 1\necho 'Options: --no-browser'\n",
+            "#!/bin/sh\n[ \"$(pwd -P)\" = \"$(cd \"$(dirname \"$0\")\" && pwd -P)\" ] || exit 1\n[ \"$*\" = 'mcp login --help' ] || exit 1\necho 'Options: --no-browser'\n",
         )
         .unwrap();
         std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o755)).unwrap();

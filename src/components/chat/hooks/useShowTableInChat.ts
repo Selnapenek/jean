@@ -5,10 +5,13 @@ import { chatQueryKeys, useLoadOlderMessages } from '@/services/chat'
 import {
   REVEAL_CHAT_MESSAGE_EVENT,
   findTableMessageIndex,
+  findTableMessageIndexByMarkdown,
   scrollToRenderedTable,
+  tableKeyForMessage,
   type RevealChatMessageDetail,
 } from '@/lib/pinned-table-reveal'
-import type { Session } from '@/types/chat'
+import { useChatStore } from '@/store/chat-store'
+import type { ChatMessage, Session } from '@/types/chat'
 import type { VirtualizedMessageListHandle } from '../VirtualizedMessageList'
 
 interface ShowTableInChatOptions {
@@ -51,10 +54,43 @@ export function useShowTableInChat(options: ShowTableInChatOptions) {
       latest.current.stopFollowingTail()
       const readSession = () =>
         queryClient.getQueryData<Session>(chatQueryKeys.session(sessionId))
+      // The message id can change after pinning (an optimistic reply replaced
+      // by the saved one). Then find the message by the table markdown and
+      // move the pin to that message.
+      const markdown =
+        useChatStore
+          .getState()
+          .pinnedTables[sessionId]?.find(p => p.key === tableKey)?.markdown ??
+        ''
+      let matchedByKey = true
+      const findIndex = (messages: ChatMessage[]) => {
+        const byKey = findTableMessageIndex(messages, tableKey)
+        matchedByKey = byKey >= 0
+        return matchedByKey
+          ? byKey
+          : findTableMessageIndexByMarkdown(messages, markdown)
+      }
+      const reveal = async (messageId: string | null, timeoutMs: number) => {
+        if (!(await scrollToRenderedTable(tableKey, messageId, timeoutMs))) {
+          return false
+        }
+        if (!matchedByKey && messageId) {
+          const newKey = tableKeyForMessage(tableKey, messageId)
+          const store = useChatStore.getState()
+          const pins = store.pinnedTables[sessionId] ?? []
+          if (!pins.some(p => p.key === newKey)) {
+            store.renameTableKeys(sessionId, key =>
+              key === tableKey ? newKey : key
+            )
+          }
+        }
+        return true
+      }
+
       let session = readSession()
-      let index = findTableMessageIndex(session?.messages ?? [], tableKey)
+      let index = findIndex(session?.messages ?? [])
       const loadedId = session?.messages[index]?.id ?? null
-      if (await scrollToRenderedTable(tableKey, loadedId, 0)) return
+      if (await reveal(loadedId, 0)) return
 
       try {
         while (index < 0 && (session?.loaded_run_start_index ?? 0) > 0) {
@@ -62,7 +98,7 @@ export function useShowTableInChat(options: ShowTableInChatOptions) {
           await loadOlder({ sessionId, beforeRunIndex: before })
           session = readSession()
           if ((session?.loaded_run_start_index ?? 0) === before) break
-          index = findTableMessageIndex(session?.messages ?? [], tableKey)
+          index = findIndex(session?.messages ?? [])
         }
       } catch (error) {
         toast.error('Failed to load older messages', {
@@ -104,7 +140,7 @@ export function useShowTableInChat(options: ShowTableInChatOptions) {
           : index
       latest.current.listRef.current?.scrollToIndex(listIndex)
 
-      if (!(await scrollToRenderedTable(tableKey, message.id, 2000))) {
+      if (!(await reveal(message.id, 2000))) {
         toast.info('Could not find this table in the chat')
       }
     },

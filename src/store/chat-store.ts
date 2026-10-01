@@ -345,6 +345,8 @@ interface ChatUIState {
     rowIndex: number
   ) => void
   togglePinnedTable: (sessionId: string, table: PinnedTable) => void
+  /** Rename table keys of pins and checklists, e.g. when a message id changes */
+  renameTableKeys: (sessionId: string, rename: (key: string) => string) => void
   // Actions - ScheduleWakeup indicator state (keyed by tool_call_id)
   setScheduledWakeup: (
     toolCallId: string,
@@ -1183,6 +1185,36 @@ export const useChatStore = create<ChatUIState>()(
           },
           undefined,
           'togglePinnedTable'
+        ),
+
+      renameTableKeys: (sessionId, rename) =>
+        set(
+          state => {
+            const pins = state.pinnedTables[sessionId]
+            const checked = state.tableCheckedRows[sessionId]
+            const pinsChanged = pins?.some(p => rename(p.key) !== p.key)
+            const checkedChanged =
+              checked && Object.keys(checked).some(k => rename(k) !== k)
+            if (!pinsChanged && !checkedChanged) return state
+            const next: Partial<ChatUIState> = {}
+            if (pins && pinsChanged) {
+              next.pinnedTables = {
+                ...state.pinnedTables,
+                [sessionId]: pins.map(p => ({ ...p, key: rename(p.key) })),
+              }
+            }
+            if (checked && checkedChanged) {
+              next.tableCheckedRows = {
+                ...state.tableCheckedRows,
+                [sessionId]: Object.fromEntries(
+                  Object.entries(checked).map(([k, rows]) => [rename(k), rows])
+                ),
+              }
+            }
+            return next
+          },
+          undefined,
+          'renameTableKeys'
         ),
 
       // ScheduleWakeup indicator state

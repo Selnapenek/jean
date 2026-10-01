@@ -55,6 +55,7 @@ import type {
   Worktree,
 } from '@/types/projects'
 import { preserveQueryCacheOnError } from '@/lib/query-error'
+import { renameTableKeyMessage } from '@/lib/pinned-table-reveal'
 import { useConsolidatedAllSessions } from './multi-server-sessions'
 
 /** Default number of recent runs loaded on initial session fetch. */
@@ -1786,10 +1787,8 @@ export function useSetActiveSession() {
  * from an earlier turn — chat:done and the invoke response can each arrive
  * first, and either can be missing.
  */
-export function upsertTurnAssistantMessage(
-  messages: ChatMessage[],
-  reply: ChatMessage
-): ChatMessage[] {
+/** Index of the first assistant message after the last user message, or -1 */
+function findTurnReplyIndex(messages: ChatMessage[]): number {
   let lastUserIdx = -1
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i]?.role === 'user') {
@@ -1797,9 +1796,16 @@ export function upsertTurnAssistantMessage(
       break
     }
   }
-  const turnReplyIdx = messages.findIndex(
+  return messages.findIndex(
     (message, index) => index > lastUserIdx && message.role === 'assistant'
   )
+}
+
+export function upsertTurnAssistantMessage(
+  messages: ChatMessage[],
+  reply: ChatMessage
+): ChatMessage[] {
+  const turnReplyIdx = findTurnReplyIndex(messages)
   if (turnReplyIdx < 0) return [...messages, reply]
   const updated = [...messages]
   updated[turnReplyIdx] = reply
@@ -2021,6 +2027,17 @@ export function useSendMessage() {
 
       // Replace this turn's optimistic assistant message (from chat:done) with
       // the complete one from the backend, which has all content_blocks.
+      // Tables pinned or checked on the optimistic message follow the new id.
+      const cachedMessages = queryClient.getQueryData<Session>(
+        chatQueryKeys.session(sessionId)
+      )?.messages
+      const optimisticId =
+        cachedMessages?.[findTurnReplyIndex(cachedMessages)]?.id
+      if (optimisticId && optimisticId !== response.id) {
+        store.renameTableKeys(sessionId, key =>
+          renameTableKeyMessage(key, optimisticId, response.id)
+        )
+      }
       queryClient.setQueryData<Session>(
         chatQueryKeys.session(sessionId),
         old =>

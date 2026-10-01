@@ -34,6 +34,57 @@ export function findTableMessageIndex(
 }
 
 /**
+ * Index of the latest message whose text holds the pinned table markdown, or
+ * -1. Fallback for pins whose message id changed after pinning.
+ */
+export function findTableMessageIndexByMarkdown(
+  messages: readonly {
+    content: string
+    content_blocks?: readonly { type: string; text?: string }[]
+  }[],
+  markdown: string
+): number {
+  const needle = markdown.trim()
+  if (!needle) return -1
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]
+    if (!message) continue
+    if (
+      message.content.includes(needle) ||
+      message.content_blocks?.some(b => b.text?.includes(needle))
+    ) {
+      return i
+    }
+  }
+  return -1
+}
+
+/** Plain table key of the same table offset in message `messageId` */
+export function tableKeyForMessage(
+  tableKey: string,
+  messageId: string
+): string {
+  return `${messageId}:${splitTableKey(tableKey).offset}`
+}
+
+/**
+ * Table key with message id `fromId` replaced by `toId`. Keys of other
+ * messages are returned unchanged.
+ */
+export function renameTableKeyMessage(
+  tableKey: string,
+  fromId: string,
+  toId: string
+): string {
+  const { prefix, offset } = splitTableKey(tableKey)
+  if (prefix === fromId) return `${toId}:${offset}`
+  if (prefix.startsWith('compact-') && prefix.endsWith(fromId)) {
+    return `${prefix.slice(0, -fromId.length)}${toId}:${offset}`
+  }
+  return tableKey
+}
+
+/**
  * True when a rendered table key shows the same table as `tableKey`. The same
  * table can render as `<messageId>:<offset>` (full message) or as
  * `compact-...<messageId>:<offset>` (compact view latest reply).

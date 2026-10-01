@@ -61,7 +61,69 @@ describe('Markdown', () => {
       expect.any(Array),
       ''
     )
-    expect(screen.getByLabelText(/Row 1 is in the prompt/)).toBeTruthy()
+    expect(screen.getByLabelText(/row 1/i)).toBeTruthy()
+  })
+
+  it('supports keyboard row navigation, add with note, and removal', () => {
+    mockSetRow.mockReset()
+    const table = '| Name |\n| --- |\n| a |\n| b |'
+    const { rerender } = render(
+      <Markdown sessionId="s2" tableKey="t2">
+        {table}
+      </Markdown>
+    )
+    const rowA = screen.getByText('a').closest('tr') as HTMLElement
+    const rowB = screen.getByText('b').closest('tr') as HTMLElement
+
+    rowA.focus()
+    fireEvent.keyDown(rowA, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(rowB)
+    fireEvent.keyDown(rowB, { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(rowA)
+
+    // Enter opens the note form without adding the row yet.
+    fireEvent.keyDown(rowA, { key: 'Enter' })
+    expect(mockSetRow).not.toHaveBeenCalled()
+    const note = screen.getByLabelText(/Add row 1 to the prompt/)
+    fireEvent.change(note, { target: { value: 'first' } })
+    fireEvent.keyDown(note, { key: 'Enter' })
+    expect(mockSetRow).toHaveBeenCalledWith(
+      's2',
+      't2',
+      0,
+      expect.any(Array),
+      'first'
+    )
+
+    // Delete does nothing for a row not in the prompt.
+    mockSetRow.mockReset()
+    fireEvent.keyDown(rowB, { key: 'Delete' })
+    expect(mockSetRow).not.toHaveBeenCalled()
+
+    // Backspace removes a row that is in the prompt.
+    useChatStore.setState({
+      pendingTextFiles: {
+        s2: [
+          {
+            id: 'tf',
+            tableRows: { tableKey: 't2', rows: [0], notes: { 0: 'first' } },
+          },
+        ],
+      },
+    } as never)
+    rerender(
+      <Markdown sessionId="s2" tableKey="t2">
+        {table}
+      </Markdown>
+    )
+    fireEvent.keyDown(rowA, { key: 'Backspace' })
+    expect(mockSetRow).toHaveBeenCalledWith(
+      's2',
+      't2',
+      0,
+      expect.any(Array),
+      null
+    )
   })
 
   it('opens relative file links in the active worktree viewer', () => {

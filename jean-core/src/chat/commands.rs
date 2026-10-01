@@ -5720,7 +5720,12 @@ pub async fn clear_session_history(
     // Clean up combined-context files for this session
     cleanup_combined_context_files(&app, &session_id);
 
-    with_sessions_mut(&app, &worktree_path, &worktree_id, |sessions| {
+    let renamed = with_sessions_mut(&app, &worktree_path, &worktree_id, |sessions| {
+        let default_name = sessions
+            .sessions
+            .iter()
+            .position(|s| s.id == session_id)
+            .map(|index| format!("Session {}", index + 1));
         if let Some(session) = sessions.find_session_mut(&session_id) {
             let selected_model = session.selected_model.clone();
             let selected_thinking_level = session.selected_thinking_level.clone();
@@ -5741,13 +5746,34 @@ pub async fn clear_session_history(
             session.selected_thinking_level = selected_thinking_level;
             session.selected_effort_level = selected_effort_level;
             session.selected_provider = selected_provider;
+            session.message_count = Some(0);
+
+            // Fresh context gets a fresh name: reset to the default and let
+            // auto-naming run again on the next first message.
+            session.session_naming_completed = false;
+            let renamed = default_name
+                .filter(|name| *name != session.name)
+                .map(|name| std::mem::replace(&mut session.name, name.clone()));
 
             log::trace!("Session history cleared");
-            Ok(())
+            Ok(renamed.map(|old_name| (old_name, session.name.clone())))
         } else {
             Err(format!("Session not found: {session_id}"))
         }
-    })
+    })?;
+
+    if let Some((old_name, new_name)) = renamed {
+        let _ = app.emit_all(
+            "session-renamed",
+            &super::naming::SessionNameResult {
+                session_id,
+                worktree_id,
+                old_name,
+                new_name,
+            },
+        );
+    }
+    Ok(())
 }
 
 /// Set the selected model for a session

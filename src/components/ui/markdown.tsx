@@ -215,23 +215,34 @@ interface PromptRowProps {
   onSave: (rowIndex: number, note: string | null) => void
 }
 
+/** Move focus to the previous or next prompt row in the same table body. */
+function focusSiblingRow(row: HTMLElement, step: 1 | -1) {
+  const sibling =
+    step === 1 ? row.nextElementSibling : row.previousElementSibling
+  if (sibling instanceof HTMLElement) sibling.focus()
+}
+
 /**
  * Table row that adds itself to the prompt chip on click, then opens a small
  * form under the row for an optional note. A click on a row that is already
  * in the prompt opens the same form to edit the note or remove the row.
+ *
+ * Keyboard: Up/Down move between rows, Enter opens the note form (a second
+ * Enter adds the row to the prompt), Delete/Backspace remove the row.
  */
 function PromptRow({ row, rowIndex, inPrompt, note, onSave }: PromptRowProps) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(note)
+  const rowRef = useRef<HTMLElement>(null)
   const rowNumber = rowIndex + 1
 
-  const openForm = () => {
-    if (!inPrompt) onSave(rowIndex, '')
+  const openForm = (addNow: boolean) => {
+    if (addNow && !inPrompt) onSave(rowIndex, '')
     setDraft(note)
     setOpen(true)
   }
   const saveNote = () => {
-    if (draft.trim() !== note) onSave(rowIndex, draft)
+    if (!inPrompt || draft.trim() !== note) onSave(rowIndex, draft)
     setOpen(false)
   }
 
@@ -239,12 +250,13 @@ function PromptRow({ row, rowIndex, inPrompt, note, onSave }: PromptRowProps) {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverAnchor asChild>
         {cloneElement(row, {
+          ref: rowRef,
           className: cn(
             row.props.className,
-            'cursor-pointer transition-colors',
+            'cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/60',
             inPrompt
               ? 'bg-primary/10 shadow-[inset_3px_0_0_var(--primary)] hover:bg-primary/15'
-              : 'hover:bg-muted/50'
+              : 'hover:bg-muted/50 focus-visible:bg-muted/50'
           ),
           tabIndex: 0,
           'aria-selected': inPrompt,
@@ -253,18 +265,35 @@ function PromptRow({ row, rowIndex, inPrompt, note, onSave }: PromptRowProps) {
             const target = event.target as HTMLElement
             if (target.closest(ROW_CLICK_IGNORE)) return
             if (window.getSelection()?.toString()) return
-            openForm()
+            openForm(true)
           },
           onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => {
             if (event.target !== event.currentTarget) return
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault()
-              openForm()
+            if (event.metaKey || event.ctrlKey || event.altKey) return
+            const row = event.currentTarget
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+              focusSiblingRow(row, event.key === 'ArrowDown' ? 1 : -1)
+            } else if (event.key === 'Enter' || event.key === ' ') {
+              openForm(false)
+            } else if (event.key === 'Delete' || event.key === 'Backspace') {
+              if (inPrompt) onSave(rowIndex, null)
+            } else {
+              return
             }
+            event.preventDefault()
+            event.stopPropagation()
           },
         } as Record<string, unknown>)}
       </PopoverAnchor>
-      <PopoverContent align="start" className="w-80 p-3">
+      <PopoverContent
+        align="start"
+        className="w-80 p-3"
+        onCloseAutoFocus={event => {
+          // Return focus to the row so keyboard navigation can continue.
+          event.preventDefault()
+          rowRef.current?.focus({ preventScroll: true })
+        }}
+      >
         <form
           className="flex flex-col gap-2"
           onSubmit={event => {
@@ -276,7 +305,9 @@ function PromptRow({ row, rowIndex, inPrompt, note, onSave }: PromptRowProps) {
             htmlFor={`prompt-row-note-${rowIndex}`}
             className="text-xs font-medium text-muted-foreground"
           >
-            Row {rowNumber} is in the prompt. Add a note (optional)
+            {inPrompt
+              ? `Row ${rowNumber} is in the prompt. Add a note (optional)`
+              : `Add row ${rowNumber} to the prompt. Note (optional)`}
           </label>
           <Textarea
             id={`prompt-row-note-${rowIndex}`}
@@ -297,19 +328,21 @@ function PromptRow({ row, rowIndex, inPrompt, note, onSave }: PromptRowProps) {
             }}
           />
           <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                onSave(rowIndex, null)
-                setOpen(false)
-              }}
-            >
-              Remove
-            </Button>
+            {inPrompt && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  onSave(rowIndex, null)
+                  setOpen(false)
+                }}
+              >
+                Remove
+              </Button>
+            )}
             <Button type="submit" size="sm">
-              Save
+              {inPrompt ? 'Save' : 'Add'}
             </Button>
           </div>
         </form>

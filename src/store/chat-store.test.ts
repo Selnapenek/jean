@@ -2045,5 +2045,33 @@ describe('ChatStore', () => {
       togglePinnedTable('session-1', tableA)
       expect('session-1' in useChatStore.getState().pinnedTables).toBe(false)
     })
+
+    it('renames pin and checklist keys', () => {
+      const store = useChatStore.getState()
+      store.togglePinnedTable('session-1', tableA)
+      store.togglePinnedTable('session-1', tableB)
+      store.enableTableChecklist('session-1', tableA.key)
+      store.toggleTableRowChecked('session-1', tableA.key, 2)
+
+      store.renameTableKeys('session-1', key =>
+        key.replace('msg-1:', 'saved-1:')
+      )
+
+      const state = useChatStore.getState()
+      expect(state.pinnedTables['session-1']?.map(p => p.key)).toEqual([
+        'saved-1:10',
+        'msg-2:0',
+      ])
+      expect(state.tableCheckedRows['session-1']).toEqual({
+        'saved-1:10': new Set([2]),
+      })
+    })
+
+    it('keeps state when no key changes', () => {
+      useChatStore.getState().togglePinnedTable('session-1', tableA)
+      const before = useChatStore.getState()
+      before.renameTableKeys('session-1', key => key)
+      expect(useChatStore.getState().pinnedTables).toBe(before.pinnedTables)
+    })
   })
 })

@@ -2532,13 +2532,9 @@ function ChatWindowContent({
                   <div className="relative flex h-full min-h-0 flex-col">
                     {/* Messages area */}
                     <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
-                      {/* Top-right badges (pinned tables, session label) - absolute positioned to avoid covering content */}
-                      <div className="absolute top-2 right-4 z-20 flex items-center gap-2">
-                        <PinnedTablesButton
-                          sessionId={activeSessionId}
-                          onShowInChat={handleShowTableInChat}
-                        />
-                        {sessionLabel && (
+                      {/* Top-right session label - absolute positioned to avoid covering content */}
+                      {sessionLabel && (
+                        <div className="absolute top-2 right-4 z-20">
                           <span
                             className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
                             style={{
@@ -2548,8 +2544,8 @@ function ChatWindowContent({
                           >
                             {sessionLabel.name}
                           </span>
-                        )}
-                      </div>
+                        </div>
+                      )}
                       <ChatSearchBar scrollContainerRef={scrollViewportRef} />
                       {/* Bottom fade gradient so messages don't hard-cut at the input area */}
                       <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 h-8 bg-gradient-to-b from-transparent to-background" />
@@ -3073,6 +3069,13 @@ function ChatWindowContent({
                           data-chat-composer=""
                           className="pointer-events-auto relative sm:mx-auto sm:mb-3 sm:max-w-3xl xl:max-w-4xl"
                         >
+                          {/* Pinned tables tab - attached to the top edge of the composer */}
+                          <div className="absolute right-3 bottom-full">
+                            <PinnedTablesButton
+                              sessionId={activeSessionId}
+                              onShowInChat={handleShowTableInChat}
+                            />
+                          </div>
                           {/* Subagents panel - separate section above the chat input */}
                           {!zenMode &&
                             activeAgents.length > 0 &&

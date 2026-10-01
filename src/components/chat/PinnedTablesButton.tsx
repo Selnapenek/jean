@@ -35,7 +35,7 @@ interface PinnedTablesButtonProps {
 }
 
 /**
- * Floating pill in the chat's top-right corner. Opens the session's pinned
+ * Small tab on the top edge of the chat composer. Opens the session's pinned
  * tables, each on a card with a link back to its message.
  */
 export function PinnedTablesButton({
@@ -73,7 +73,7 @@ export function PinnedTablesButton({
             type="button"
             onClick={() => setOpen(true)}
             aria-label={`Pinned tables (${count})`}
-            className="flex h-6 items-center gap-1 rounded-full border border-border/70 bg-background/90 py-0 pl-1.5 pr-2.5 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur-md transition-colors hover:bg-muted hover:text-foreground sm:h-7 sm:pl-2 sm:pr-3"
+            className="flex h-6 items-center gap-1 rounded-t-md border border-b-0 border-border bg-card px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <PinTack className="h-3.5 w-3.5" weight="Filled" />
             <span>{count}</span>

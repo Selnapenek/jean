@@ -82,7 +82,7 @@ export function PinnedTablesButton({
         <TooltipContent>Pinned tables</TooltipContent>
       </Tooltip>
       <Dialog open={isOpen} onOpenChange={setOpen}>
-        <DialogContent className="!w-screen !h-dvh !max-w-screen !max-h-none !rounded-none !px-2 sm:!px-6 sm:!w-[calc(100vw-8rem)] sm:!max-w-[calc(100vw-8rem)] sm:!h-[calc(100vh-8rem)] sm:!rounded-lg flex flex-col">
+        <DialogContent className="!w-screen !h-dvh !max-w-screen !max-h-none !rounded-none !px-2 sm:!px-6 sm:!top-[calc(50%+1rem)] sm:!h-[calc(100dvh-2rem)] sm:!border-x-0 sm:!border-b-0 flex flex-col">
           <DialogHeader className="text-left pl-2 pr-10 sm:pl-0">
             <DialogTitle className="flex items-center gap-2">
               <PinTack className="h-4 w-4" weight="Filled" />

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ChevronRight, Users, X } from '@/components/icons/reicon'
 import type { SubAgent } from '@/types/chat'
 import { cn } from '@/lib/utils'
+import { WorkingWaveform } from '@/components/ui/status-indicator'
 import {
   Collapsible,
   CollapsibleContent,
@@ -38,16 +39,6 @@ function trackTiming(agent: SubAgent, now: number) {
   } else if (timing && timing.end === undefined) {
     timing.end = now
   }
-}
-
-function WorkingWaveform() {
-  return (
-    <span aria-hidden="true" className="recent-working-waveform text-primary">
-      <span />
-      <span />
-      <span />
-    </span>
-  )
 }
 
 export function formatAgentElapsed(ms: number): string {

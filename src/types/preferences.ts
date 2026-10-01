@@ -794,8 +794,10 @@ Every agent must, for each finding:
   **regression** (new in this range) or an **old bug** (also in the release);
 - describe a concrete failure scenario (input/state → wrong result), who is affected,
   and who can trigger it (for security: which role);
-- prefer real evidence (a failing test, a reproduction, a query) over guesses. Mark items
-  it verified itself with ✔.
+- prefer real evidence (a failing test, a reproduction, a query) over guesses. If possible,
+  reproduce it live on a locally running dev instance (the dev environment above; start it
+  with the returned command if it is not running). Use only temporary data, and clean up
+  afterwards. Set Verified to **Y** for items it verified itself, and **N** for all other items.
 Look especially for: upgrade paths and data migrations of existing installs, backward
 compatibility (API, CLI, config, stored data), authorization and multi-tenant scoping,
 secrets in logs/UI/snapshots/disk, concurrency and races, failure handling (silent
@@ -811,7 +813,7 @@ Number every finding so it can be referenced later, and keep the numbers stable:
 
 For each severity, output a table:
 
-| # | ✔ | Where (file:line) | Problem and impact | Regression? | Recommended fix | Size (S/M/L) |
+| # | Verified | Where (file:line) | Problem and impact | Regression? | Recommended fix | Size (S/M/L) |
 
 Then add:
 - **Intended changes** that need a **release note** (not bugs).
@@ -823,8 +825,8 @@ Change no files in this phase.
 I answer with item numbers and a decision, for example
 "H1 fix, M3 check only, L5 skip, L7 explain". Use these verbs:
 - **explain** — facts only: before vs now, impact, options with a recommendation. No change.
-- **check only** — verify (and reproduce if possible), compare with the last release,
-  recommend a fix. No code change.
+- **check only** — verify (and reproduce if possible, preferably live on the local dev
+  instance), compare with the last release, recommend a fix. No code change.
 - **fix** — then follow this workflow:
   1. First verify the item is real in the code. If it is not, report and stop.
   2. TDD: write a failing test first (behavior, not markup), then the fix, then the

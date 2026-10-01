@@ -17,6 +17,7 @@ import {
   useModifierHintsVisible,
 } from '@/hooks/useModifierHintsVisible'
 import { Kbd } from '@/components/ui/kbd'
+import { WorkingWaveform } from '@/components/ui/status-indicator'
 import { isNativeApp } from '@/lib/environment'
 import { formatShortcutDisplay } from '@/types/keybindings'
 import { mergeSessionIntoWorktreeSessions } from '@/components/chat/session-tab-order'
@@ -459,14 +460,7 @@ export function RecentWorktreesList({
                           />
                         )}
                         {isWorking ? (
-                          <span
-                            aria-hidden="true"
-                            className="recent-working-waveform text-primary"
-                          >
-                            <span />
-                            <span />
-                            <span />
-                          </span>
+                          <WorkingWaveform />
                         ) : (
                           status.tone !== 'completed' && (
                             <span className={`font-medium ${statusClassName}`}>

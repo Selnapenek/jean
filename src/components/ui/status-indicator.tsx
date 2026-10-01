@@ -98,7 +98,8 @@ export function StatusIndicator({
   const title = label
 
   // Running state: shared 3-bar waveform. It has a fixed size, so the
-  // dot size classes from `className` do not apply here.
+  // dot size classes from `className` do not apply here. Static dots sit in
+  // a slot of the same size so layouts do not shift between states.
   if (status === 'running') {
     return <WorkingWaveform label={label} />
   }
@@ -128,13 +129,17 @@ export function StatusIndicator({
       role="img"
       aria-label={label}
       title={title}
-      className={cn(
-        'shrink-0 block',
-        fillClass,
-        shapeClass,
-        colorClass,
-        className
-      )}
-    />
+      className="inline-flex h-2.5 w-2.5 shrink-0 items-center justify-center"
+    >
+      <span
+        className={cn(
+          'shrink-0 block',
+          fillClass,
+          shapeClass,
+          colorClass,
+          className
+        )}
+      />
+    </span>
   )
 }

@@ -789,7 +789,6 @@ Split the diff into areas that fit this project (e.g. auth, API, data/migrations
 deployments/jobs, storage/files, networking/proxy, UI, infra/CI, security, performance).
 Review each area in parallel with subagents, plus one agent for the full diff.
 Every agent must, for each finding:
-- give \`file:line\` in the target;
 - compare with the last release (\`git show <release>:<file>\`), and say whether it is a
   **regression** (new in this range) or an **old bug** (also in the release); for a
   regression, describe how it worked in the last release;
@@ -814,11 +813,11 @@ Number every finding so it can be referenced later, and keep the numbers stable:
 
 For each severity, output a table:
 
-| # | Verified | Where (file:line) | Problem and impact | Regression | Recommended fix |
+| # | Verified | Problem and impact | Regression | Recommended fix |
 
 In the Regression column, write **No**, or **Yes** followed by how it worked in the
 last release (e.g. "Yes: the release kept existing values on upgrade").
-Use only these columns. Do not add size, effort, or timing columns.
+Use only these columns. Do not add file, size, effort, or timing columns.
 
 Then add:
 - **Intended changes** that need a **release note** (not bugs).

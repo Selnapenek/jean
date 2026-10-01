@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { MessageSquare, PinTack } from '@/components/icons/reicon'
+import { MessageSquare, Thumbtack } from '@/components/icons/reicon'
 import {
   Dialog,
   DialogContent,
@@ -75,7 +75,7 @@ export function PinnedTablesButton({
             aria-label={`Pinned tables (${count})`}
             className="flex h-6 items-center gap-1 rounded-t-md border border-b-0 border-border bg-card px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            <PinTack className="h-3.5 w-3.5" weight="Filled" />
+            <Thumbtack className="h-3.5 w-3.5" />
             <span>{count}</span>
           </button>
         </TooltipTrigger>
@@ -85,7 +85,7 @@ export function PinnedTablesButton({
         <DialogContent className="!w-screen !h-dvh !max-w-screen !max-h-none !rounded-none !px-2 sm:!px-6 sm:!top-[calc(50%+1rem)] sm:!h-[calc(100dvh-2rem)] sm:!border-x-0 sm:!border-b-0 flex flex-col">
           <DialogHeader className="text-left pl-2 pr-10 sm:pl-0">
             <DialogTitle className="flex items-center gap-2">
-              <PinTack className="h-4 w-4" weight="Filled" />
+              <Thumbtack className="h-4 w-4" />
               Pinned tables ({count})
             </DialogTitle>
             <DialogDescription className="sr-only">

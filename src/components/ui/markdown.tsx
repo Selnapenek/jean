@@ -23,7 +23,7 @@ import {
   Check,
   Table,
   ListChecks,
-  PinTack,
+  Thumbtack,
   Plus,
 } from '@/components/icons/reicon'
 import { toast } from 'sonner'
@@ -442,7 +442,7 @@ function TableBlock({
                 aria-label={isPinned ? 'Unpin table' : 'Pin table'}
                 aria-pressed={isPinned}
               >
-                <PinTack
+                <Thumbtack
                   className="size-4"
                   weight={isPinned ? 'Filled' : 'Outline'}
                 />

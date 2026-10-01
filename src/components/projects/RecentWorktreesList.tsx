@@ -8,8 +8,8 @@ import {
 import {
   AlertTriangle,
   BellDot,
-  PinTack,
   Plus,
+  Thumbtack,
 } from '@/components/icons/reicon'
 import { useIsMobile } from '@/hooks/use-mobile'
 import {
@@ -430,7 +430,7 @@ export function RecentWorktreesList({
                       )
                     }}
                   >
-                    <PinTack
+                    <Thumbtack
                       size={11}
                       weight={isPinned ? 'Filled' : 'Outline'}
                     />

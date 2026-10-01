@@ -19,6 +19,8 @@ interface ShowTableInChatOptions {
   isCompactHistoryExpanded: boolean
   onExpandCompactHistory: () => void
   listRef: RefObject<VirtualizedMessageListHandle | null>
+  /** Stop auto-scroll to bottom so it does not undo the jump to the table */
+  stopFollowingTail: () => void
 }
 
 const nextFrame = () =>
@@ -46,6 +48,7 @@ export function useShowTableInChat(options: ShowTableInChatOptions) {
     async (tableKey: string) => {
       const { sessionId } = latest.current
       if (!sessionId) return
+      latest.current.stopFollowingTail()
       const readSession = () =>
         queryClient.getQueryData<Session>(chatQueryKeys.session(sessionId))
       let session = readSession()
@@ -88,6 +91,8 @@ export function useShowTableInChat(options: ShowTableInChatOptions) {
         await afterRender()
       }
 
+      // Loading older messages can re-pin the chat to the bottom.
+      latest.current.stopFollowingTail()
       window.dispatchEvent(
         new CustomEvent<RevealChatMessageDetail>(REVEAL_CHAT_MESSAGE_EVENT, {
           detail: { messageId: message.id },

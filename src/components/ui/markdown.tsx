@@ -18,14 +18,8 @@ import rehypeRaw from 'rehype-raw'
 import remarkGfm from 'remark-gfm'
 import remend from 'remend'
 import { remarkFixInterruptedLists } from '@/lib/remark-fix-interrupted-lists'
-import {
-  Copy,
-  Check,
-  Table,
-  ListChecks,
-  Thumbtack,
-  Plus,
-} from '@/components/icons/reicon'
+import { Copy, Check, ListChecks, Thumbtack } from '@/components/icons/reicon'
+import { MarkdownIcon } from '@/components/icons/MarkdownIcon'
 import { toast } from 'sonner'
 import { copyToClipboard } from '@/lib/clipboard'
 import { extractFilePath, openLocalFile } from '@/lib/local-file'
@@ -35,13 +29,14 @@ import {
   TooltipContent,
 } from '@/components/ui/tooltip'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/store/chat-store'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { convertFileSrc } from '@/lib/transport'
-import {
-  tableToMarkdown,
-  toggleTableRowInPrompt,
-} from '@/lib/table-rows-prompt'
+import { tableToMarkdown, setTableRowInPrompt } from '@/lib/table-rows-prompt'
 
 interface MarkdownProps {
   children: string
@@ -87,14 +82,18 @@ interface TableRowsContextValue {
   onToggle: (rowIndex: number) => void
   /** Rows added to the prompt chip, or null when rows cannot be added */
   promptRows: Set<number> | null
-  onTogglePromptRow: (rowIndex: number) => void
+  /** Notes for rows in the prompt chip, by row index */
+  promptNotes: Record<number, string>
+  /** Add or update a row in the prompt; `note === null` removes it */
+  onSetPromptRow: (rowIndex: number, note: string | null) => void
 }
 
 const TableRowsContext = createContext<TableRowsContextValue>({
   checkedRows: null,
   onToggle: () => undefined,
   promptRows: null,
-  onTogglePromptRow: () => undefined,
+  promptNotes: {},
+  onSetPromptRow: () => undefined,
 })
 
 function extractText(node: ReactNode): string {
@@ -204,30 +203,133 @@ const CHECKLIST_THEAD_LEADING = (
   />
 )
 
-const PROMPT_THEAD_LEADING = (
-  <th
-    key="__prompt__"
-    data-checklist-cell="true"
-    className="w-8 !px-1"
-    aria-hidden
-  />
-)
+/** Clicks on these elements keep their own action and do not pick the row. */
+const ROW_CLICK_IGNORE =
+  'a, button, input, textarea, label, [role="checkbox"], [data-file-path]'
+
+interface PromptRowProps {
+  row: ReactElement<{ className?: string }>
+  rowIndex: number
+  inPrompt: boolean
+  note: string
+  onSave: (rowIndex: number, note: string | null) => void
+}
+
+/**
+ * Table row that adds itself to the prompt chip on click, then opens a small
+ * form under the row for an optional note. A click on a row that is already
+ * in the prompt opens the same form to edit the note or remove the row.
+ */
+function PromptRow({ row, rowIndex, inPrompt, note, onSave }: PromptRowProps) {
+  const [open, setOpen] = useState(false)
+  const [draft, setDraft] = useState(note)
+  const rowNumber = rowIndex + 1
+
+  const openForm = () => {
+    if (!inPrompt) onSave(rowIndex, '')
+    setDraft(note)
+    setOpen(true)
+  }
+  const saveNote = () => {
+    if (draft.trim() !== note) onSave(rowIndex, draft)
+    setOpen(false)
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverAnchor asChild>
+        {cloneElement(row, {
+          className: cn(
+            row.props.className,
+            'cursor-pointer transition-colors',
+            inPrompt
+              ? 'bg-primary/10 shadow-[inset_3px_0_0_var(--primary)] hover:bg-primary/15'
+              : 'hover:bg-muted/50'
+          ),
+          tabIndex: 0,
+          'aria-selected': inPrompt,
+          title: note || undefined,
+          onClick: (event: React.MouseEvent<HTMLElement>) => {
+            const target = event.target as HTMLElement
+            if (target.closest(ROW_CLICK_IGNORE)) return
+            if (window.getSelection()?.toString()) return
+            openForm()
+          },
+          onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => {
+            if (event.target !== event.currentTarget) return
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              openForm()
+            }
+          },
+        } as Record<string, unknown>)}
+      </PopoverAnchor>
+      <PopoverContent align="start" className="w-80 p-3">
+        <form
+          className="flex flex-col gap-2"
+          onSubmit={event => {
+            event.preventDefault()
+            saveNote()
+          }}
+        >
+          <label
+            htmlFor={`prompt-row-note-${rowIndex}`}
+            className="text-xs font-medium text-muted-foreground"
+          >
+            Row {rowNumber} is in the prompt. Add a note (optional)
+          </label>
+          <Textarea
+            id={`prompt-row-note-${rowIndex}`}
+            value={draft}
+            onChange={event => setDraft(event.target.value)}
+            onKeyDown={event => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault()
+                saveNote()
+              }
+            }}
+            placeholder="e.g. Fix this one first"
+            className="min-h-16 text-sm"
+            autoFocus
+            onFocus={event => {
+              const end = event.currentTarget.value.length
+              event.currentTarget.setSelectionRange(end, end)
+            }}
+          />
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                onSave(rowIndex, null)
+                setOpen(false)
+              }}
+            >
+              Remove
+            </Button>
+            <Button type="submit" size="sm">
+              Save
+            </Button>
+          </div>
+        </form>
+      </PopoverContent>
+    </Popover>
+  )
+}
 
 function ChecklistAwareThead({ children }: { children?: ReactNode }) {
-  const { checkedRows, promptRows } = useContext(TableRowsContext)
-  const leading = [
-    ...(checkedRows ? [CHECKLIST_THEAD_LEADING] : []),
-    ...(promptRows ? [PROMPT_THEAD_LEADING] : []),
-  ]
-  const augmented =
-    leading.length > 0
-      ? Children.map(children, row => cloneRowWithLeadingCells(row, leading))
-      : children
+  const { checkedRows } = useContext(TableRowsContext)
+  const augmented = checkedRows
+    ? Children.map(children, row =>
+        cloneRowWithLeadingCells(row, [CHECKLIST_THEAD_LEADING])
+      )
+    : children
   return <thead className="bg-muted/50">{augmented}</thead>
 }
 
 function ChecklistAwareTbody({ children }: { children?: ReactNode }) {
-  const { checkedRows, onToggle, promptRows, onTogglePromptRow } =
+  const { checkedRows, onToggle, promptRows, promptNotes, onSetPromptRow } =
     useContext(TableRowsContext)
   if (!checkedRows && !promptRows) {
     return <tbody>{children}</tbody>
@@ -236,62 +338,39 @@ function ChecklistAwareTbody({ children }: { children?: ReactNode }) {
   const augmented = Children.map(children, row => {
     if (!isValidElement(row)) return row
     const idx = rowIdx++
-    const leading: ReactNode[] = []
-    if (checkedRows) {
-      leading.push(
-        <td
-          key="__checklist__"
-          data-checklist-cell="true"
-          className="w-10 px-2 align-middle"
-        >
-          <Checkbox
-            checked={checkedRows.has(idx)}
-            onCheckedChange={() => onToggle(idx)}
-            aria-label={`Toggle row ${idx + 1}`}
-            className="cursor-pointer"
-          />
-        </td>
-      )
-    }
-    if (promptRows) {
-      const inPrompt = promptRows.has(idx)
-      const label = inPrompt
-        ? `Remove row ${idx + 1} from prompt`
-        : `Add row ${idx + 1} to prompt`
-      leading.push(
-        <td
-          key="__prompt__"
-          data-checklist-cell="true"
-          className="w-8 !px-1 align-middle"
-        >
-          <button
-            type="button"
-            onClick={() => onTogglePromptRow(idx)}
-            aria-label={label}
-            aria-pressed={inPrompt}
-            title={label}
-            className={cn(
-              'flex size-6 items-center justify-center rounded-md transition-colors cursor-pointer',
-              inPrompt
-                ? 'bg-primary text-primary-foreground opacity-100'
-                : 'text-foreground/70 hover:bg-muted hover:text-foreground'
-            )}
+    const withCells = checkedRows
+      ? cloneRowWithLeadingCells(row, [
+          <td
+            key="__checklist__"
+            data-checklist-cell="true"
+            className="w-10 px-2 align-middle"
           >
-            {inPrompt ? (
-              <Check className="size-3.5" />
-            ) : (
-              <Plus className="size-3.5" />
-            )}
-          </button>
-        </td>
-      )
-    }
-    return cloneRowWithLeadingCells(row, leading)
+            <Checkbox
+              checked={checkedRows.has(idx)}
+              onCheckedChange={() => onToggle(idx)}
+              aria-label={`Toggle row ${idx + 1}`}
+              className="cursor-pointer"
+            />
+          </td>,
+        ])
+      : row
+    if (!promptRows) return withCells
+    return (
+      <PromptRow
+        key={idx}
+        row={withCells as ReactElement<{ className?: string }>}
+        rowIndex={idx}
+        inPrompt={promptRows.has(idx)}
+        note={promptNotes[idx] ?? ''}
+        onSave={onSetPromptRow}
+      />
+    )
   })
   return <tbody>{augmented}</tbody>
 }
 
-const NO_ROWS: number[] = []
+const NO_TABLE_ROWS = { rows: [] as number[], notes: undefined }
+const NO_NOTES: Record<number, string> = {}
 
 interface TableBlockProps {
   children: ReactNode
@@ -305,6 +384,7 @@ function TableBlock({
   tableEndOffset,
 }: TableBlockProps) {
   const tableRef = useRef<HTMLTableElement>(null)
+  const isMobile = useIsMobile()
   const [copiedFormat, setCopiedFormat] = useState<'markdown' | 'tsv' | null>(
     null
   )
@@ -332,16 +412,16 @@ function TableBlock({
   )
   const checklistEnabled = checkedRows !== null
   const canUseChecklist = Boolean(sessionId && tableKey)
-  const promptRowList = useChatStore(state =>
+  const promptTableRows = useChatStore(state =>
     sessionId && tableKey
       ? (state.pendingTextFiles[sessionId]?.find(
           tf => tf.tableRows?.tableKey === tableKey
-        )?.tableRows?.rows ?? NO_ROWS)
+        )?.tableRows ?? NO_TABLE_ROWS)
       : null
   )
   const promptRows = useMemo(
-    () => (promptRowList ? new Set(promptRowList) : null),
-    [promptRowList]
+    () => (promptTableRows ? new Set(promptTableRows.rows) : null),
+    [promptTableRows]
   )
   const isPinned = useChatStore(state =>
     sessionId && tableKey
@@ -388,14 +468,15 @@ function TableBlock({
       .togglePinnedTable(sessionId, { key: tableKey, markdown })
   }, [sessionId, tableKey, source, tableOffset, tableEndOffset])
 
-  const handleTogglePromptRow = useCallback(
-    (rowIndex: number) => {
+  const handleSetPromptRow = useCallback(
+    (rowIndex: number, note: string | null) => {
       if (!sessionId || !tableKey || !tableRef.current) return
-      void toggleTableRowInPrompt(
+      void setTableRowInPrompt(
         sessionId,
         tableKey,
         rowIndex,
-        extractTableData(tableRef.current)
+        extractTableData(tableRef.current),
+        note
       )
     },
     [sessionId, tableKey]
@@ -416,9 +497,16 @@ function TableBlock({
       checkedRows,
       onToggle: handleToggleRow,
       promptRows,
-      onTogglePromptRow: handleTogglePromptRow,
+      promptNotes: promptTableRows?.notes ?? NO_NOTES,
+      onSetPromptRow: handleSetPromptRow,
     }),
-    [checkedRows, handleToggleRow, promptRows, handleTogglePromptRow]
+    [
+      checkedRows,
+      handleToggleRow,
+      promptRows,
+      promptTableRows,
+      handleSetPromptRow,
+    ]
   )
 
   const btnClass =
@@ -431,7 +519,12 @@ function TableBlock({
       className="my-5 scroll-mt-12 rounded-md"
       data-table-key={tableKey ?? undefined}
     >
-      <div className="mb-2 flex justify-end gap-0.5">
+      <div className="mb-2 flex items-center justify-end gap-0.5">
+        {promptRows && (
+          <span className="mr-auto text-xs text-muted-foreground">
+            {isMobile ? 'Tap' : 'Click'} a row to add it to the prompt
+          </span>
+        )}
         {canUseChecklist && (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -484,7 +577,7 @@ function TableBlock({
               {copiedFormat === 'markdown' ? (
                 <Check className="size-4" />
               ) : (
-                <Table className="size-4" />
+                <MarkdownIcon className="size-4" />
               )}
             </button>
           </TooltipTrigger>
@@ -688,7 +781,13 @@ const components: Components = {
   tbody: ({ children }) => (
     <ChecklistAwareTbody>{children}</ChecklistAwareTbody>
   ),
-  tr: ({ children }) => <tr className="border-b border-border">{children}</tr>,
+  // Spread props so PromptRow can add its click handler and row classes.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  tr: ({ children, className, node, ...props }) => (
+    <tr {...props} className={cn('border-b border-border', className)}>
+      {children}
+    </tr>
+  ),
   th: ({ children }) => (
     <th className="px-4 py-2.5 text-left font-semibold">{children}</th>
   ),

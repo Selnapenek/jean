@@ -161,7 +161,7 @@ export const QueuedPromptsPanel = memo(function QueuedPromptsPanel({
             aria-label="Queued prompts"
             tabIndex={0}
             onKeyDown={handleKeyDown}
-            className="max-h-48 overflow-y-auto border-t border-border/50 outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="group/list max-h-48 overflow-y-auto border-t border-border/50 outline-none focus-visible:ring-1 focus-visible:ring-ring"
           >
             {messages.map((msg, index) => {
               const isSelected = index === selectedIndex
@@ -179,7 +179,10 @@ export const QueuedPromptsPanel = memo(function QueuedPromptsPanel({
                   onClick={() => setSelectedIndex(index)}
                   className={cn(
                     'group flex items-center gap-2 px-3 py-1.5 text-xs cursor-default',
-                    isSelected ? 'bg-muted/60' : 'hover:bg-muted/30'
+                    'hover:bg-muted/30',
+                    // Selection is only visible while the list has focus, so the
+                    // first row doesn't look permanently selected
+                    isSelected && 'group-focus-within/list:bg-muted/60'
                   )}
                 >
                   <span className="shrink-0 text-muted-foreground/60 tabular-nums">
@@ -222,9 +225,12 @@ export const QueuedPromptsPanel = memo(function QueuedPromptsPanel({
                   <div
                     className={cn(
                       'flex shrink-0 items-center gap-1 transition-opacity',
-                      isSelected
+                      isEditing
                         ? 'opacity-100'
-                        : 'opacity-0 group-hover:opacity-100'
+                        : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100',
+                      isSelected &&
+                        !isEditing &&
+                        'group-focus-within/list:opacity-100'
                     )}
                   >
                     {isEditing ? (

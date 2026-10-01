@@ -1,8 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@/test/test-utils'
 import { Markdown } from './markdown'
 import { useChatStore } from '@/store/chat-store'
 import { useUIStore } from '@/store/ui-store'
+
+const { mockSetRow } = vi.hoisted(() => ({ mockSetRow: vi.fn() }))
+vi.mock('@/lib/table-rows-prompt', async importOriginal => ({
+  ...(await importOriginal<object>()),
+  setTableRowInPrompt: mockSetRow,
+}))
 
 describe('Markdown', () => {
   it('pins a table with its exact markdown source and shares state by key', () => {
@@ -31,6 +37,31 @@ describe('Markdown', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'Unpin table' }))
     expect(useChatStore.getState().pinnedTables['session-1']).toBeUndefined()
+  })
+
+  it('adds a row to the prompt on row click, but not on link clicks', () => {
+    mockSetRow.mockReset()
+    const table =
+      '| Name | Link |\n| --- | --- |\n| a | [docs](https://x.dev) |'
+    render(
+      <Markdown sessionId="s1" tableKey="t1">
+        {table}
+      </Markdown>
+    )
+    expect(screen.getByText('Click a row to add it to the prompt')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('link', { name: 'docs' }))
+    expect(mockSetRow).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByText('a'))
+    expect(mockSetRow).toHaveBeenCalledWith(
+      's1',
+      't1',
+      0,
+      expect.any(Array),
+      ''
+    )
+    expect(screen.getByLabelText(/Row 1 is in the prompt/)).toBeTruthy()
   })
 
   it('opens relative file links in the active worktree viewer', () => {

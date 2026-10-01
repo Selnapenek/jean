@@ -16,47 +16,64 @@ export function tableToMarkdown(data: string[][]): string {
   return [line(header), separator, ...rows.map(line)].join('\n')
 }
 
-/** Chip content: the header row plus the picked body rows, in table order. */
+/**
+ * Chip content: the header row plus the picked body rows, in table order.
+ * When a row has a note, a "Note" column is added with the user's text.
+ */
 export function formatTableRowsPrompt(
   data: string[][],
-  rows: number[]
+  rows: number[],
+  notes: Record<number, string> = {}
 ): string {
   const [header, ...body] = data
   if (!header) return ''
-  const picked = rows.flatMap(i => (body[i] ? [body[i]] : []))
-  return `Rows referenced from a table in this chat:\n\n${tableToMarkdown([header, ...picked])}\n`
-}
-
-/** Next picked rows after toggling `rowIndex`, kept in table order. */
-export function toggleRowIndex(rows: number[], rowIndex: number): number[] {
-  return rows.includes(rowIndex)
-    ? rows.filter(r => r !== rowIndex)
-    : [...rows, rowIndex].sort((a, b) => a - b)
+  const picked = rows.filter(i => body[i])
+  const hasNotes = picked.some(i => notes[i])
+  const table = hasNotes
+    ? [
+        [...header, 'Note'],
+        ...picked.map(i => [...(body[i] ?? []), notes[i] ?? '']),
+      ]
+    : [header, ...picked.map(i => body[i] ?? [])]
+  return `Rows referenced from a table in this chat:\n\n${tableToMarkdown(table)}\n`
 }
 
 // One operation chain per table, so fast clicks cannot create two chips.
 const chains = new Map<string, Promise<void>>()
 
-async function applyToggle(
+async function applyRow(
   sessionId: string,
   tableKey: string,
   rowIndex: number,
-  data: string[][]
+  data: string[][],
+  note: string | null
 ): Promise<void> {
   const existing = useChatStore
     .getState()
     .pendingTextFiles[
       sessionId
     ]?.find(tf => tf.tableRows?.tableKey === tableKey)
-  const rows = toggleRowIndex(existing?.tableRows?.rows ?? [], rowIndex)
+  const prevRows = existing?.tableRows?.rows ?? []
+  const notes = Object.fromEntries(
+    Object.entries(existing?.tableRows?.notes ?? {}).filter(
+      ([i]) => Number(i) !== rowIndex
+    )
+  ) as Record<number, string>
+  if (note?.trim()) notes[rowIndex] = note.trim()
+  const rows =
+    note === null
+      ? prevRows.filter(r => r !== rowIndex)
+      : [...new Set([...prevRows, rowIndex])].sort((a, b) => a - b)
 
   if (existing && rows.length === 0) {
     useChatStore.getState().removePendingTextFile(sessionId, existing.id)
     await invoke('delete_pasted_text', { path: existing.path, sessionId })
     return
   }
+  if (rows.length === 0) return
 
-  const content = formatTableRowsPrompt(data, rows)
+  const content = formatTableRowsPrompt(data, rows, notes)
+  const tableRows = { tableKey, rows, notes }
   if (existing) {
     const size = await invoke<number>('update_pasted_text', {
       path: existing.path,
@@ -65,10 +82,7 @@ async function applyToggle(
     })
     useChatStore
       .getState()
-      .updatePendingTextFile(sessionId, existing.id, content, size, {
-        tableKey,
-        rows,
-      })
+      .updatePendingTextFile(sessionId, existing.id, content, size, tableRows)
     return
   }
 
@@ -80,23 +94,25 @@ async function applyToggle(
   useChatStore.getState().addPendingTextFile(sessionId, {
     ...result,
     content,
-    tableRows: { tableKey, rows },
+    tableRows,
   })
 }
 
 /**
- * Add or remove one table body row in the table's prompt chip. The first row
- * creates the chip; removing the last row deletes it.
+ * Add a table body row to the table's prompt chip, or update its note.
+ * `note === null` removes the row. The first row creates the chip; removing
+ * the last row deletes it.
  */
-export function toggleTableRowInPrompt(
+export function setTableRowInPrompt(
   sessionId: string,
   tableKey: string,
   rowIndex: number,
-  data: string[][]
+  data: string[][],
+  note: string | null
 ): Promise<void> {
   const chainKey = `${sessionId}:${tableKey}`
   const next = (chains.get(chainKey) ?? Promise.resolve())
-    .then(() => applyToggle(sessionId, tableKey, rowIndex, data))
+    .then(() => applyRow(sessionId, tableKey, rowIndex, data, note))
     .catch(error => {
       toast.error('Failed to update table rows in prompt', {
         description: String(error),

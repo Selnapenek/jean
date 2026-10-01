@@ -11,7 +11,7 @@ import { useChatStore } from '@/store/chat-store'
 import {
   formatTableRowsPrompt,
   tableToMarkdown,
-  toggleTableRowInPrompt,
+  setTableRowInPrompt,
 } from './table-rows-prompt'
 
 const DATA = [
@@ -55,17 +55,21 @@ describe('table rows prompt', () => {
   })
 
   it('creates one chip, adds rows in table order, and deletes it when empty', async () => {
-    await toggleTableRowInPrompt('s1', 'm:0', 1, DATA)
+    await setTableRowInPrompt('s1', 'm:0', 1, DATA, '')
     // sessionId routes the file to the session's Jean server (remote servers)
     expect(mockInvoke).toHaveBeenCalledWith('save_pasted_text', {
       content: formatTableRowsPrompt(DATA, [1]),
       filename: 'table-rows',
       sessionId: 's1',
     })
-    expect(chip()?.tableRows).toEqual({ tableKey: 'm:0', rows: [1] })
+    expect(chip()?.tableRows).toEqual({
+      tableKey: 'm:0',
+      rows: [1],
+      notes: {},
+    })
     expect(chip()?.content).toContain('| #2 | Closed |')
 
-    await toggleTableRowInPrompt('s1', 'm:0', 0, DATA)
+    await setTableRowInPrompt('s1', 'm:0', 0, DATA, '')
     expect(useChatStore.getState().pendingTextFiles['s1']).toHaveLength(1)
     expect(chip()?.tableRows?.rows).toEqual([0, 1])
     expect(mockInvoke).toHaveBeenCalledWith('update_pasted_text', {
@@ -74,8 +78,8 @@ describe('table rows prompt', () => {
       sessionId: 's1',
     })
 
-    await toggleTableRowInPrompt('s1', 'm:0', 0, DATA)
-    await toggleTableRowInPrompt('s1', 'm:0', 1, DATA)
+    await setTableRowInPrompt('s1', 'm:0', 0, DATA, null)
+    await setTableRowInPrompt('s1', 'm:0', 1, DATA, null)
     expect(useChatStore.getState().pendingTextFiles['s1']).toEqual([])
     expect(mockInvoke).toHaveBeenCalledWith('delete_pasted_text', {
       path: '/p/tf-1.txt',
@@ -83,19 +87,47 @@ describe('table rows prompt', () => {
     })
   })
 
+  it('adds a Note column for rows with a note, and keeps notes on update', async () => {
+    await setTableRowInPrompt('s1', 'm:0', 1, DATA, '  fix first ')
+    expect(chip()?.content).toContain(
+      '| Issue | State | Note |\n| --- | --- | --- |\n| #2 | Closed | fix first |'
+    )
+    await setTableRowInPrompt('s1', 'm:0', 0, DATA, '')
+    expect(chip()?.content).toContain(
+      '| #1 | Open |  |\n| #2 | Closed | fix first |'
+    )
+
+    // Editing the note keeps the row once, with the new text
+    await setTableRowInPrompt('s1', 'm:0', 1, DATA, 'later')
+    expect(chip()?.tableRows?.rows).toEqual([0, 1])
+    expect(chip()?.tableRows?.notes).toEqual({ 1: 'later' })
+
+    // Removing the noted row drops the Note column
+    await setTableRowInPrompt('s1', 'm:0', 1, DATA, null)
+    expect(chip()?.content).toContain(
+      '| Issue | State |\n| --- | --- |\n| #1 | Open |'
+    )
+  })
+
+  it('does not create a chip when removing a row that is not in the prompt', async () => {
+    await setTableRowInPrompt('s1', 'm:0', 1, DATA, null)
+    expect(useChatStore.getState().pendingTextFiles['s1'] ?? []).toEqual([])
+    expect(mockInvoke).not.toHaveBeenCalled()
+  })
+
   it('does not create two chips on fast clicks', async () => {
     await Promise.all([
-      toggleTableRowInPrompt('s1', 'm:0', 0, DATA),
-      toggleTableRowInPrompt('s1', 'm:0', 2, DATA),
+      setTableRowInPrompt('s1', 'm:0', 0, DATA, ''),
+      setTableRowInPrompt('s1', 'm:0', 2, DATA, ''),
     ])
     expect(useChatStore.getState().pendingTextFiles['s1']).toHaveLength(1)
     expect(chip()?.tableRows?.rows).toEqual([0, 2])
   })
 
   it('starts a new chip after the old one was removed from the input', async () => {
-    await toggleTableRowInPrompt('s1', 'm:0', 0, DATA)
+    await setTableRowInPrompt('s1', 'm:0', 0, DATA, '')
     useChatStore.getState().removePendingTextFile('s1', 'tf-1')
-    await toggleTableRowInPrompt('s1', 'm:0', 1, DATA)
+    await setTableRowInPrompt('s1', 'm:0', 1, DATA, '')
     expect(chip()?.tableRows?.rows).toEqual([1])
   })
 })

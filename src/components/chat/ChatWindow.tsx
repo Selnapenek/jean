@@ -28,7 +28,13 @@ import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { invoke } from '@/lib/transport'
 import { hydrateRunningSnapshot } from '@/lib/hydrate-running-snapshot'
 import { generateId } from '@/lib/uuid'
-import { GitBranch, GitMerge, Layers, Loader2 } from '@/components/icons/reicon'
+import {
+  ArrowUp,
+  GitBranch,
+  GitMerge,
+  Layers,
+  Loader2,
+} from '@/components/icons/reicon'
 import {
   useSession,
   useSessions,
@@ -138,6 +144,11 @@ import { QueuedPromptsPanel } from './QueuedPromptsPanel'
 import { useQueuedPromptActions } from './hooks/useQueuedPromptActions'
 import { FloatingButtons } from './FloatingButtons'
 import { PinnedTablesButton } from './PinnedTablesButton'
+import {
+  capturePrependScrollAnchor,
+  restorePrependScrollAnchor,
+  type PrependScrollAnchor,
+} from './message-scroll-anchor'
 import { useShowTableInChat } from './hooks/useShowTableInChat'
 import type { ApprovalModelOverride } from './ApprovalModelSubmenu'
 import { resolveApprovalLabel } from './approval-label-utils'
@@ -1336,6 +1347,7 @@ function ChatWindowContent({
     scrollToFindings,
     handleScroll,
     handleScrollToBottomHandled,
+    stopFollowingTail,
   } = useScrollManagement({
     messages: session?.messages,
     virtualizedListRef,
@@ -2365,13 +2377,14 @@ function ChatWindowContent({
     () => getCurrentPromptWindow(messages),
     [messages]
   )
-  const compactScopeKey = `${deferredSessionId ?? 'no-session'}:${
-    messages[compactHistoryWindow.startIndex]?.id ?? 'empty'
-  }`
-  const [expandedCompactScopeKey, setExpandedCompactScopeKey] = useState<
+  // Keep history expanded for the whole session, so a new prompt or a finished
+  // run does not collapse it again.
+  const [expandedCompactSessionId, setExpandedCompactSessionId] = useState<
     string | null
   >(null)
-  const isCompactHistoryExpanded = expandedCompactScopeKey === compactScopeKey
+  const isCompactHistoryExpanded =
+    !!deferredSessionId && expandedCompactSessionId === deferredSessionId
+  const compactExpandAnchorRef = useRef<PrependScrollAnchor | null>(null)
   const compactMessages = useMemo(
     () =>
       isCompactHistoryExpanded
@@ -2383,8 +2396,21 @@ function ChatWindowContent({
     ? lastPlanMessageIndex
     : remapIndexForWindow(lastPlanMessageIndex, compactHistoryWindow.startIndex)
   const handleShowHiddenCompactPrompts = useCallback(() => {
-    setExpandedCompactScopeKey(compactScopeKey)
-  }, [compactScopeKey])
+    const viewport = scrollViewportRef.current
+    compactExpandAnchorRef.current = viewport
+      ? capturePrependScrollAnchor(viewport)
+      : null
+    setExpandedCompactSessionId(deferredSessionId ?? null)
+  }, [scrollViewportRef, deferredSessionId])
+  // Older prompts are prepended above the view. Keep the visible message in
+  // place so the chat does not jump.
+  useLayoutEffect(() => {
+    const anchor = compactExpandAnchorRef.current
+    const viewport = scrollViewportRef.current
+    if (!isCompactHistoryExpanded || !anchor || !viewport) return
+    compactExpandAnchorRef.current = null
+    restorePrependScrollAnchor(viewport, anchor)
+  }, [isCompactHistoryExpanded, scrollViewportRef])
   const handleShowTableInChat = useShowTableInChat({
     sessionId: deferredSessionId,
     isCompact: Boolean(preferences?.compact_chat_view_enabled),
@@ -2392,6 +2418,7 @@ function ChatWindowContent({
     isCompactHistoryExpanded,
     onExpandCompactHistory: handleShowHiddenCompactPrompts,
     listRef: virtualizedListRef,
+    stopFollowingTail,
   })
 
   // Virtualizer for message list - always use virtualization for consistent performance
@@ -3015,14 +3042,6 @@ function ChatWindowContent({
                         showFindingsButton={!areFindingsVisible}
                         isAtBottom={isAtBottom || messages.length === 0}
                         isSending={isSending}
-                        hiddenPromptCount={
-                          preferences?.compact_chat_view_enabled &&
-                          !zenMode &&
-                          !isCompactHistoryExpanded
-                            ? compactHistoryWindow.hiddenPromptCount
-                            : 0
-                        }
-                        onShowHiddenPrompts={handleShowHiddenCompactPrompts}
                         approveShortcut={approveShortcut}
                         buildDefaultModelLabel={buildNewContextLabel}
                         yoloDefaultModelLabel={yoloNewContextLabel}
@@ -3069,8 +3088,25 @@ function ChatWindowContent({
                           data-chat-composer=""
                           className="pointer-events-auto relative sm:mx-auto sm:mb-3 sm:max-w-3xl xl:max-w-4xl"
                         >
-                          {/* Pinned tables tab - attached to the top edge of the composer */}
-                          <div className="absolute right-3 bottom-full">
+                          {/* Hidden history and pinned tables tabs - attached to the top edge of the composer */}
+                          <div className="absolute right-3 bottom-full flex items-end gap-1">
+                            {preferences?.compact_chat_view_enabled &&
+                              !zenMode &&
+                              !isCompactHistoryExpanded &&
+                              compactHistoryWindow.hiddenPromptCount > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={handleShowHiddenCompactPrompts}
+                                  aria-label={`Show ${compactHistoryWindow.hiddenPromptCount} earlier prompts`}
+                                  title="Show earlier prompts"
+                                  className="flex h-6 items-center gap-1 rounded-t-md border border-b-0 border-border bg-card px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                >
+                                  <ArrowUp className="h-3.5 w-3.5" />
+                                  <span>
+                                    {compactHistoryWindow.hiddenPromptCount}
+                                  </span>
+                                </button>
+                              )}
                             <PinnedTablesButton
                               sessionId={activeSessionId}
                               onShowInChat={handleShowTableInChat}

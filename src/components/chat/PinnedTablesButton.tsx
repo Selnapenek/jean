@@ -18,7 +18,7 @@ import { useChatStore } from '@/store/chat-store'
 import { useUIStore } from '@/store/ui-store'
 import { useIsMobile } from '@/hooks/use-mobile'
 
-/** Column names of a markdown table, used as the pinned card title. */
+/** Column names of a markdown table: pinned card title when it has no heading. */
 export function pinnedTableTitle(markdown: string): string {
   const header = markdown.split('\n', 1)[0] ?? ''
   const cells = header
@@ -101,7 +101,7 @@ export function PinnedTablesButton({
                 >
                   <div className="flex items-center gap-2 border-b border-border px-3 py-2">
                     <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                      {pinnedTableTitle(pin.markdown)}
+                      {pin.title || pinnedTableTitle(pin.markdown)}
                     </span>
                     <button
                       type="button"

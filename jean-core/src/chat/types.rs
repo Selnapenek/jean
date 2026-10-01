@@ -612,11 +612,14 @@ pub struct CodexDynamicToolCallRequestEvent {
 }
 
 /// A chat table pinned for quick access. `key` matches the checklist table
-/// key ("{messageId}:{markdownOffset}"); `markdown` is the table source.
+/// key ("{messageId}:{markdownOffset}"); `markdown` is the table source;
+/// `title` is the heading above the table in the message, when there is one.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PinnedTable {
     pub key: String,
     pub markdown: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
 }
 
 /// Context for a denied message that can be re-sent after permission approval

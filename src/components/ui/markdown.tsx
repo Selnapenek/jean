@@ -405,6 +405,26 @@ function ChecklistAwareTbody({ children }: { children?: ReactNode }) {
 const NO_TABLE_ROWS = { rows: [] as number[], notes: undefined }
 const NO_NOTES: Record<number, string> = {}
 
+/**
+ * Text of the nearest heading (`## Title` or a bold-only `**Title**` line)
+ * before `offset` in the markdown source. Used as the pinned table title.
+ */
+export function headingBefore(source: string, offset: number): string | null {
+  const lines = source.slice(0, offset).split('\n')
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i]?.trim() ?? ''
+    const match =
+      /^#{1,6}\s+(.+?)\s*#*$/.exec(line) ?? /^\*\*(.+)\*\*:?$/.exec(line)
+    if (!match?.[1]) continue
+    const text = match[1]
+      .replace(/[*_`]/g, '')
+      .replace(/:$/, '')
+      .trim()
+    if (text) return text
+  }
+  return null
+}
+
 interface TableBlockProps {
   children: ReactNode
   tableOffset: number
@@ -496,14 +516,23 @@ function TableBlock({
       (tableRef.current
         ? tableToMarkdown(extractTableData(tableRef.current))
         : '')
-    useChatStore
-      .getState()
-      .togglePinnedTable(sessionId, { key: tableKey, markdown })
+    const title = headingBefore(source, tableOffset)
+    useChatStore.getState().togglePinnedTable(sessionId, {
+      key: tableKey,
+      markdown,
+      ...(title ? { title } : {}),
+    })
   }, [sessionId, tableKey, source, tableOffset, tableEndOffset])
 
   const handleSetPromptRow = useCallback(
     (rowIndex: number, note: string | null) => {
       if (!sessionId || !tableKey || !tableRef.current) return
+      // Adding a row to the prompt also checks it in the table checklist.
+      const store = useChatStore.getState()
+      const checked = store.tableCheckedRows[sessionId]?.[tableKey]
+      if (note !== null && checked && !checked.has(rowIndex)) {
+        store.toggleTableRowChecked(sessionId, tableKey, rowIndex)
+      }
       void setTableRowInPrompt(
         sessionId,
         tableKey,

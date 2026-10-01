@@ -218,11 +218,13 @@ export interface DeniedMessageContext {
 
 /**
  * A chat table pinned for quick access. `key` is the checklist table key
- * ("{messageId}:{markdownOffset}"); `markdown` is the table source.
+ * ("{messageId}:{markdownOffset}"); `markdown` is the table source;
+ * `title` is the heading above the table in the message, when there is one.
  */
 export interface PinnedTable {
   key: string
   markdown: string
+  title?: string
 }
 
 /**

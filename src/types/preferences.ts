@@ -791,7 +791,8 @@ Review each area in parallel with subagents, plus one agent for the full diff.
 Every agent must, for each finding:
 - give \`file:line\` in the target;
 - compare with the last release (\`git show <release>:<file>\`), and say whether it is a
-  **regression** (new in this range) or an **old bug** (also in the release);
+  **regression** (new in this range) or an **old bug** (also in the release); for a
+  regression, describe how it worked in the last release;
 - describe a concrete failure scenario (input/state → wrong result), who is affected,
   and who can trigger it (for security: which role);
 - prefer real evidence (a failing test, a reproduction, a query) over guesses. If possible,
@@ -813,7 +814,11 @@ Number every finding so it can be referenced later, and keep the numbers stable:
 
 For each severity, output a table:
 
-| # | Verified | Where (file:line) | Problem and impact | Regression? | Recommended fix | Size (S/M/L) |
+| # | Verified | Where (file:line) | Problem and impact | Regression | Recommended fix |
+
+In the Regression column, write **No**, or **Yes** followed by how it worked in the
+last release (e.g. "Yes: the release kept existing values on upgrade").
+Use only these columns. Do not add size, effort, or timing columns.
 
 Then add:
 - **Intended changes** that need a **release note** (not bugs).

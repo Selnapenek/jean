@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@/test/test-utils'
-import { Markdown } from './markdown'
+import { Markdown, headingBefore } from './markdown'
 import { useChatStore } from '@/store/chat-store'
 import { useUIStore } from '@/store/ui-store'
 
@@ -62,6 +62,22 @@ describe('Markdown', () => {
       ''
     )
     expect(screen.getByLabelText(/row 1/i)).toBeTruthy()
+  })
+
+  it('checks the checklist row when the row is added to the prompt', () => {
+    mockSetRow.mockReset()
+    useChatStore.setState({ tableCheckedRows: {} })
+    useChatStore.getState().enableTableChecklist('s2', 't2')
+    render(
+      <Markdown sessionId="s2" tableKey="t2">
+        {'| Name |\n| --- |\n| a |\n| b |'}
+      </Markdown>
+    )
+
+    fireEvent.click(screen.getByText('b'))
+    expect(
+      useChatStore.getState().tableCheckedRows.s2?.t2 ?? new Set()
+    ).toEqual(new Set([1]))
   })
 
   it('supports keyboard row navigation, add with note, and removal', () => {
@@ -373,5 +389,27 @@ describe('Markdown', () => {
     )
     expect(container.textContent).toContain("I'll add SQLite")
     expect(container.textContent).not.toContain("I'lladd")
+  })
+})
+
+describe('headingBefore', () => {
+  it('returns the nearest heading above the table', () => {
+    const source =
+      '## Report\n\n### Storage, databases, DNS, proxy\n\nSome text.\n\n| a |\n| - |'
+    expect(headingBefore(source, source.indexOf('| a |'))).toBe(
+      'Storage, databases, DNS, proxy'
+    )
+  })
+
+  it('accepts a bold-only line as a heading', () => {
+    const source = '**High (fix before release):**\n\n| a |\n| - |'
+    expect(headingBefore(source, source.indexOf('| a |'))).toBe(
+      'High (fix before release)'
+    )
+  })
+
+  it('returns null when there is no heading', () => {
+    const source = 'Plain **bold** text.\n\n| a |\n| - |'
+    expect(headingBefore(source, source.indexOf('| a |'))).toBeNull()
   })
 })

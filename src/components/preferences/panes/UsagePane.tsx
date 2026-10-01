@@ -44,10 +44,7 @@ function UsageCard({
   children: React.ReactNode
 }) {
   return (
-    <section
-      id={anchorId}
-      className="space-y-3 rounded-lg border border-border bg-card p-3"
-    >
+    <section id={anchorId} className="space-y-2 border-t pt-3">
       <div className="flex items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-sm font-medium text-foreground">
           <Icon className="size-4 shrink-0" />

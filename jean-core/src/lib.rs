@@ -203,10 +203,6 @@ pub struct AppPreferences {
     pub chat_font: String, // Font family for chat: jetbrains-mono, fira-code, source-code-pro, inter, geist, roboto, lato
     #[serde(default = "default_font_weight")]
     pub font_weight: String, // Overall font weight: light, normal, medium
-    #[serde(default = "default_git_poll_interval")]
-    pub git_poll_interval: u64, // Git status polling interval in seconds (10-600)
-    #[serde(default = "default_remote_poll_interval")]
-    pub remote_poll_interval: u64, // Remote API polling interval in seconds (30-600)
     #[serde(default = "default_keybindings")]
     pub keybindings: std::collections::HashMap<String, String>, // User-configurable keyboard shortcuts
     #[serde(default = "default_archive_retention_days")]
@@ -215,8 +211,6 @@ pub struct AppPreferences {
     pub syntax_theme_dark: String, // Syntax highlighting theme for dark mode
     #[serde(default = "default_syntax_theme_light")]
     pub syntax_theme_light: String, // Syntax highlighting theme for light mode
-    #[serde(default = "default_parallel_execution_prompt_enabled")]
-    pub parallel_execution_prompt_enabled: bool, // Add system prompt to encourage parallel sub-agent execution
     #[serde(default = "default_compact_chat_view_enabled")]
     pub compact_chat_view_enabled: bool, // Collapse intermediate tool calls into single ticker line
     #[serde(default = "default_auto_recaps_enabled")]
@@ -243,8 +237,6 @@ pub struct AppPreferences {
     pub file_edit_mode: String, // How to edit files: inline (Pierre) or external (VS Code, etc.)
     #[serde(default)]
     pub ai_language: String, // Preferred language for AI responses (empty = default)
-    #[serde(default = "default_allow_web_tools_in_plan_mode")]
-    pub allow_web_tools_in_plan_mode: bool, // Allow WebFetch/WebSearch in plan mode without prompts
     #[serde(default = "default_waiting_sound")]
     pub waiting_sound: String, // Sound when session is waiting for input: none, workwork
     #[serde(default = "default_review_sound")]
@@ -273,9 +265,6 @@ pub struct AppPreferences {
     pub auto_save_context: bool, // Auto-save context after each session completion
     #[serde(default = "default_auto_pull_base_branch")]
     pub auto_pull_base_branch: bool, // Auto-pull base branch before creating a new worktree
-    /// When true, show a single Sync button instead of separate Pull and Push badges
-    #[serde(default = "default_git_sync_button")]
-    pub git_sync_button: bool,
     #[serde(default = "default_auto_archive_on_pr_merged")]
     pub auto_archive_on_pr_merged: bool, // Auto-archive worktrees when their PR is merged
     #[serde(default)]
@@ -352,8 +341,6 @@ pub struct AppPreferences {
     pub default_grok_reasoning_effort: String, // Grok reasoning effort: low, medium, high, xhigh, max
     #[serde(default = "default_codex_goal_execution_mode")]
     pub codex_goal_execution_mode: String, // Codex /goal execution mode: build or yolo
-    #[serde(default = "default_codex_multi_agent_enabled")]
-    pub codex_multi_agent_enabled: bool, // Enable multi-agent collaboration (experimental)
     #[serde(default = "default_codex_auto_steer")]
     pub codex_auto_steer_enabled: bool, // Steer prompts into a running Codex turn instead of queueing (default: false)
     #[serde(default = "default_opencode_auto_steer")]
@@ -366,10 +353,6 @@ pub struct AppPreferences {
     pub kimi_auto_steer_enabled: bool,
     #[serde(default, alias = "gemini_auto_steer_enabled")]
     pub antigravity_auto_steer_enabled: bool,
-    #[serde(default = "default_codex_max_agent_threads")]
-    pub codex_max_agent_threads: u32, // Max concurrent agent threads (1-8)
-    #[serde(default = "default_restore_last_session")]
-    pub restore_last_session: bool, // Restore last session when switching projects (default: true)
     #[serde(default)]
     pub close_original_on_clear_context: bool, // Close original session when using Clear Context and yolo (default: true)
     #[serde(default)]
@@ -456,10 +439,6 @@ fn default_jean_mcp_rate_limit() -> u32 {
 
 fn default_true() -> Option<bool> {
     None
-}
-
-fn default_restore_last_session() -> bool {
-    true
 }
 
 fn default_codex_auto_steer() -> bool {
@@ -628,18 +607,6 @@ fn default_open_in() -> String {
     "editor".to_string()
 }
 
-fn default_git_poll_interval() -> u64 {
-    60 // 1 minute default
-}
-
-fn default_git_sync_button() -> bool {
-    true
-}
-
-fn default_remote_poll_interval() -> u64 {
-    60 // 1 minute default for remote API calls (PR status, etc.)
-}
-
 fn default_keybindings() -> std::collections::HashMap<String, String> {
     let mut map = std::collections::HashMap::new();
     map.insert("focus_chat_input".to_string(), "mod+l".to_string());
@@ -666,10 +633,6 @@ fn default_syntax_theme_light() -> String {
 
 fn default_file_edit_mode() -> String {
     "inline".to_string() // Default to Jean's Pierre inline editor
-}
-
-fn default_parallel_execution_prompt_enabled() -> bool {
-    true // Enabled by default
 }
 
 fn default_compact_chat_view_enabled() -> bool {
@@ -843,24 +806,12 @@ fn default_codex_goal_execution_mode() -> String {
     "build".to_string()
 }
 
-fn default_codex_multi_agent_enabled() -> bool {
-    true
-}
-
-fn default_codex_max_agent_threads() -> u32 {
-    3
-}
-
 fn default_zoom_level() -> u32 {
     100 // 100% = sharpest default (esp. external 1× displays)
 }
 
 fn default_sync_zoom_levels() -> bool {
     true
-}
-
-fn default_allow_web_tools_in_plan_mode() -> bool {
-    true // Enabled by default
 }
 
 fn default_waiting_sound() -> String {
@@ -987,28 +938,6 @@ mod tests {
             .contains("Do not add feature-specific, bug-fix-specific, or small/local lessons"));
         assert!(prompt.contains("Remove narrow or specific entries when you detect them"));
         assert!(!prompt.contains("After ANY correction from the user"));
-    }
-
-    #[test]
-    fn codex_multi_agent_defaults_on_with_parallel_prompting() {
-        let prefs = AppPreferences::default();
-
-        assert!(prefs.parallel_execution_prompt_enabled);
-        assert!(prefs.codex_multi_agent_enabled);
-    }
-
-    #[test]
-    fn parallel_prompting_preserves_explicitly_disabled_codex_multi_agent() {
-        let prefs = AppPreferences {
-            parallel_execution_prompt_enabled: true,
-            codex_multi_agent_enabled: false,
-            ..Default::default()
-        };
-        let serialized = serde_json::to_value(prefs).unwrap();
-
-        let loaded: AppPreferences = serde_json::from_value(serialized).unwrap();
-
-        assert!(!loaded.codex_multi_agent_enabled);
     }
 
     #[test]
@@ -1197,20 +1126,6 @@ mod tests {
         let prefs: AppPreferences = serde_json::from_value(prefs_json).unwrap();
 
         assert!(prefs.web_access_sounds_enabled);
-    }
-
-    #[test]
-    fn app_preferences_default_git_sync_button_enabled_for_new_and_missing_prefs() {
-        assert!(AppPreferences::default().git_sync_button);
-
-        let mut prefs_json = serde_json::to_value(AppPreferences::default()).unwrap();
-        prefs_json
-            .as_object_mut()
-            .unwrap()
-            .remove("git_sync_button");
-
-        let prefs: AppPreferences = serde_json::from_value(prefs_json).unwrap();
-        assert!(prefs.git_sync_button);
     }
 
     #[test]
@@ -2760,13 +2675,10 @@ impl Default for AppPreferences {
             ui_font: default_ui_font(),
             chat_font: default_chat_font(),
             font_weight: default_font_weight(),
-            git_poll_interval: default_git_poll_interval(),
-            remote_poll_interval: default_remote_poll_interval(),
             keybindings: default_keybindings(),
             archive_retention_days: default_archive_retention_days(),
             syntax_theme_dark: default_syntax_theme_dark(),
             syntax_theme_light: default_syntax_theme_light(),
-            parallel_execution_prompt_enabled: default_parallel_execution_prompt_enabled(),
             compact_chat_view_enabled: default_compact_chat_view_enabled(),
             auto_recaps_enabled: default_auto_recaps_enabled(),
             keep_ai_servers_warm: default_keep_ai_servers_warm(),
@@ -2780,7 +2692,6 @@ impl Default for AppPreferences {
             magic_models_auto_initialized: false,
             file_edit_mode: default_file_edit_mode(),
             ai_language: String::new(),
-            allow_web_tools_in_plan_mode: default_allow_web_tools_in_plan_mode(),
             waiting_sound: default_waiting_sound(),
             review_sound: default_review_sound(),
             web_access_sounds_enabled: default_web_access_sounds_enabled(),
@@ -2795,7 +2706,6 @@ impl Default for AppPreferences {
             removal_behavior: default_removal_behavior(),
             auto_save_context: default_auto_save_context(),
             auto_pull_base_branch: default_auto_pull_base_branch(),
-            git_sync_button: default_git_sync_button(),
             auto_archive_on_pr_merged: default_auto_archive_on_pr_merged(),
             debug_mode_enabled: false,
             default_effort_level: default_effort_level(),
@@ -2835,15 +2745,12 @@ impl Default for AppPreferences {
             default_codex_model_verbosity: default_codex_model_verbosity(),
             default_grok_reasoning_effort: default_grok_reasoning_effort(),
             codex_goal_execution_mode: default_codex_goal_execution_mode(),
-            codex_multi_agent_enabled: default_codex_multi_agent_enabled(),
             codex_auto_steer_enabled: default_codex_auto_steer(),
             opencode_auto_steer_enabled: default_opencode_auto_steer(),
             pi_auto_steer_enabled: default_pi_auto_steer(),
             grok_auto_steer_enabled: default_grok_auto_steer(),
             kimi_auto_steer_enabled: false,
             antigravity_auto_steer_enabled: false,
-            codex_max_agent_threads: default_codex_max_agent_threads(),
-            restore_last_session: true,
             close_original_on_clear_context: true,
             build_model: None,
             yolo_model: None,

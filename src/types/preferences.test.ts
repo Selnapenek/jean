@@ -204,9 +204,13 @@ describe('magic prompt preference resolvers', () => {
     expect(defaultPreferences.auto_recaps_enabled).toBe(true)
   })
 
-  it('enables Codex multi-agent by default with parallel prompting', () => {
-    expect(defaultPreferences.parallel_execution_prompt_enabled).toBe(true)
-    expect(defaultPreferences.codex_multi_agent_enabled).toBe(true)
+  it('always-on parallel prompting falls back to the default prompt', () => {
+    expect(defaultPreferences).not.toHaveProperty(
+      'parallel_execution_prompt_enabled'
+    )
+    expect(defaultPreferences).not.toHaveProperty('codex_multi_agent_enabled')
+    expect(defaultPreferences).not.toHaveProperty('codex_max_agent_threads')
+    expect(defaultPreferences.magic_prompts.parallel_execution).toBeNull()
   })
 
   it('prefers explicit backend overrides', () => {

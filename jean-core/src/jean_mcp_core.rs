@@ -271,7 +271,7 @@ fn tool_registry_session() -> Value {
     json!([
         {"name":"list_sessions","description":"List chat sessions in a worktree without loading full message history. Use before creating a session to avoid duplicates.","inputSchema":{"type":"object","properties":{"worktreeId":{"type":"string"},"includeArchived":{"type":"boolean","default":false}},"required":["worktreeId"],"additionalProperties":false}},
         {"name":"create_session","description":"Get a chat session for a prompt in an existing non-archived worktree. Reuses an empty chat session when one is available; otherwise creates a new session. Returns the session id needed for send_chat_message. Fails if the worktree is archived — call unarchive_worktree first.","inputSchema":{"type":"object","properties":{"worktreeId":{"type":"string"},"name":{"type":"string"},"backend":{"type":"string","enum":["claude","codex","cursor","opencode","pi","commandcode","grok","kimi","antigravity"]}},"required":["worktreeId"],"additionalProperties":false}},
-        {"name":"send_chat_message","description":"Send a message to an existing non-archived session. Fire-and-forget: returns immediately as the session begins processing; poll get_session_status with the returned sessionId for completion or failure. Omitted settings inherit the session selections. Supplied settings override one turn only.","inputSchema":{"type":"object","properties":{"sessionId":{"type":"string"},"message":{"type":"string"},"model":{"type":"string"},"backend":{"type":"string","enum":["claude","codex","cursor","opencode","pi","commandcode","grok","kimi","antigravity"]},"customProfileName":{"type":"string","description":"Optional one-turn provider/profile override."},"effortLevel":{"type":"string","enum":["off","adaptive","minimal","low","medium","high","xhigh","max","ultracode"]},"thinkingLevel":{"type":"string","enum":["off","adaptive","think","megathink","ultrathink"]},"executionMode":{"type":"string","enum":["plan","build","yolo"]}},"required":["sessionId","message"],"additionalProperties":false}},
+        {"name":"send_chat_message","description":"Send a message to an existing non-archived session. Fire-and-forget: returns immediately as the session begins processing; poll get_session_status with the returned sessionId for completion or failure. Omitted settings inherit the session selections, then the user's defaults. Supplied settings override one turn only.","inputSchema":{"type":"object","properties":{"sessionId":{"type":"string"},"message":{"type":"string"},"model":{"type":"string"},"backend":{"type":"string","enum":["claude","codex","cursor","opencode","pi","commandcode","grok","kimi","antigravity"]},"customProfileName":{"type":"string","description":"Optional one-turn provider/profile override."},"effortLevel":{"type":"string","enum":["off","adaptive","minimal","low","medium","high","xhigh","max","ultracode"]},"thinkingLevel":{"type":"string","enum":["off","adaptive","think","megathink","ultrathink"]},"executionMode":{"type":"string","enum":["plan","build","yolo"],"description":"Pass only when the user explicitly asks for a mode. Omit it to use the session's selected mode or the user's default execution mode. Do not choose plan just because the message asks for a plan first."}},"required":["sessionId","message"],"additionalProperties":false}},
         {"name":"archive_session","description":"Archive a chat session (hide it from the active session list). Prefer this over delete when history may still be useful. Cannot run send_chat_message on an archived session until unarchive_session is called.","inputSchema":{"type":"object","properties":{"sessionId":{"type":"string"}},"required":["sessionId"],"additionalProperties":false}},
         {"name":"unarchive_session","description":"Restore an archived chat session so it can run again. Also unarchives the parent worktree when it is archived. Call this before send_chat_message if a previous attempt failed because the session was archived.","inputSchema":{"type":"object","properties":{"sessionId":{"type":"string"}},"required":["sessionId"],"additionalProperties":false}},
         {"name":"move_session","description":"Move a Jean session to another active worktree while preserving its session id, complete message/run history, attachments, settings, and backend resume context. An idle session moves immediately. A running session is scheduled to move automatically after its current turn finishes; do not cancel the run or retry the move.","inputSchema":{"type":"object","properties":{"sessionId":{"type":"string"},"targetWorktreeId":{"type":"string"}},"required":["sessionId","targetWorktreeId"],"additionalProperties":false}},
@@ -906,10 +906,7 @@ async fn run_tool(
             .map_err(ToolError::internal)?;
             if let Some(session) = select_reusable_empty_mcp_session(&sessions, |session| {
                 !crate::chat::registry::is_session_actively_managed(&session.id)
-                    && crate::chat::storage::load_metadata(app, &session.id)
-                        .ok()
-                        .flatten()
-                        .is_some_and(|metadata| metadata.runs.is_empty())
+                    && metadata_has_no_runs(crate::chat::storage::load_metadata(app, &session.id))
             }) {
                 let session_id = session.id.clone();
                 if let Some(name) = args.get("name").and_then(Value::as_str) {
@@ -1866,6 +1863,14 @@ fn select_reusable_empty_mcp_session(
         .or_else(|| sessions.sessions.iter().find(is_reusable))
 }
 
+/// A fresh default session ("Session 1") has an index entry but no metadata
+/// file yet, so missing metadata also counts as empty.
+fn metadata_has_no_runs(
+    metadata: Result<Option<crate::chat::types::SessionMetadata>, String>,
+) -> bool {
+    metadata.is_ok_and(|metadata| metadata.is_none_or(|m| m.runs.is_empty()))
+}
+
 fn deletion_started_result(worktree_id: &str, action: &str) -> Value {
     json!({
         "worktreeId": worktree_id,
@@ -2206,18 +2211,14 @@ async fn start_autoinvestigating(
         .map_err(ToolError::internal)?;
     let selection = resolve_investigation_selection(app, &prefs, &ready_worktree, kind);
     let prompt = build_investigation_prompt(&prefs, &ready_worktree, kind);
-    let parallel_execution_prompt = if prefs.parallel_execution_prompt_enabled {
-        Some(
-            prefs
-                .magic_prompts
-                .parallel_execution
-                .clone()
-                .filter(|p| !p.trim().is_empty())
-                .unwrap_or_else(crate::default_parallel_execution_prompt),
-        )
-    } else {
-        None
-    };
+    let parallel_execution_prompt = Some(
+        prefs
+            .magic_prompts
+            .parallel_execution
+            .clone()
+            .filter(|p| !p.trim().is_empty())
+            .unwrap_or_else(crate::default_parallel_execution_prompt),
+    );
     let custom_profile_name = selection
         .provider
         .clone()
@@ -3333,6 +3334,12 @@ mod tests {
         let selected =
             select_reusable_empty_mcp_session(&sessions, |session| session.id != "running");
         assert!(selected.is_none());
+    }
+
+    #[test]
+    fn missing_metadata_counts_as_empty_for_mcp_session_reuse() {
+        assert!(metadata_has_no_runs(Ok(None)));
+        assert!(!metadata_has_no_runs(Err("read failed".to_string())));
     }
 
     #[test]

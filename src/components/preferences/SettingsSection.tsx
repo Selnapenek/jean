@@ -24,14 +24,19 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
   <div
     id={anchorId}
     className={cn(
-      'space-y-4',
-      variant === 'card' &&
-        '[&_.settings-inline-field]:rounded-lg [&_.settings-inline-field]:border [&_.settings-inline-field]:p-4 sm:[&_.settings-inline-field]:justify-between sm:[&_.settings-inline-field>div:first-child]:w-auto'
+      variant === 'card'
+        ? 'space-y-3 sm:[&_.settings-inline-field]:justify-between sm:[&_.settings-inline-field>div:first-child]:w-auto'
+        : 'space-y-4'
     )}
   >
     <div>
       <div className="flex flex-wrap items-center gap-3">
-        <h3 className={cn('font-medium text-foreground', 'text-lg')}>
+        <h3
+          className={cn(
+            'font-medium text-foreground',
+            variant === 'card' ? 'text-base' : 'text-lg'
+          )}
+        >
           {title}
         </h3>
         {actions && (
@@ -48,7 +53,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
       {description && (
         <p className="mt-1 text-sm text-muted-foreground">{description}</p>
       )}
-      <Separator className="mt-2" />
+      {variant !== 'card' && <Separator className="mt-2" />}
     </div>
     {children}
   </div>
@@ -56,12 +61,14 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
 
 export const BackendPaneHeader: React.FC<{
   backend: CliBackend
-  description: React.ReactNode
+  description?: React.ReactNode
 }> = ({ backend, description }) => (
   <div>
     <h2 className="flex items-center gap-2 text-lg font-semibold">
       <BackendLabel backend={backend} />
     </h2>
-    <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+    {description && (
+      <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+    )}
   </div>
 )

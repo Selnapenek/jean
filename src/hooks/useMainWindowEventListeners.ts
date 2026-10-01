@@ -207,6 +207,13 @@ export function applyCacheInvalidationKeys(
           queryKey: ['recent-worktrees'],
         })
         break
+      case 'unread-sessions':
+        // A new run started: the session is no longer "finished".
+        queryClient.invalidateQueries({
+          queryKey: chatQueryKeys.unreadSessionCount(),
+        })
+        queryClient.invalidateQueries({ queryKey: ['all-sessions'] })
+        break
       case 'mcp-servers':
         // claude.ai connectors / plugin servers found by `claude mcp list`.
         queryClient.invalidateQueries({ queryKey: [MCP_SERVERS_KEY] })
@@ -322,6 +329,11 @@ export function shouldAllowKeybindingThroughOpenOverlay(
   action: KeybindingAction | null,
   uiState: ReturnType<typeof useUIStore.getState>
 ): boolean {
+  // The command palette is itself a dialog; its shortcut must close it again.
+  if (action === 'open_command_palette' && uiState.commandPaletteOpen) {
+    return true
+  }
+
   // GitDiffModal is intentionally a full-screen workflow overlay, but users
   // still need the global "Open in..." picker from there (Cmd/Ctrl+O).
   if (
@@ -839,6 +851,12 @@ function executeKeybindingAction(
     case 'open_quick_menu':
       window.dispatchEvent(new CustomEvent('toggle-quick-menu'))
       break
+    case 'open_command_palette': {
+      const { commandPaletteOpen, setCommandPaletteOpen } =
+        useUIStore.getState()
+      setCommandPaletteOpen(!commandPaletteOpen)
+      break
+    }
     case 'toggle_session_label': {
       logger.debug('Keybinding: toggle_session_label')
       // Works when a session is active (modal open or in session view) or on project canvas

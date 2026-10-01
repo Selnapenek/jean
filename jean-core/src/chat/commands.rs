@@ -436,13 +436,17 @@ fn resolve_send_model(
         .or_else(|| normalize_optional_string(backend_default_model))
 }
 
-/// Resolve execution mode for a send: explicit override → session selection.
+/// Resolve execution mode for a send: explicit override → session selection →
+/// preferences default. The UI toolbar shows the preferences default for
+/// sessions without a selection (e.g. created via MCP), so the run must match.
 fn resolve_send_execution_mode(
     explicit_mode: Option<String>,
     session_selected_mode: Option<String>,
+    default_mode: Option<String>,
 ) -> Option<String> {
     normalize_optional_string(explicit_mode)
         .or_else(|| normalize_optional_string(session_selected_mode))
+        .or_else(|| normalize_optional_string(default_mode))
 }
 
 fn build_kimi_system_prompt(
@@ -1241,18 +1245,12 @@ async fn queued_message_to_send_request(
         })
     });
     let parallel_execution_prompt = json_string(queued, "parallelExecutionPrompt").or_else(|| {
-        prefs.as_ref().and_then(|p| {
-            if p.parallel_execution_prompt_enabled {
-                Some(
-                    p.magic_prompts
-                        .parallel_execution
-                        .clone()
-                        .unwrap_or_else(|| DEFAULT_PARALLEL_EXECUTION_PROMPT.to_string()),
-                )
-            } else {
-                None
-            }
-        })
+        Some(
+            prefs
+                .as_ref()
+                .and_then(|p| p.magic_prompts.parallel_execution.clone())
+                .unwrap_or_else(|| DEFAULT_PARALLEL_EXECUTION_PROMPT.to_string()),
+        )
     });
     let ai_language = json_string(queued, "aiLanguage").or_else(|| {
         prefs
@@ -3004,9 +3002,13 @@ pub async fn send_chat_message(
     // the session's persisted choices so `set_session_model` / toolbar selection
     // are respected when `model` / `executionMode` are not passed on the send.
     // Explicit non-empty values remain one-shot overrides.
+    let prefs = crate::load_preferences(app.clone()).await.ok();
     let mut model = resolve_send_model(model, session_selected_model, None);
-    let execution_mode =
-        resolve_send_execution_mode(execution_mode, session_selected_execution_mode);
+    let execution_mode = resolve_send_execution_mode(
+        execution_mode,
+        session_selected_execution_mode,
+        prefs.as_ref().map(|p| p.default_execution_mode.clone()),
+    );
     let thinking_level = thinking_level.or(session_selected_thinking_level);
     let effort_level = effort_level.or(session_selected_effort_level);
     // selected_provider may be a sentinel (__anthropic__/__default__) rather than
@@ -3040,8 +3042,8 @@ pub async fn send_chat_message(
     // Covers sessions created before selected_model was persisted, or when
     // create_session could not load preferences.
     if model.is_none() {
-        if let Ok(prefs) = crate::load_preferences(app.clone()).await {
-            model = default_model_for_backend(&effective_backend, &prefs);
+        if let Some(prefs) = prefs.as_ref() {
+            model = default_model_for_backend(&effective_backend, prefs);
         }
     }
     log::info!(
@@ -3316,9 +3318,12 @@ pub async fn send_chat_message(
 
     // Recent sessions are built from run metadata. Invalidate only after the
     // run is durable so a new session's first prompt cannot race the refetch.
+    // The new running run also clears the session's finished/unread state
+    // (e.g. a queued prompt starting right after the previous run finished),
+    // so refresh the finished-sessions bell too.
     if let Err(e) = app.emit_all(
         "cache:invalidate",
-        &serde_json::json!({ "keys": ["recent-worktrees"] }),
+        &serde_json::json!({ "keys": ["recent-worktrees", "unread-sessions"] }),
     ) {
         log::error!("Failed to emit cache:invalidate for recent sessions: {e}");
     }
@@ -3391,42 +3396,27 @@ pub async fn send_chat_message(
     // Use passed parameter for Chrome browser integration (default false - beta)
     let chrome = chrome_enabled.unwrap_or(false);
 
-    // Inject web tools in plan mode if preference is enabled
+    // Always allow web tools in plan mode
     // Claude: add WebFetch/WebSearch to allowed tools
     // Codex: set search_enabled flag for --search
     let mut final_allowed_tools = allowed_tools.unwrap_or_default();
     let mut codex_search_enabled = false;
-    let mut codex_multi_agent_enabled = false;
-    let mut codex_max_agent_threads: Option<u32> = None;
     if execution_mode.as_deref() == Some("plan") {
-        if let Ok(prefs) = crate::load_preferences(app.clone()).await {
-            if prefs.allow_web_tools_in_plan_mode {
-                match effective_backend {
-                    Backend::Claude => {
-                        final_allowed_tools.push("WebFetch".to_string());
-                        final_allowed_tools.push("WebSearch".to_string());
-                    }
-                    Backend::Codex => {
-                        codex_search_enabled = true;
-                    }
-                    Backend::Opencode => {}
-                    Backend::Cursor => {}
-                    Backend::Pi => {}
-                    Backend::Commandcode => {}
-                    Backend::Grok => {}
-                    Backend::Kimi => {}
-                    Backend::Antigravity => {}
-                }
+        match effective_backend {
+            Backend::Claude => {
+                final_allowed_tools.push("WebFetch".to_string());
+                final_allowed_tools.push("WebSearch".to_string());
             }
-        }
-    }
-    // Read Codex multi-agent preferences
-    if effective_backend == Backend::Codex {
-        if let Ok(prefs) = crate::load_preferences(app.clone()).await {
-            codex_multi_agent_enabled = prefs.codex_multi_agent_enabled;
-            if codex_multi_agent_enabled {
-                codex_max_agent_threads = Some(prefs.codex_max_agent_threads.clamp(1, 8));
+            Backend::Codex => {
+                codex_search_enabled = true;
             }
+            Backend::Opencode => {}
+            Backend::Cursor => {}
+            Backend::Pi => {}
+            Backend::Commandcode => {}
+            Backend::Grok => {}
+            Backend::Kimi => {}
+            Backend::Antigravity => {}
         }
     }
     let allowed_tools_for_cli = if final_allowed_tools.is_empty() {
@@ -3509,8 +3499,6 @@ pub async fn send_chat_message(
     let thread_backend = effective_backend.clone();
     let thread_include_recap = include_recap.unwrap_or(true);
     let thread_codex_search = codex_search_enabled;
-    let thread_codex_multi_agent = codex_multi_agent_enabled;
-    let thread_codex_max_threads = codex_max_agent_threads;
 
     // For OpenCode sessions: create a cancel flag so we can signal the blocking HTTP thread.
     // Register it before spawning so cancel_process can find it immediately.
@@ -4136,8 +4124,6 @@ pub async fn send_chat_message(
                     &codex_add_dirs,
                     &thread_message,
                     codex_base_instructions_content.as_deref(),
-                    thread_codex_multi_agent,
-                    thread_codex_max_threads,
                     thread_codex_provider.as_ref(),
                 ) {
                     Ok(response) => Ok((
@@ -11120,16 +11106,25 @@ mod tests {
     #[test]
     fn resolve_send_execution_mode_falls_back_to_session() {
         assert_eq!(
-            resolve_send_execution_mode(Some("yolo".to_string()), Some("plan".to_string())),
+            resolve_send_execution_mode(Some("yolo".to_string()), Some("plan".to_string()), None),
             Some("yolo".to_string())
         );
         assert_eq!(
-            resolve_send_execution_mode(None, Some("build".to_string())),
+            resolve_send_execution_mode(None, Some("build".to_string()), None),
             Some("build".to_string())
         );
         assert_eq!(
-            resolve_send_execution_mode(Some("".to_string()), Some("plan".to_string())),
+            resolve_send_execution_mode(Some("".to_string()), Some("plan".to_string()), None),
             Some("plan".to_string())
+        );
+        // Session without a selection (e.g. created via MCP) uses the default.
+        assert_eq!(
+            resolve_send_execution_mode(None, None, Some("yolo".to_string())),
+            Some("yolo".to_string())
+        );
+        assert_eq!(
+            resolve_send_execution_mode(None, Some("build".to_string()), Some("yolo".to_string())),
+            Some("build".to_string())
         );
     }
 

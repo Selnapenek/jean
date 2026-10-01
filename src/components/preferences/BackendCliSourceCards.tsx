@@ -27,37 +27,32 @@ export function BackendCliSourceCards({
       onValueChange={next => {
         if (next === 'jean' || next === 'path') onValueChange(next)
       }}
-      className="w-full gap-3"
+      className="flex w-full flex-wrap items-center gap-x-6 gap-y-2"
     >
       <Label
         htmlFor={`${sourceId}-source-jean`}
-        className="flex cursor-pointer items-start gap-3 rounded-lg border p-4"
+        title={
+          managedDescription ??
+          `Jean installs and updates an isolated ${backendName} version.`
+        }
+        className="flex cursor-pointer items-center gap-2 text-sm font-normal"
       >
         <RadioGroupItem id={`${sourceId}-source-jean`} value="jean" />
-        <span>
-          <span className="block text-sm font-medium">Jean managed</span>
-          <span className="block text-xs leading-relaxed text-muted-foreground">
-            {managedDescription ??
-              `Jean installs and updates an isolated ${backendName} version.`}
-          </span>
-        </span>
+        Jean managed
       </Label>
       <Label
         htmlFor={`${sourceId}-source-path`}
-        className="flex cursor-pointer items-start gap-3 rounded-lg border p-4"
+        title={pathFound ? (path ?? undefined) : `No ${backendName} on PATH`}
+        className="flex min-w-0 cursor-pointer items-center gap-2 text-sm font-normal"
       >
         <RadioGroupItem
           id={`${sourceId}-source-path`}
           value="path"
           disabled={!pathFound}
         />
-        <span className="min-w-0">
-          <span className="block text-sm font-medium">System PATH</span>
-          <span className="block break-all text-xs leading-relaxed text-muted-foreground">
-            {pathFound
-              ? `${path ?? `${backendName} on PATH`}${pathVersion ? ` · ${pathVersion}` : ''}`
-              : `No ${backendName} was found on PATH.`}
-          </span>
+        <span>System PATH</span>
+        <span className="text-xs text-muted-foreground">
+          {pathFound ? pathVersion : 'not found'}
         </span>
       </Label>
     </RadioGroup>

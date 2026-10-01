@@ -71,6 +71,10 @@ export function DockBurgerButton({ className }: DockBurgerButtonProps = {}) {
     (preferences?.keybindings?.open_github_dashboard ??
       DEFAULT_KEYBINDINGS.open_github_dashboard) as string
   )
+  const commandPaletteShortcut = formatShortcutDisplay(
+    (preferences?.keybindings?.open_command_palette ??
+      DEFAULT_KEYBINDINGS.open_command_palette) as string
+  )
   const menuShortcut = formatShortcutDisplay(
     (preferences?.keybindings?.open_quick_menu ??
       DEFAULT_KEYBINDINGS.open_quick_menu) as string
@@ -118,7 +122,11 @@ export function DockBurgerButton({ className }: DockBurgerButtonProps = {}) {
         >
           <Command className="mr-2 h-4 w-4" />
           Command Palette
-          {!isMobile && <DropdownMenuShortcut>⌘K</DropdownMenuShortcut>}
+          {!isMobile && (
+            <DropdownMenuShortcut>
+              {commandPaletteShortcut}
+            </DropdownMenuShortcut>
+          )}
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => useUIStore.getState().setGitHubDashboardOpen(true)}

@@ -335,10 +335,8 @@ export function useGitOperations({
           ),
           customProfileName,
           parallelExecutionPrompt:
-            preferences?.parallel_execution_prompt_enabled
-              ? (preferences.magic_prompts?.parallel_execution ??
-                DEFAULT_PARALLEL_EXECUTION_PROMPT)
-              : undefined,
+            preferences?.magic_prompts?.parallel_execution ??
+            DEFAULT_PARALLEL_EXECUTION_PROMPT,
           chromeEnabled: preferences?.chrome_enabled ?? false,
           aiLanguage: preferences?.ai_language,
           backend: backend !== 'claude' ? backend : undefined,
@@ -353,7 +351,6 @@ export function useGitOperations({
       preferences?.ai_language,
       preferences?.chrome_enabled,
       preferences?.magic_prompts?.parallel_execution,
-      preferences?.parallel_execution_prompt_enabled,
       selectedEffortLevelRef,
       selectedThinkingLevelRef,
       sendMessage,

@@ -1686,28 +1686,6 @@ pub async fn dispatch_command(
             crate::background_tasks::commands::trigger_immediate_remote_poll(state)?;
             Ok(Value::Null)
         }
-        "set_git_poll_interval" => {
-            let seconds: u64 = from_field(&args, "seconds")?;
-            let state = app.state::<crate::background_tasks::BackgroundTaskManager>();
-            crate::background_tasks::commands::set_git_poll_interval(state, seconds)?;
-            Ok(Value::Null)
-        }
-        "get_git_poll_interval" => {
-            let state = app.state::<crate::background_tasks::BackgroundTaskManager>();
-            let result = crate::background_tasks::commands::get_git_poll_interval(state)?;
-            to_value(result)
-        }
-        "set_remote_poll_interval" => {
-            let seconds: u64 = from_field(&args, "seconds")?;
-            let state = app.state::<crate::background_tasks::BackgroundTaskManager>();
-            crate::background_tasks::commands::set_remote_poll_interval(state, seconds)?;
-            Ok(Value::Null)
-        }
-        "get_remote_poll_interval" => {
-            let state = app.state::<crate::background_tasks::BackgroundTaskManager>();
-            let result = crate::background_tasks::commands::get_remote_poll_interval(state)?;
-            to_value(result)
-        }
 
         // =====================================================================
         // Terminal

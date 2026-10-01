@@ -27,7 +27,6 @@ import {
   canOpenInFinder,
   canOpenInTerminal,
 } from '@/lib/environment'
-import { dismissibleToast } from '@/lib/dismissible-toast'
 import {
   Search,
   X,
@@ -191,7 +190,6 @@ import {
   type CanvasPredefinedFilterTab,
   type CanvasPredefinedFilterTabItem,
 } from './canvas-worktree-filters'
-import { getCanvasStatusRefreshMs } from './canvas-status-refresh'
 import { getWorktreeLabelContainerClassName } from './worktree-label-layout'
 const GitDiffModal = lazy(() =>
   import('@/components/chat/GitDiffModal').then(mod => ({
@@ -205,13 +203,7 @@ const LinkedProjectsModal = lazy(() =>
 )
 import type { DiffRequest } from '@/types/git-diff'
 import { toast } from 'sonner'
-import {
-  gitPush,
-  fetchWorktreesStatus,
-  triggerImmediateGitPoll,
-  performGitPull,
-  performGitSync,
-} from '@/services/git-status'
+import { fetchWorktreesStatus, performGitSync } from '@/services/git-status'
 import { pushNeedsRemotePicker, useRemotePicker } from '@/hooks/useRemotePicker'
 import {
   DRAG_SCOPE_CANVAS_WORKTREE_LIST,
@@ -234,7 +226,6 @@ import {
 import { openCanvasConflictResolution } from './conflict-resolution-navigation'
 import { getCanvasDiffRequest } from './canvas-diff-request'
 import { resolveModalWorktreeSnapshot } from './modal-worktree-snapshot'
-import { LOCAL_SERVER_ID } from '@/types/server-resource'
 
 interface ProjectCanvasViewProps {
   projectId: string
@@ -409,12 +400,6 @@ export function getCanvasHighlight(
   }
 }
 
-export function shouldWaitForCanvasRestorePreferences(
-  preferences: { restore_last_session: boolean } | undefined
-): boolean {
-  return preferences === undefined
-}
-
 type ActiveStatus =
   | 'waiting'
   | 'planning'
@@ -511,7 +496,6 @@ function getSessionMetrics(cards: SessionCardData[]) {
 function WorktreeSectionHeader({
   worktree,
   projectId,
-  gitSyncButton,
   defaultBranch,
   openPRs,
   cards,
@@ -526,7 +510,6 @@ function WorktreeSectionHeader({
 }: {
   worktree: Worktree
   projectId: string
-  gitSyncButton: boolean
   defaultBranch: string
   openPRs?: { number: number; headRefName: string }[]
   cards?: SessionCardData[]
@@ -576,63 +559,6 @@ function WorktreeSectionHeader({
     : branchDiffRemoved + uncommittedRemoved
 
   const pickRemoteOrRun = useRemotePicker(worktree.path)
-
-  const handlePull = useCallback(
-    async (e: React.MouseEvent) => {
-      e.stopPropagation()
-      await performGitPull({
-        worktreeId: worktree.id,
-        worktreePath: worktree.path,
-        baseBranch: worktree.base_branch ?? defaultBranch,
-        projectId,
-        remote: worktree.base_remote,
-        onMergeConflict: () => onResolveConflicts?.(worktree),
-      })
-    },
-    [worktree, defaultBranch, projectId, onResolveConflicts]
-  )
-
-  const handlePush = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation()
-
-      const runPush = async (remote?: string) => {
-        const opToast = dismissibleToast.loading('Pushing changes...')
-        try {
-          const result = await gitPush(
-            worktree.path,
-            worktree.pr_number,
-            remote,
-            worktree.id
-          )
-          triggerImmediateGitPoll()
-          fetchWorktreesStatus(projectId)
-          if (result.permissionDenied) {
-            opToast.error('Push failed', {
-              duration: Infinity,
-              description:
-                result.output.trim() || 'The remote rejected the push.',
-            })
-          } else if (result.fellBack) {
-            opToast.warning(
-              'Could not push to PR branch, pushed to new branch instead'
-            )
-          } else {
-            opToast.success('Changes pushed')
-          }
-        } catch (error) {
-          opToast.error(`Push failed: ${error}`)
-        }
-      }
-
-      if (pushNeedsRemotePicker(worktree.pr_number)) {
-        pickRemoteOrRun(runPush)
-      } else {
-        runPush()
-      }
-    },
-    [pickRemoteOrRun, worktree.path, worktree.pr_number, projectId]
-  )
 
   const handleSync = useCallback(
     (e: React.MouseEvent) => {
@@ -819,9 +745,6 @@ function WorktreeSectionHeader({
                   unpushedCount={unpushedCount}
                   diffAdded={diffAdded}
                   diffRemoved={diffRemoved}
-                  syncMode={gitSyncButton}
-                  onPull={handlePull}
-                  onPush={handlePush}
                   onSync={handleSync}
                   onDiffClick={handleDiffClick}
                 />
@@ -967,8 +890,6 @@ export function ProjectCanvasView({
   project,
 }: ProjectCanvasViewProps) {
   const { data: preferences } = usePreferences(project.serverId)
-  // Display preference of this client, not of the project's server
-  const { data: localPreferences } = usePreferences(LOCAL_SERVER_ID)
   const worktreeSortMode = useProjectsStore(
     state =>
       state.projectCanvasSettings[projectId]?.worktreeSortMode ?? 'created'
@@ -2095,13 +2016,10 @@ export function ProjectCanvasView({
     openWorktreeModal,
   ])
 
-  // Auto-select session when dashboard opens (visual selection only, no modal unless restore_last_session is on)
+  // Auto-select session when dashboard opens. Reopens the last opened session
+  // of this project in the modal; otherwise only selects a card visually.
   // Prefers last opened per project, then persisted active session per worktree, falls back to first card
   useEffect(() => {
-    // The canvas data can already be cached when the user returns from a
-    // remote project. Do not make the one-time reopen decision before local
-    // preferences have loaded, or `restore_last_session` is treated as false.
-    if (shouldWaitForCanvasRestorePreferences(preferences)) return
     if (selectedIndex !== null || selectedWorktreeModal) return
     if (flatCards.length === 0) return
 
@@ -2131,10 +2049,7 @@ export function ProjectCanvasView({
           fc.card.session.id === lastOpened.sessionId
         ) {
           targetIndex = fc.globalIndex
-          // Auto-open modal if restore_last_session is enabled
-          if (preferences?.restore_last_session) {
-            shouldAutoOpenModal = true
-          }
+          shouldAutoOpenModal = true
           break
         }
       }
@@ -2150,9 +2065,7 @@ export function ProjectCanvasView({
         )
         if (worktreeCard) {
           targetIndex = worktreeCard.globalIndex
-          if (preferences?.restore_last_session) {
-            shouldAutoOpenModal = true
-          }
+          shouldAutoOpenModal = true
         }
       }
     }
@@ -2208,7 +2121,7 @@ export function ProjectCanvasView({
         .getState()
         .registerWorktreePath(targetCard.worktreeId, targetCard.worktreePath)
 
-      // Auto-open SessionChatModal if restore_last_session is enabled
+      // Auto-open SessionChatModal for the last opened session
       if (shouldAutoOpenModal && !suppressRestoreAutoOpen) {
         const sessionIdToOpen =
           lastOpened && targetCard.worktreeId === lastOpened.worktreeId
@@ -2226,7 +2139,6 @@ export function ProjectCanvasView({
     selectedIndex,
     selectedWorktreeModal,
     projectId,
-    preferences?.restore_last_session,
     openWorktreeModal,
   ])
 
@@ -2990,18 +2902,18 @@ export function ProjectCanvasView({
   }, [selectedWorktreeModal])
 
   // Periodically refresh git status for all worktrees while on the dashboard
+  // (once per minute; the active worktree is polled faster by the backend)
   useEffect(() => {
     if (!isTauri() || !projectId || readyWorktrees.length === 0) return
 
-    const refreshMs = getCanvasStatusRefreshMs(preferences?.git_poll_interval)
     const interval = setInterval(() => {
       if (document.hasFocus()) {
         fetchWorktreesStatus(projectId)
       }
-    }, refreshMs)
+    }, 60_000)
 
     return () => clearInterval(interval)
-  }, [projectId, readyWorktrees.length, preferences?.git_poll_interval])
+  }, [projectId, readyWorktrees.length])
 
   // Refresh git status when session modal closes (user returns to canvas)
   const prevModalRef = useRef(selectedWorktreeModal)
@@ -3653,9 +3565,6 @@ export function ProjectCanvasView({
                         <WorktreeSectionHeader
                           worktree={section.worktree}
                           projectId={projectId}
-                          gitSyncButton={
-                            localPreferences?.git_sync_button ?? true
-                          }
                           defaultBranch={project.default_branch}
                           openPRs={openPRs}
                           cards={section.cards}

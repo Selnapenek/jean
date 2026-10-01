@@ -70,7 +70,7 @@ export interface MagicPrompts {
   release_notes: string | null
   /** Prompt for generating session names from the first message */
   session_naming: string | null
-  /** System prompt for parallel execution (appended to every chat session when enabled) */
+  /** System prompt for parallel execution (appended to every chat session) */
   parallel_execution: string | null
   /** Global system prompt appended to every chat session (like ~/.claude/CLAUDE.md) */
   global_system_prompt: string | null
@@ -1283,13 +1283,10 @@ export interface AppPreferences {
   chat_font: ChatFont // Font family for chat text
   /** Overall text weight ladder: light | normal | medium (default normal) */
   font_weight?: FontWeight
-  git_poll_interval: number // Git status polling interval in seconds (10-600)
-  remote_poll_interval: number // Remote API polling interval in seconds (30-600)
   keybindings: KeybindingsMap // User-configurable keyboard shortcuts
   archive_retention_days: number // Days to keep archived items (0 = never delete)
   syntax_theme_dark: SyntaxTheme // Syntax highlighting theme for dark mode
   syntax_theme_light: SyntaxTheme // Syntax highlighting theme for light mode
-  parallel_execution_prompt_enabled: boolean // Add system prompt to encourage parallel sub-agent execution
   compact_chat_view_enabled: boolean // Collapse intermediate tool calls/replies into a single ticker line, only showing the latest activity
   auto_recaps_enabled?: boolean // Ask agents to end multi-step/tool turns with a recap
   keep_ai_servers_warm?: boolean // Keep Codex/OpenCode servers alive briefly between requests
@@ -1302,7 +1299,6 @@ export interface AppPreferences {
   magic_prompt_modes: MagicPromptModes // Per-prompt execution modes for magic prompts that send chat turns
   file_edit_mode: FileEditMode // How to edit files: inline (Pierre) or external (VS Code, etc.)
   ai_language: string // Preferred language for AI responses (empty = default)
-  allow_web_tools_in_plan_mode: boolean // Allow WebFetch/WebSearch in plan mode without prompts
   waiting_sound: NotificationSound // Sound when session is waiting for input
   review_sound: NotificationSound // Sound when session finishes reviewing
   web_access_sounds_enabled: boolean // Play notification sounds in browser/web access views
@@ -1317,8 +1313,6 @@ export interface AppPreferences {
   removal_behavior: RemovalBehavior // What happens when closing sessions/worktrees: 'archive' or 'delete'
   auto_save_context: boolean // Auto-save context after each session completion
   auto_pull_base_branch: boolean // Auto-pull base branch before creating a new worktree
-  /** When true, show a single Sync button instead of separate Pull and Push badges (default false) */
-  git_sync_button?: boolean
   auto_archive_on_pr_merged: boolean // Auto-archive worktrees when their PR is merged
   debug_mode_enabled: boolean // Show debug panel in chat sessions
   default_enabled_mcp_servers: string[] // MCP server names enabled by default (empty = none)
@@ -1365,15 +1359,12 @@ export interface AppPreferences {
   default_codex_model_verbosity: CodexModelVerbosity // Default model verbosity for Codex chat: 'low' | 'medium' | 'high'
   default_grok_reasoning_effort: GrokReasoningEffort // Default reasoning effort for Grok: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
   codex_goal_execution_mode: CodexGoalExecutionMode // Execution mode used when starting a Codex /goal
-  codex_multi_agent_enabled: boolean // Enable Codex multi-agent collaboration (experimental)
-  codex_max_agent_threads: number // Max concurrent agent threads (1-8) when multi-agent is enabled
   codex_auto_steer_enabled: boolean // Steer prompts into a running Codex turn instead of queueing (default: false)
   opencode_auto_steer_enabled: boolean // Steer prompts into a running OpenCode turn instead of queueing (default: false)
   pi_auto_steer_enabled: boolean // Steer prompts into a running PI turn instead of queueing (default: false)
   grok_auto_steer_enabled: boolean // Steer prompts into a running Grok turn instead of queueing (default: false)
   kimi_auto_steer_enabled?: boolean // Reserved for Kimi Code steering support
   antigravity_auto_steer_enabled?: boolean // Reserved until Antigravity headless mode supports steering
-  restore_last_session: boolean // Restore last session when switching projects (default: true)
   close_original_on_clear_context: boolean // Close original session when using Clear Context and yolo (default: true)
   build_model: string | null // Model override for plan approval (build mode), null = use session model
   yolo_model: string | null // Model override for yolo plan approval, null = use session model
@@ -2336,25 +2327,6 @@ export const terminalFontOptions: { value: TerminalFont; label: string }[] = [
   { value: 'system', label: 'System Monospace' },
 ]
 
-// Git poll interval options (seconds) - for local git commands
-export const gitPollIntervalOptions: { value: number; label: string }[] = [
-  { value: 10, label: '10 seconds' },
-  { value: 30, label: '30 seconds' },
-  { value: 60, label: '1 minute' },
-  { value: 120, label: '2 minutes' },
-  { value: 300, label: '5 minutes' },
-  { value: 600, label: '10 minutes' },
-]
-
-// Remote poll interval options (seconds) - for API calls like PR status
-export const remotePollIntervalOptions: { value: number; label: string }[] = [
-  { value: 30, label: '30 seconds' },
-  { value: 60, label: '1 minute' },
-  { value: 120, label: '2 minutes' },
-  { value: 300, label: '5 minutes' },
-  { value: 600, label: '10 minutes' },
-]
-
 // Removal behavior options - what happens when closing sessions/worktrees
 export type RemovalBehavior = 'archive' | 'delete'
 
@@ -2468,13 +2440,10 @@ export const defaultPreferences: AppPreferences = {
   ui_font: 'geist',
   chat_font: 'geist',
   font_weight: FONT_WEIGHT_DEFAULT,
-  git_poll_interval: 60,
-  remote_poll_interval: 60,
   keybindings: DEFAULT_KEYBINDINGS,
   archive_retention_days: 7,
   syntax_theme_dark: 'vitesse-black',
   syntax_theme_light: 'github-light',
-  parallel_execution_prompt_enabled: true, // Default: enabled
   compact_chat_view_enabled: true, // Default: enabled
   auto_recaps_enabled: true, // Default: enabled
   keep_ai_servers_warm: true, // Default: enabled for faster follow-up requests
@@ -2487,7 +2456,6 @@ export const defaultPreferences: AppPreferences = {
   magic_prompt_modes: DEFAULT_MAGIC_PROMPT_MODES,
   file_edit_mode: 'inline',
   ai_language: '', // Default: empty (Claude's default behavior)
-  allow_web_tools_in_plan_mode: true, // Default: enabled
   waiting_sound: 'none',
   review_sound: 'none',
   web_access_sounds_enabled: true,
@@ -2502,7 +2470,6 @@ export const defaultPreferences: AppPreferences = {
   removal_behavior: 'delete', // Default: delete (permanent)
   auto_save_context: false, // Default: disabled
   auto_pull_base_branch: true, // Default: enabled
-  git_sync_button: true, // Default: combined pull/push sync button
   auto_archive_on_pr_merged: true, // Default: enabled
   debug_mode_enabled: false, // Default: disabled
   default_enabled_mcp_servers: [], // Default: no MCP servers enabled
@@ -2540,15 +2507,12 @@ export const defaultPreferences: AppPreferences = {
   default_codex_model_verbosity: 'medium', // Default: medium verbosity (not low — Jean #535)
   default_grok_reasoning_effort: 'high', // Default: high reasoning
   codex_goal_execution_mode: 'build', // Default: build mode for goals
-  codex_multi_agent_enabled: true, // Default: enabled to match parallel execution prompting
-  codex_max_agent_threads: 3, // Default: 3 threads
   codex_auto_steer_enabled: false, // Default: queue while Codex is running
   opencode_auto_steer_enabled: false, // Default: queue while OpenCode is running
   pi_auto_steer_enabled: false, // Default: queue while PI is running
   grok_auto_steer_enabled: false, // Default: queue while Grok is running
   kimi_auto_steer_enabled: false,
   antigravity_auto_steer_enabled: false,
-  restore_last_session: true, // Default: enabled
   close_original_on_clear_context: true, // Default: enabled
   build_model: null, // Default: use session model
   yolo_model: null, // Default: use session model

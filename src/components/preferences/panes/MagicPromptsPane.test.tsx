@@ -92,6 +92,26 @@ vi.mock('@/services/model-catalog', () => ({
           ],
         }
       : undefined,
+  getCatalogModelFastInfo: (
+    _catalog: unknown,
+    _backend: string,
+    model: string
+  ) =>
+    model.endsWith('-fast')
+      ? {
+          supportsFast: true,
+          isFast: true,
+          baseModel: model.slice(0, -5),
+          fastModel: model,
+        }
+      : model === 'gpt-6-astra'
+        ? {
+            supportsFast: true,
+            isFast: false,
+            baseModel: model,
+            fastModel: `${model}-fast`,
+          }
+        : { supportsFast: false, isFast: false, baseModel: model },
   useModelCatalog: () => ({ data: undefined }),
 }))
 
@@ -313,10 +333,7 @@ describe('MagicPromptsPane', () => {
   it('keeps magic prompt control labels paired with dropdowns on mobile', () => {
     render(<MagicPromptsPane />)
 
-    expect(screen.getByTestId('magic-prompt-config')).toHaveClass(
-      'border',
-      'rounded-lg'
-    )
+    expect(screen.getByTestId('magic-prompt-config')).toHaveClass('flex-col')
     expect(screen.getByTestId('magic-prompt-backend-control')).toHaveClass(
       'grid-cols-[72px_minmax(0,1fr)]'
     )
@@ -434,7 +451,7 @@ describe('MagicPromptsPane', () => {
     const user = userEvent.setup()
     render(<MagicPromptsPane />)
     await user.click(
-      screen.getByRole('combobox', { name: 'Set model for all prompts' })
+      screen.getByRole('combobox', { name: 'Model for all prompts' })
     )
     expect(screen.getByRole('option', { name: 'Future model' })).toBeVisible()
     expect(screen.getByRole('option', { name: 'Future Grok' })).toBeVisible()
@@ -444,6 +461,9 @@ describe('MagicPromptsPane', () => {
     )
     expect(screen.queryByRole('option', { name: 'Future model' })).toBeNull()
     await user.click(screen.getByRole('option', { name: 'Future Grok' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Apply to all prompts' })
+    )
     const patch = mutateMock.mock.calls[0]?.[0]
     expect(new Set(Object.values(patch.magic_prompt_models))).toEqual(
       new Set(['grok/future-grok'])
@@ -465,9 +485,13 @@ describe('MagicPromptsPane', () => {
       const user = userEvent.setup()
       render(<MagicPromptsPane />)
       await user.click(
-        screen.getByRole('combobox', { name: 'Set model for all prompts' })
+        screen.getByRole('combobox', { name: 'Model for all prompts' })
       )
       await user.click(screen.getByRole('option', { name: label }))
+      expect(mutateMock).not.toHaveBeenCalled()
+      await user.click(
+        screen.getByRole('button', { name: 'Apply to all prompts' })
+      )
 
       expect(mutateMock).toHaveBeenCalledTimes(1)
       const patch = mutateMock.mock.calls[0]?.[0]
@@ -488,9 +512,49 @@ describe('MagicPromptsPane', () => {
         defaultPreferences.magic_prompt_providers
       )
       expect(patch).not.toHaveProperty('magic_prompts')
-      expect(patch).not.toHaveProperty('magic_prompt_modes')
+      expect(new Set(Object.values(patch.magic_prompt_modes))).toEqual(
+        new Set(['plan'])
+      )
     }
   )
+
+  it('applies the fast variant and yolo mode to every magic prompt', async () => {
+    const user = userEvent.setup()
+    render(<MagicPromptsPane />)
+    const fastSwitch = screen.getByRole('switch', {
+      name: 'Fast mode for all prompts',
+    })
+    expect(fastSwitch).toBeDisabled()
+
+    await user.click(
+      screen.getByRole('combobox', { name: 'Model for all prompts' })
+    )
+    expect(screen.queryByRole('option', { name: /Fast/ })).toBeNull()
+    await user.click(screen.getByRole('option', { name: 'GPT 6 Astra' }))
+    expect(fastSwitch).toBeEnabled()
+    await user.click(fastSwitch)
+    await user.click(
+      screen.getByRole('combobox', { name: 'Mode for all prompts' })
+    )
+    await user.click(screen.getByRole('option', { name: 'Yolo' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Apply to all prompts' })
+    )
+
+    const patch = mutateMock.mock.calls[0]?.[0]
+    expect(new Set(Object.values(patch.magic_prompt_models))).toEqual(
+      new Set(['gpt-6-astra-fast'])
+    )
+    expect(Object.keys(patch.magic_prompt_modes).sort()).toEqual(
+      Object.keys(defaultPreferences.magic_prompt_modes).sort()
+    )
+    expect(new Set(Object.values(patch.magic_prompt_modes))).toEqual(
+      new Set(['yolo'])
+    )
+    expect(patch.magic_code_review_configs[0]).toEqual(
+      expect.objectContaining({ model: 'gpt-6-astra-fast', fix_mode: 'yolo' })
+    )
+  })
 
   it.each([
     ['GPT 6 Astra', 'claude'],
@@ -500,10 +564,12 @@ describe('MagicPromptsPane', () => {
     const user = userEvent.setup()
     render(<MagicPromptsPane />)
     await user.click(
-      screen.getByRole('combobox', { name: 'Set model for all prompts' })
+      screen.getByRole('combobox', { name: 'Model for all prompts' })
     )
     expect(screen.queryByRole('option', { name: label })).toBeNull()
-    expect(mutateMock).not.toHaveBeenCalled()
+    expect(
+      screen.getByRole('button', { name: 'Apply to all prompts' })
+    ).toBeDisabled()
   })
 
   it.each([
@@ -519,11 +585,14 @@ describe('MagicPromptsPane', () => {
     const user = userEvent.setup()
     render(<MagicPromptsPane />)
     await user.click(
-      screen.getByRole('combobox', { name: 'Set model for all prompts' })
+      screen.getByRole('combobox', { name: 'Model for all prompts' })
     )
     const [option] = screen.getAllByRole('option')
     if (!option) throw new Error('Expected an available model')
     await user.click(option)
+    await user.click(
+      screen.getByRole('button', { name: 'Apply to all prompts' })
+    )
     const patch = mutateMock.mock.calls[0]?.[0]
     expect(new Set(Object.values(patch.magic_prompt_backends))).toEqual(
       new Set([backend])
@@ -546,7 +615,7 @@ describe('MagicPromptsPane', () => {
     const user = userEvent.setup()
     render(<MagicPromptsPane />)
     await user.click(
-      screen.getByRole('combobox', { name: 'Set model for all prompts' })
+      screen.getByRole('combobox', { name: 'Model for all prompts' })
     )
     expect(screen.getByText('No available models found.')).toBeVisible()
     expect(screen.queryAllByRole('option')).toHaveLength(0)

@@ -47,7 +47,9 @@ vi.mock('@/services/antigravity-cli', () => ({
     isFetching: false,
     refetch: authRefetch,
   }),
-  useAvailableAntigravityModels: () => ({ data: [{ id: 'auto', label: 'Auto' }] }),
+  useAvailableAntigravityModels: () => ({
+    data: [{ id: 'auto', label: 'Auto' }],
+  }),
   useAvailableAntigravityVersions: () => ({
     data: [
       { version: '0.54.4', prerelease: false },
@@ -56,7 +58,11 @@ vi.mock('@/services/antigravity-cli', () => ({
     isFetching: false,
   }),
   useAntigravityPathDetection: () => ({
-    data: { found: true, path: '/usr/local/bin/antigravity', version: '0.53.0' },
+    data: {
+      found: true,
+      path: '/usr/local/bin/antigravity',
+      version: '0.53.0',
+    },
     isLoading: false,
     refetch: vi.fn(),
   }),
@@ -78,7 +84,10 @@ describe('AntigravityPane', () => {
 
     expect(screen.getByText('Jean managed')).toBeInTheDocument()
     expect(screen.getByText('System PATH')).toBeInTheDocument()
-    expect(screen.getByText(/\/usr\/local\/bin\/antigravity/)).toBeInTheDocument()
+    expect(screen.getByText('System PATH').closest('label')).toHaveAttribute(
+      'title',
+      expect.stringContaining('/usr/local/bin/antigravity')
+    )
   })
 
   it('installs the selected stable managed version', () => {
@@ -147,12 +156,20 @@ describe('AntigravityPane', () => {
   })
 
   it('still reports a genuine signed-out state', () => {
-    authData = { authenticated: false, error: 'Please sign in', timedOut: false }
+    authData = {
+      authenticated: false,
+      error: 'Please sign in',
+      timedOut: false,
+    }
 
     render(<AntigravityPane />)
 
-    expect(screen.getByText(/Not authenticated · Please sign in/)).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+    expect(
+      screen.getByText(/Not authenticated · Please sign in/)
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Retry' })
+    ).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Login' })).toBeInTheDocument()
   })
 })

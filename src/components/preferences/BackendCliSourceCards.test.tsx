@@ -17,9 +17,11 @@ describe('BackendCliSourceCards', () => {
 
     expect(screen.getByText('Jean managed')).toBeInTheDocument()
     expect(screen.getByText('System PATH')).toBeInTheDocument()
-    expect(
-      screen.getByText(/\/usr\/local\/bin\/codex · 1.2.3/)
-    ).toBeInTheDocument()
+    expect(screen.getByText('1.2.3')).toBeInTheDocument()
+    expect(screen.getByText('System PATH').closest('label')).toHaveAttribute(
+      'title',
+      '/usr/local/bin/codex'
+    )
   })
 
   it('selects PATH and disables it when it is not detected', () => {
@@ -48,8 +50,6 @@ describe('BackendCliSourceCards', () => {
       />
     )
     expect(screen.getAllByRole('radio')[1]).toBeDisabled()
-    expect(
-      screen.getByText('No Claude CLI was found on PATH.')
-    ).toBeInTheDocument()
+    expect(screen.getByText('not found')).toBeInTheDocument()
   })
 })

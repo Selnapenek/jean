@@ -27,7 +27,6 @@ import {
 } from '@/components/icons/reicon'
 import { ModalCloseButton } from '@/components/ui/modal-close-button'
 import { cn } from '@/lib/utils'
-import { dismissibleToast } from '@/lib/dismissible-toast'
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
@@ -59,14 +58,7 @@ import { parseServerResourceKey } from '@/lib/server-resource'
 import { LOCAL_SERVER_ID } from '@/types/server-resource'
 import { usePackageScripts, type PackageScript } from '@/services/projects'
 import { useGitHubPRs } from '@/services/github'
-import {
-  useGitStatus,
-  gitPush,
-  fetchWorktreesStatus,
-  triggerImmediateGitPoll,
-  performGitPull,
-  performGitSync,
-} from '@/services/git-status'
+import { useGitStatus, performGitSync } from '@/services/git-status'
 import { isBaseSession, type Project, type Worktree } from '@/types/projects'
 import type { Session } from '@/types/chat'
 import { isNativeApp } from '@/lib/environment'
@@ -888,74 +880,10 @@ export function SessionChatModal({
       window.removeEventListener('switch-session', handleSwitchSession)
   }, [isOpen, sortedSessions, currentSessionId, worktreeId])
 
-  const handlePull = useCallback(
-    async (e: React.MouseEvent) => {
-      e.stopPropagation()
-      await performGitPull({
-        worktreeId,
-        worktreePath,
-        baseBranch: worktree?.base_branch ?? defaultBranch,
-        projectId: project?.id,
-        remote: worktree?.base_remote,
-      })
-    },
-    [
-      worktreeId,
-      worktreePath,
-      worktree?.base_branch,
-      worktree?.base_remote,
-      defaultBranch,
-      project?.id,
-    ]
-  )
-
   const pickRemoteOrRun = useRemotePicker(worktreePath)
-
-  const handlePush = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation()
-
-      const runPush = async (remote?: string) => {
-        const opToast = dismissibleToast.loading('Pushing changes...')
-        try {
-          const result = await gitPush(
-            worktreePath,
-            worktree?.pr_number,
-            remote,
-            worktree?.id
-          )
-          triggerImmediateGitPoll()
-          if (project) fetchWorktreesStatus(project.id)
-          if (result.permissionDenied) {
-            opToast.error('Push failed', {
-              duration: Infinity,
-              description:
-                result.output.trim() || 'The remote rejected the push.',
-            })
-          } else if (result.fellBack) {
-            opToast.warning(
-              'Could not push to PR branch, pushed to new branch instead'
-            )
-          } else {
-            opToast.success('Changes pushed')
-          }
-        } catch (error) {
-          opToast.error(`Push failed: ${error}`)
-        }
-      }
-
-      if (pushNeedsRemotePicker(worktree?.pr_number)) {
-        pickRemoteOrRun(runPush)
-      } else {
-        runPush()
-      }
-    },
-    [pickRemoteOrRun, worktree, worktreePath, project]
-  )
 
   // Display preference of this client, not of the worktree's server
   const { data: localPreferences } = usePreferences(LOCAL_SERVER_ID)
-  const gitSyncButton = localPreferences?.git_sync_button ?? true
 
   const handleSync = useCallback(
     (e: React.MouseEvent) => {
@@ -1154,9 +1082,6 @@ export function SessionChatModal({
                       diffRemoved={uncommittedRemoved}
                       branchDiffAdded={isBase ? 0 : branchDiffAdded}
                       branchDiffRemoved={isBase ? 0 : branchDiffRemoved}
-                      syncMode={gitSyncButton}
-                      onPull={handlePull}
-                      onPush={handlePush}
                       onSync={handleSync}
                       onDiffClick={handleUncommittedDiffClick}
                       onBranchDiffClick={handleBranchDiffClick}

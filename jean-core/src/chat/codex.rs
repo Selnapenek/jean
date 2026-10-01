@@ -750,6 +750,9 @@ pub fn apply_codex_provider_to_config(
     );
 }
 
+/// Max concurrent Codex subagent threads.
+const CODEX_MAX_AGENT_THREADS: u32 = 3;
+
 /// Build JSON-RPC params for `thread/start`.
 #[allow(clippy::too_many_arguments)]
 pub fn build_thread_start_params(
@@ -758,8 +761,6 @@ pub fn build_thread_start_params(
     execution_mode: Option<&str>,
     search_enabled: bool,
     base_instructions_content: Option<&str>,
-    multi_agent_enabled: bool,
-    max_agent_threads: Option<u32>,
     model_verbosity: Option<&str>,
     codex_provider: Option<&crate::CodexProviderProfile>,
 ) -> serde_json::Value {
@@ -838,17 +839,15 @@ pub fn build_thread_start_params(
         serde_json::json!(if search_enabled { "live" } else { "disabled" }),
     );
 
-    // Multi-agent
-    if multi_agent_enabled {
-        let mut features = serde_json::Map::new();
-        features.insert("multi_agent".to_string(), serde_json::json!(true));
-        config.insert("features".to_string(), serde_json::Value::Object(features));
-        if let Some(threads) = max_agent_threads {
-            let mut agents = serde_json::Map::new();
-            agents.insert("max_threads".to_string(), serde_json::json!(threads));
-            config.insert("agents".to_string(), serde_json::Value::Object(agents));
-        }
-    }
+    // Multi-agent (always on, so Codex can run subagents in parallel)
+    config.insert(
+        "features".to_string(),
+        serde_json::json!({ "multi_agent": true }),
+    );
+    config.insert(
+        "agents".to_string(),
+        serde_json::json!({ "max_threads": CODEX_MAX_AGENT_THREADS }),
+    );
 
     if let Some(provider) = codex_provider {
         apply_codex_provider_to_config(&mut config, provider);
@@ -1043,8 +1042,6 @@ pub fn execute_codex_via_server(
     add_dirs: &[String],
     prompt: &str,
     base_instructions_content: Option<&str>,
-    multi_agent_enabled: bool,
-    max_agent_threads: Option<u32>,
     codex_provider: Option<&crate::CodexProviderProfile>,
 ) -> Result<CodexResponse, String> {
     use super::codex_server;
@@ -1086,8 +1083,6 @@ pub fn execute_codex_via_server(
                 execution_mode,
                 search_enabled,
                 base_instructions_content,
-                multi_agent_enabled,
-                max_agent_threads,
                 Some(model_verbosity),
                 codex_provider,
             );
@@ -1117,8 +1112,6 @@ pub fn execute_codex_via_server(
                         execution_mode,
                         search_enabled,
                         base_instructions_content,
-                        multi_agent_enabled,
-                        max_agent_threads,
                         Some(model_verbosity),
                         codex_provider,
                     )
@@ -1131,8 +1124,6 @@ pub fn execute_codex_via_server(
                 execution_mode,
                 search_enabled,
                 base_instructions_content,
-                multi_agent_enabled,
-                max_agent_threads,
                 Some(model_verbosity),
                 codex_provider,
             )
@@ -1826,8 +1817,6 @@ fn start_new_thread(
     execution_mode: Option<&str>,
     search_enabled: bool,
     base_instructions_content: Option<&str>,
-    multi_agent_enabled: bool,
-    max_agent_threads: Option<u32>,
     model_verbosity: Option<&str>,
     codex_provider: Option<&crate::CodexProviderProfile>,
 ) -> Result<String, String> {
@@ -1839,8 +1828,6 @@ fn start_new_thread(
         execution_mode,
         search_enabled,
         base_instructions_content,
-        multi_agent_enabled,
-        max_agent_threads,
         model_verbosity,
         codex_provider,
     );
@@ -5837,8 +5824,6 @@ mod tests {
             Some("plan"),
             false,
             None,
-            false,
-            None,
             None,
             None,
         );
@@ -5847,13 +5832,32 @@ mod tests {
     }
 
     #[test]
+    fn thread_params_always_enable_multi_agent() {
+        let params = build_thread_start_params(
+            std::path::Path::new("/tmp"),
+            None,
+            Some("plan"),
+            false,
+            None,
+            None,
+            None,
+        );
+        assert_eq!(
+            params["config"]["features"]["multi_agent"],
+            serde_json::json!(true)
+        );
+        assert_eq!(
+            params["config"]["agents"]["max_threads"],
+            CODEX_MAX_AGENT_THREADS
+        );
+    }
+
+    #[test]
     fn gpt_5_5_fast_enables_fast_service_tier() {
         let params = build_thread_start_params(
             std::path::Path::new("/tmp"),
             Some("gpt-5.5-fast"),
             Some("plan"),
-            false,
-            None,
             false,
             None,
             None,
@@ -5957,8 +5961,6 @@ mod tests {
             Some("build"),
             false,
             None,
-            false,
-            None,
             None,
             None,
         );
@@ -5972,8 +5974,6 @@ mod tests {
             std::path::Path::new("/tmp"),
             Some("gpt-5.6-sol"),
             Some("build"),
-            false,
-            None,
             false,
             None,
             Some("high"),
@@ -6020,8 +6020,6 @@ mod tests {
             Some("plan"),
             false,
             None,
-            false,
-            None,
             None,
             None,
         );
@@ -6035,8 +6033,6 @@ mod tests {
             std::path::Path::new("/tmp"),
             Some("gpt-5.4"),
             Some("build"),
-            false,
-            None,
             false,
             None,
             None,
@@ -6055,8 +6051,6 @@ mod tests {
             std::path::Path::new("/tmp"),
             Some("gpt-5.4"),
             Some("plan"),
-            false,
-            None,
             false,
             None,
             None,
@@ -6126,8 +6120,6 @@ mod tests {
             Some("yolo"),
             false,
             None,
-            false,
-            None,
             None,
             None,
         );
@@ -6147,8 +6139,6 @@ mod tests {
             std::path::Path::new("/tmp"),
             Some("gpt-5.4"),
             Some("plan"),
-            false,
-            None,
             false,
             None,
             None,

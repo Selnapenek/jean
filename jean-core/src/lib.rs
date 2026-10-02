@@ -4933,15 +4933,6 @@ pub fn expose_managed_cli_in_wsl(distro: &str, tool: &str, managed_binary: &str)
     }
 }
 
-pub async fn set_project_avatar_from_path(
-    context: RuntimeContext,
-    project_id: String,
-    source_path: PathBuf,
-) -> Result<Value, String> {
-    let project = projects::set_project_avatar_from_path(context, project_id, source_path).await?;
-    serde_json::to_value(project).map_err(|error| error.to_string())
-}
-
 pub fn get_project_worktrees_folder(
     context: &RuntimeContext,
     project_id: &str,

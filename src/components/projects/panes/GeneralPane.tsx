@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react'
+import React, { useState, useCallback, useMemo, useRef } from 'react'
 import {
   Check,
   ChevronsUpDown,
@@ -112,6 +112,7 @@ export function GeneralPane({
   const setProjectAvatar = useSetProjectAvatar()
   const removeProjectAvatar = useRemoveProjectAvatar()
 
+  const avatarInputRef = useRef<HTMLInputElement>(null)
   const [localName, setLocalName] = useState<string | null>(null)
   const [branchPopoverOpen, setBranchPopoverOpen] = useState(false)
   const [localSystemPrompt, setLocalSystemPrompt] = useState<string | null>(
@@ -290,10 +291,21 @@ export function GeneralPane({
                 )}
               </div>
               <div className="flex gap-2">
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  className="hidden"
+                  onChange={e => {
+                    const file = e.target.files?.[0]
+                    e.target.value = ''
+                    if (file) setProjectAvatar.mutate({ projectId, file })
+                  }}
+                />
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setProjectAvatar.mutate(projectId)}
+                  onClick={() => avatarInputRef.current?.click()}
                   disabled={setProjectAvatar.isPending}
                 >
                   {setProjectAvatar.isPending ? (

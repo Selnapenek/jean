@@ -2057,7 +2057,12 @@ pub async fn dispatch_command(
         // =====================================================================
         "set_project_avatar" => {
             let project_id: String = field(&args, "projectId", "project_id")?;
-            let result = crate::projects::set_project_avatar(app.clone(), project_id).await?;
+            let data: String = from_field(&args, "data")?;
+            let mime_type: String = field(&args, "mimeType", "mime_type")?;
+            let result =
+                crate::projects::set_project_avatar(app.clone(), project_id, data, mime_type)
+                    .await?;
+            emit_cache_invalidation(app, &["projects"]);
             to_value(result)
         }
         "remove_project_avatar" => {

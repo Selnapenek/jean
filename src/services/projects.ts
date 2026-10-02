@@ -18,6 +18,7 @@ import { useLocalDashboardEnabled } from '@/lib/remote-connections'
 import { listen, type UnlistenFn } from '@/lib/transport'
 import { toast } from 'sonner'
 import { logger } from '@/lib/logger'
+import { fileToBase64 } from '@/lib/file-base64'
 import { disposeAllWorktreeTerminals } from '@/lib/terminal-instances'
 import { toastActionLabel } from '@/lib/toast-action-label'
 import type {
@@ -3732,19 +3733,26 @@ export function useAppDataDir() {
 
 /**
  * Hook to set a custom avatar for a project
- * Opens a file dialog and copies the selected image to the avatars directory
+ * Uploads the image picked on the client, so it works for local, remote, and
+ * web access projects.
  */
 export function useSetProjectAvatar() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (projectId: string): Promise<Project> => {
-      if (!isTauri()) {
-        throw new Error('Not in Tauri context')
-      }
-
+    mutationFn: async ({
+      projectId,
+      file,
+    }: {
+      projectId: string
+      file: File
+    }): Promise<Project> => {
       logger.debug('Setting project avatar', { projectId })
-      const project = await invoke<Project>('set_project_avatar', { projectId })
+      const project = await invoke<Project>('set_project_avatar', {
+        projectId,
+        data: await fileToBase64(file),
+        mimeType: file.type,
+      })
       logger.info('Project avatar set', { project })
       return project
     },
@@ -3752,17 +3760,14 @@ export function useSetProjectAvatar() {
       invalidateProjectLists(queryClient)
     },
     onError: error => {
-      // "No file selected" is not an error, user just cancelled
       const message =
         typeof error === 'string'
           ? error
           : error instanceof Error
             ? error.message
             : 'Unknown error occurred'
-      if (message !== 'No file selected') {
-        logger.error('Failed to set project avatar', { error })
-        toast.error('Failed to set avatar', { description: message })
-      }
+      logger.error('Failed to set project avatar', { error })
+      toast.error('Failed to set avatar', { description: message })
     },
   })
 }

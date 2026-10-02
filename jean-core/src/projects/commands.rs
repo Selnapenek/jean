@@ -14114,13 +14114,6 @@ fn get_avatars_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     Ok(avatars_dir)
 }
 
-/// Set a custom avatar image for a project
-/// Opens a file dialog to pick an image, copies it to the avatars directory,
-/// and updates the project's avatar_path field.
-pub async fn set_project_avatar(_app: AppHandle, _project_id: String) -> Result<Project, String> {
-    Err("Project avatar file selection is only available in the desktop app".to_string())
-}
-
 fn project_avatar_destination_name(project_id: &str, extension: &str) -> String {
     format!("{project_id}-{}.{}", Uuid::new_v4(), extension)
 }
@@ -14136,27 +14129,45 @@ fn is_project_avatar_file(file_name: &str, project_id: &str) -> bool {
         .is_some_and(|(id, _)| Uuid::parse_str(id).is_ok())
 }
 
-pub async fn set_project_avatar_from_path(
+const MAX_PROJECT_AVATAR_SIZE: usize = 10 * 1024 * 1024;
+
+/// Set a custom avatar image for a project
+/// The client picks the image and sends its base64 bytes, so this works for
+/// local, remote, and web clients. Saves the image to the avatars directory
+/// and updates the project's avatar_path field.
+pub async fn set_project_avatar(
     app: AppHandle,
     project_id: String,
-    source_path: PathBuf,
+    data: String,
+    mime_type: String,
 ) -> Result<Project, String> {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+
+    let extension = match mime_type.as_str() {
+        "image/png" => "png",
+        "image/jpeg" => "jpg",
+        "image/gif" => "gif",
+        "image/webp" => "webp",
+        _ => return Err(format!("Unsupported avatar image type: {mime_type}")),
+    };
+    let image_data = STANDARD
+        .decode(&data)
+        .map_err(|error| format!("Failed to decode avatar image data: {error}"))?;
+    if image_data.len() > MAX_PROJECT_AVATAR_SIZE {
+        return Err("Avatar image is too large. Maximum size is 10MB".to_string());
+    }
+
     let mut data = load_projects_data(&app)?;
     if data.find_project(&project_id).is_none() {
         return Err(format!("Project not found: {project_id}"));
     }
 
-    let extension = source_path
-        .extension()
-        .and_then(|extension| extension.to_str())
-        .unwrap_or("png")
-        .to_lowercase();
     let avatars_dir = get_avatars_dir(&app)?;
-    let destination_name = project_avatar_destination_name(&project_id, &extension);
+    let destination_name = project_avatar_destination_name(&project_id, extension);
     let destination_path = avatars_dir.join(&destination_name);
 
-    std::fs::copy(&source_path, &destination_path)
-        .map_err(|error| format!("Failed to copy avatar file: {error}"))?;
+    std::fs::write(&destination_path, &image_data)
+        .map_err(|error| format!("Failed to save avatar file: {error}"))?;
 
     let project = data
         .find_project_mut(&project_id)
@@ -15450,7 +15461,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn failed_project_avatar_copy_keeps_the_previous_file() {
+    async fn failed_project_avatar_upload_keeps_the_previous_file() {
         let temp = tempfile::tempdir().expect("temp dir");
         let app = crate::RuntimeContext::new(temp.path().into(), temp.path().into())
             .expect("runtime context");
@@ -15494,10 +15505,11 @@ mod tests {
         )
         .expect("save projects");
 
-        let result = set_project_avatar_from_path(
+        let result = set_project_avatar(
             app,
             "project-1".to_string(),
-            temp.path().join("missing.png"),
+            "not base64!".to_string(),
+            "image/png".to_string(),
         )
         .await;
 

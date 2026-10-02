@@ -37,7 +37,10 @@ import { DismissButton } from '@/components/ui/dismiss-button'
 import { StatusIndicator } from '@/components/ui/status-indicator'
 import { GitStatusBadges } from '@/components/ui/git-status-badges'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
-import { CloseWorktreeDialog } from './CloseWorktreeDialog'
+import {
+  CloseWorktreeDialog,
+  type CloseConfirmMode,
+} from './CloseWorktreeDialog'
 import { useChatStore } from '@/store/chat-store'
 import { useTerminalStore } from '@/store/terminal-store'
 import { useBrowserStore } from '@/store/browser-store'
@@ -570,9 +573,8 @@ export function SessionChatModal({
 
   // CMD+W: close the active session tab, or close modal if last tab
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false)
-  const [closeConfirmMode, setCloseConfirmMode] = useState<
-    'worktree' | 'session'
-  >('session')
+  const [closeConfirmMode, setCloseConfirmMode] =
+    useState<CloseConfirmMode>('session')
   const pendingCloseAction = useRef<(() => void) | null>(null)
 
   const executeCloseAction = useCallback(() => {
@@ -581,8 +583,10 @@ export function SessionChatModal({
     setCloseConfirmOpen(false)
   }, [])
 
+  // Close (delete or archive per removal behavior) or explicitly archive a
+  // session tab, asking for confirmation first.
   const removeSessionTab = useCallback(
-    (session: Session) => {
+    (session: Session, archive = false) => {
       const activeSessions = tabSessions.filter(s => !s.archived_at)
       const sessionIsEmpty = !session.message_count
       // Confirm any non-empty session when preference is on (default). Only
@@ -595,13 +599,17 @@ export function SessionChatModal({
         if (activeSessions.length > 1) {
           selectVisualNeighbor(session.id)
         }
+        if (archive) {
+          handleArchiveSession(session.id)
+          return
+        }
         // The mutation selects the backend-created empty session after success
         // when this was the last session.
         handleDeleteSession(session.id)
       }
 
       if (needsConfirm) {
-        setCloseConfirmMode('session')
+        setCloseConfirmMode(archive ? 'session-archive' : 'session')
         pendingCloseAction.current = action
         setCloseConfirmOpen(true)
       } else {
@@ -610,6 +618,7 @@ export function SessionChatModal({
     },
     [
       tabSessions,
+      handleArchiveSession,
       handleDeleteSession,
       preferences?.confirm_session_close,
       selectVisualNeighbor,
@@ -1384,13 +1393,6 @@ export function SessionChatModal({
                               Reconnect
                             </ContextMenuItem>
                           )}
-                          <ContextMenuSeparator />
-                          <ContextMenuItem
-                            onSelect={() => handleArchiveSession(session.id)}
-                          >
-                            <Archive className="mr-2 h-4 w-4" />
-                            Archive Session
-                          </ContextMenuItem>
                           <ContextMenuItem
                             onSelect={() => {
                               void copyToClipboard(session.id)
@@ -1405,8 +1407,14 @@ export function SessionChatModal({
                           </ContextMenuItem>
                           <ContextMenuSeparator />
                           <ContextMenuItem
+                            onSelect={() => removeSessionTab(session, true)}
+                          >
+                            <Archive className="mr-2 h-4 w-4" />
+                            Archive Session
+                          </ContextMenuItem>
+                          <ContextMenuItem
                             variant="destructive"
-                            onSelect={() => handleDeleteSession(session.id)}
+                            onSelect={() => removeSessionTab(session)}
                           >
                             <Trash2 className="mr-2 h-4 w-4" />
                             Delete Session

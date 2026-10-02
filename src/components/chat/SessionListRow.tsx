@@ -263,10 +263,6 @@ export const SessionListRow = forwardRef<HTMLDivElement, SessionCardProps>(
               {card.label ? 'Remove Label' : 'Add Label'}
             </ContextMenuItem>
           )}
-          <ContextMenuItem onSelect={onArchive}>
-            <Archive className="mr-2 h-4 w-4" />
-            Archive Session
-          </ContextMenuItem>
           <ContextMenuItem
             onSelect={() => {
               void copyToClipboard(card.session.id)
@@ -296,6 +292,10 @@ export const SessionListRow = forwardRef<HTMLDivElement, SessionCardProps>(
             </ContextMenuItem>
           )}
           <ContextMenuSeparator />
+          <ContextMenuItem onSelect={onArchive}>
+            <Archive className="mr-2 h-4 w-4" />
+            Archive Session
+          </ContextMenuItem>
           <ContextMenuItem variant="destructive" onSelect={onDelete}>
             <Trash2 className="mr-2 h-4 w-4" />
             Delete Session

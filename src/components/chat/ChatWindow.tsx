@@ -144,6 +144,7 @@ import { ReviewMethodModal } from './ReviewMethodModal'
 import { QueuedPromptsPanel } from './QueuedPromptsPanel'
 import { useQueuedPromptActions } from './hooks/useQueuedPromptActions'
 import { FloatingButtons } from './FloatingButtons'
+import { GoalBadge } from './GoalBadge'
 import { PinnedTablesButton } from './PinnedTablesButton'
 import {
   capturePrependScrollAnchor,
@@ -1717,7 +1718,7 @@ function ChatWindowContent({
     if (wasSending) await handleCancel()
   }, [activeSessionId, getMcpConfig, handleCancel, sendMessageNow])
 
-  // Shared by the goal badge on the /goal message: clear Jean's goal mirror,
+  // Used by the composer goal tab: clear Jean's goal mirror,
   // then (Claude only) clear the goal kept in the CLI session.
   const handleClearGoal = useCallback(async () => {
     if (!activeSessionId || !activeWorktreeId || !activeWorktreePath) return
@@ -2722,7 +2723,6 @@ function ChatWindowContent({
                                     areQuestionsSkipped={areQuestionsSkipped}
                                     isFindingFixed={isFindingFixed}
                                     onCopyToInput={handleCopyToInput}
-                                    onClearGoal={handleClearGoal}
                                     shouldScrollToBottom={isAtBottom}
                                     onScrollToBottomHandled={
                                       handleScrollToBottomHandled
@@ -2803,7 +2803,6 @@ function ChatWindowContent({
                                     areQuestionsSkipped={areQuestionsSkipped}
                                     isFindingFixed={isFindingFixed}
                                     onCopyToInput={handleCopyToInput}
-                                    onClearGoal={handleClearGoal}
                                     shouldScrollToBottom={isAtBottom}
                                     onScrollToBottomHandled={
                                       handleScrollToBottomHandled
@@ -3086,8 +3085,14 @@ function ChatWindowContent({
                           data-chat-composer=""
                           className="pointer-events-auto relative sm:mx-auto sm:mb-3 sm:max-w-3xl xl:max-w-4xl"
                         >
-                          {/* Hidden history, pinned tables, and scroll-to-bottom tabs - attached to the top edge of the composer */}
+                          {/* Goal, hidden history, pinned tables, and scroll-to-bottom tabs - attached to the top edge of the composer */}
                           <div className="absolute right-3 bottom-full flex items-end gap-1">
+                            {!zenMode && (
+                              <GoalBadge
+                                sessionId={activeSessionId}
+                                onClearGoal={handleClearGoal}
+                              />
+                            )}
                             {preferences?.compact_chat_view_enabled &&
                               !zenMode &&
                               !isCompactHistoryExpanded &&

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 
@@ -9,6 +10,8 @@ interface BackendCliSourceCardsProps {
   path: string | null | undefined
   pathVersion?: string | null
   pathFound: boolean
+  /** Optional control (e.g. Uninstall) aligned at the end of the row */
+  action?: ReactNode
 }
 
 export function BackendCliSourceCards({
@@ -19,6 +22,7 @@ export function BackendCliSourceCards({
   path,
   pathVersion,
   pathFound,
+  action,
 }: BackendCliSourceCardsProps) {
   const sourceId = backendName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
   return (
@@ -55,6 +59,7 @@ export function BackendCliSourceCards({
           {pathFound ? pathVersion : 'not found'}
         </span>
       </Label>
+      {action && <div className="ml-auto">{action}</div>}
     </RadioGroup>
   )
 }

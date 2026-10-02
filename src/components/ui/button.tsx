@@ -7,16 +7,26 @@ import { cn } from '@/lib/utils'
 // 3D raised button: a solid bottom edge (--btn-edge) that lifts on hover and
 // presses flat on click. Uses Tailwind shadow utilities so focus rings still compose.
 const raised =
-  'shadow-[0_2px_0_var(--btn-edge)] hover:-translate-y-px hover:shadow-[0_3px_0_var(--btn-edge)] active:translate-y-0.5 active:shadow-none duration-[80ms] ease-out'
+  'transition-[color,background-color,border-color,box-shadow,translate] shadow-[0_2px_0_var(--btn-edge)] hover:-translate-y-px hover:shadow-[0_3px_0_var(--btn-edge)] active:translate-y-0.5 active:shadow-none duration-[80ms] ease-out'
+
+// Inset variant for buttons inside clipped containers (overflow-hidden), where
+// an outer shadow would be cut off and movement would open a gap.
+const raisedInset =
+  'transition-[color,background-color,box-shadow] shadow-[inset_0_-2px_0_var(--btn-edge)] hover:shadow-[inset_0_-3px_0_var(--btn-edge)] active:shadow-none duration-[80ms] ease-out'
+
+const edgePrimary = '[--btn-edge:color-mix(in_oklab,var(--primary)_55%,black)]'
+const edgeNeutral =
+  '[--btn-edge:color-mix(in_oklab,var(--foreground)_12%,transparent)]'
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-[color,background-color,border-color,box-shadow,translate] disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive cursor-pointer",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive cursor-pointer",
   {
     variants: {
       variant: {
         default: cn(
           raised,
-          'border-primary bg-primary/80 text-primary-foreground hover:bg-primary/90 [--btn-edge:color-mix(in_oklab,var(--primary)_55%,black)]'
+          edgePrimary,
+          'border-primary bg-primary/80 text-primary-foreground hover:bg-primary/90'
         ),
         destructive: cn(
           raised,
@@ -24,11 +34,13 @@ const buttonVariants = cva(
         ),
         outline: cn(
           raised,
-          'border bg-background text-foreground hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 [--btn-edge:color-mix(in_oklab,var(--foreground)_12%,transparent)]'
+          edgeNeutral,
+          'border bg-background text-foreground hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50'
         ),
         secondary: cn(
           raised,
-          'bg-secondary text-secondary-foreground hover:bg-secondary/80 [--btn-edge:color-mix(in_oklab,var(--foreground)_12%,transparent)]'
+          edgeNeutral,
+          'bg-secondary text-secondary-foreground hover:bg-secondary/80'
         ),
         ghost:
           'hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50',
@@ -71,4 +83,4 @@ function Button({
   )
 }
 
-export { Button, buttonVariants }
+export { Button, buttonVariants, raised, raisedInset, edgePrimary, edgeNeutral }

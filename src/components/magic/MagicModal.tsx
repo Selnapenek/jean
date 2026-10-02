@@ -16,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
+import { Button, edgeNeutral } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
@@ -2267,7 +2267,7 @@ ${resolveInstructions}`
         onClick={() => executeAction(option.id)}
         onMouseEnter={() => setSelectedOption(option.id)}
         className={cn(
-          'flex w-full items-center text-left text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          'group flex w-full items-center text-left text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           mobile
             ? 'min-h-12 gap-2.5 rounded-lg border border-border/70 bg-muted/30 px-3 py-2.5 active:bg-accent'
             : 'justify-between px-4 py-2',
@@ -2280,7 +2280,12 @@ ${resolveInstructions}`
           <span className="leading-tight">{option.label}</span>
         </span>
         {!mobile && (
-          <kbd className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+          <kbd
+            className={cn(
+              'rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground shadow-[0_2px_0_var(--btn-edge)] transition-[translate,box-shadow] duration-[80ms] group-active:translate-y-0.5 group-active:shadow-none',
+              edgeNeutral
+            )}
+          >
             {option.key}
           </kbd>
         )}

@@ -1902,16 +1902,15 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                 </Tooltip>
               }
             >
-              <div className="w-full space-y-3">
-                <BackendCliSourceCards
-                  value={preferences?.claude_cli_source ?? 'jean'}
-                  onValueChange={handleClaudeSourceChange}
-                  backendName="Claude CLI"
-                  path={pathDetection?.path}
-                  pathVersion={pathDetection?.version}
-                  pathFound={!!pathDetection?.found}
-                />
-                {preferences?.claude_cli_source === 'jean' &&
+              <BackendCliSourceCards
+                value={preferences?.claude_cli_source ?? 'jean'}
+                onValueChange={handleClaudeSourceChange}
+                backendName="Claude CLI"
+                path={pathDetection?.path}
+                pathVersion={pathDetection?.version}
+                pathFound={!!pathDetection?.found}
+                action={
+                  preferences?.claude_cli_source === 'jean' &&
                   cliStatus?.installed && (
                     <Button
                       variant="destructive"
@@ -1920,8 +1919,9 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                     >
                       Uninstall
                     </Button>
-                  )}
-              </div>
+                  )
+                }
+              />
             </InlineField>
             {!cliStatus?.installed && !pathDetection?.found && (
               <p className="text-xs text-muted-foreground px-1">
@@ -2355,16 +2355,15 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                 </Tooltip>
               }
             >
-              <div className="w-full space-y-3">
-                <BackendCliSourceCards
-                  value={preferences?.codex_cli_source ?? 'jean'}
-                  onValueChange={handleCodexSourceChange}
-                  backendName="Codex CLI"
-                  path={codexPathDetection?.path}
-                  pathVersion={codexPathDetection?.version}
-                  pathFound={!!codexPathDetection?.found}
-                />
-                {preferences?.codex_cli_source === 'jean' &&
+              <BackendCliSourceCards
+                value={preferences?.codex_cli_source ?? 'jean'}
+                onValueChange={handleCodexSourceChange}
+                backendName="Codex CLI"
+                path={codexPathDetection?.path}
+                pathVersion={codexPathDetection?.version}
+                pathFound={!!codexPathDetection?.found}
+                action={
+                  preferences?.codex_cli_source === 'jean' &&
                   codexStatus?.installed && (
                     <Button
                       variant="destructive"
@@ -2373,8 +2372,9 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                     >
                       Uninstall
                     </Button>
-                  )}
-              </div>
+                  )
+                }
+              />
             </InlineField>
             {!codexStatus?.installed && !codexPathDetection?.found && (
               <p className="text-xs text-muted-foreground px-1">
@@ -2509,16 +2509,15 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                 </Tooltip>
               }
             >
-              <div className="w-full space-y-3">
-                <BackendCliSourceCards
-                  value={preferences?.opencode_cli_source ?? 'jean'}
-                  onValueChange={handleOpencodeSourceChange}
-                  backendName="OpenCode CLI"
-                  path={opencodePathDetection?.path}
-                  pathVersion={opencodePathDetection?.version}
-                  pathFound={!!opencodePathDetection?.found}
-                />
-                {preferences?.opencode_cli_source === 'jean' &&
+              <BackendCliSourceCards
+                value={preferences?.opencode_cli_source ?? 'jean'}
+                onValueChange={handleOpencodeSourceChange}
+                backendName="OpenCode CLI"
+                path={opencodePathDetection?.path}
+                pathVersion={opencodePathDetection?.version}
+                pathFound={!!opencodePathDetection?.found}
+                action={
+                  preferences?.opencode_cli_source === 'jean' &&
                   opencodeStatus?.installed && (
                     <Button
                       variant="destructive"
@@ -2527,8 +2526,9 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                     >
                       Uninstall
                     </Button>
-                  )}
-              </div>
+                  )
+                }
+              />
             </InlineField>
             {!opencodeStatus?.installed && !opencodePathDetection?.found && (
               <p className="text-xs text-muted-foreground px-1">
@@ -2727,16 +2727,15 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                 </Tooltip>
               }
             >
-              <div className="w-full space-y-3">
-                <BackendCliSourceCards
-                  value={preferences?.pi_cli_source ?? 'jean'}
-                  onValueChange={handlePiSourceChange}
-                  backendName="PI CLI"
-                  path={piPathDetection?.path}
-                  pathVersion={piPathDetection?.version}
-                  pathFound={!!piPathDetection?.found}
-                />
-                {preferences?.pi_cli_source === 'jean' &&
+              <BackendCliSourceCards
+                value={preferences?.pi_cli_source ?? 'jean'}
+                onValueChange={handlePiSourceChange}
+                backendName="PI CLI"
+                path={piPathDetection?.path}
+                pathVersion={piPathDetection?.version}
+                pathFound={!!piPathDetection?.found}
+                action={
+                  preferences?.pi_cli_source === 'jean' &&
                   piStatus?.installed && (
                     <Button
                       variant="destructive"
@@ -2745,8 +2744,9 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                     >
                       Uninstall
                     </Button>
-                  )}
-              </div>
+                  )
+                }
+              />
             </InlineField>
             {piStatus?.installed && !piAuth?.authenticated && piAuthMessage && (
               <div className="text-xs text-muted-foreground">
@@ -2842,16 +2842,15 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                 </Tooltip>
               }
             >
-              <div className="w-full space-y-3">
-                <BackendCliSourceCards
-                  value={preferences?.commandcode_cli_source ?? 'jean'}
-                  onValueChange={handleCommandCodeSourceChange}
-                  backendName="Command Code CLI"
-                  path={commandcodePathDetection?.path}
-                  pathVersion={commandcodePathDetection?.version}
-                  pathFound={!!commandcodePathDetection?.found}
-                />
-                {preferences?.commandcode_cli_source === 'jean' &&
+              <BackendCliSourceCards
+                value={preferences?.commandcode_cli_source ?? 'jean'}
+                onValueChange={handleCommandCodeSourceChange}
+                backendName="Command Code CLI"
+                path={commandcodePathDetection?.path}
+                pathVersion={commandcodePathDetection?.version}
+                pathFound={!!commandcodePathDetection?.found}
+                action={
+                  preferences?.commandcode_cli_source === 'jean' &&
                   commandcodeStatus?.installed && (
                     <Button
                       variant="destructive"
@@ -2860,8 +2859,9 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                     >
                       Uninstall
                     </Button>
-                  )}
-              </div>
+                  )
+                }
+              />
             </InlineField>
             {commandcodeStatus?.installed &&
               !commandcodeAuth?.authenticated &&
@@ -3411,16 +3411,15 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                   </Tooltip>
                 }
               >
-                <div className="w-full space-y-3">
-                  <BackendCliSourceCards
-                    value={preferences?.grok_cli_source ?? 'jean'}
-                    onValueChange={handleGrokSourceChange}
-                    backendName="Grok CLI"
-                    path={grokPathDetection?.path}
-                    pathVersion={grokPathDetection?.version}
-                    pathFound={!!grokPathDetection?.found}
-                  />
-                  {preferences?.grok_cli_source === 'jean' &&
+                <BackendCliSourceCards
+                  value={preferences?.grok_cli_source ?? 'jean'}
+                  onValueChange={handleGrokSourceChange}
+                  backendName="Grok CLI"
+                  path={grokPathDetection?.path}
+                  pathVersion={grokPathDetection?.version}
+                  pathFound={!!grokPathDetection?.found}
+                  action={
+                    preferences?.grok_cli_source === 'jean' &&
                     grokStatus?.installed && (
                       <Button
                         variant="destructive"
@@ -3429,8 +3428,9 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                       >
                         Uninstall
                       </Button>
-                    )}
-                </div>
+                    )
+                  }
+                />
               </InlineField>
             </div>
           </SettingsSection>
@@ -3580,16 +3580,15 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                   </Tooltip>
                 }
               >
-                <div className="w-full space-y-3">
-                  <BackendCliSourceCards
-                    value={preferences?.kimi_cli_source ?? 'jean'}
-                    onValueChange={handleKimiSourceChange}
-                    backendName="Kimi Code CLI"
-                    path={kimiPathDetection?.path}
-                    pathVersion={kimiPathDetection?.version}
-                    pathFound={!!kimiPathDetection?.found}
-                  />
-                  {preferences?.kimi_cli_source === 'jean' &&
+                <BackendCliSourceCards
+                  value={preferences?.kimi_cli_source ?? 'jean'}
+                  onValueChange={handleKimiSourceChange}
+                  backendName="Kimi Code CLI"
+                  path={kimiPathDetection?.path}
+                  pathVersion={kimiPathDetection?.version}
+                  pathFound={!!kimiPathDetection?.found}
+                  action={
+                    preferences?.kimi_cli_source === 'jean' &&
                     kimiStatus?.installed && (
                       <Button
                         variant="destructive"
@@ -3598,8 +3597,9 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                       >
                         Uninstall
                       </Button>
-                    )}
-                </div>
+                    )
+                  }
+                />
               </InlineField>
             </div>
           </SettingsSection>

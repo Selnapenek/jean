@@ -26,7 +26,6 @@ const items: ContextMentionItem[] = [
     label: '#123',
     title: 'Fix login bug',
     subtitle: 'open issue by alice',
-    badge: 'open',
     icon: Bug,
   },
   {
@@ -35,7 +34,6 @@ const items: ContextMentionItem[] = [
     label: 'PR #45',
     title: 'Add context mentions',
     subtitle: 'open main ← feature',
-    badge: 'open',
     icon: GitPullRequest,
   },
 ]

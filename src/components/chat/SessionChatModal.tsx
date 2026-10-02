@@ -78,10 +78,8 @@ import {
   getResumeCommand,
   isActionableWaitingStatus,
   statusConfig,
-  type ManualSessionStatus,
   type SessionCardData,
 } from './session-card-utils'
-import { SessionStatusMenu } from './SessionStatusMenu'
 import {
   resolveModalSessionId,
   sessionsForTabBar,
@@ -1327,17 +1325,6 @@ export function SessionChatModal({
                           </div>
                         </ContextMenuTrigger>
                         <ContextMenuContent className="w-64">
-                          <SessionStatusMenu
-                            statusOverride={card.statusOverride}
-                            automaticStatus={card.automaticStatus}
-                            onSetStatusOverride={(
-                              next: ManualSessionStatus | null
-                            ) => {
-                              useChatStore
-                                .getState()
-                                .setSessionStatusOverride(session.id, next)
-                            }}
-                          />
                           <ContextMenuItem
                             onSelect={() =>
                               handleStartRename(session.id, session.name)

@@ -33,7 +33,6 @@ import {
   statusConfig,
   type SessionCardProps,
 } from './session-card-utils'
-import { SessionStatusMenu } from './SessionStatusMenu'
 import { canReconnectSession } from '@/services/chat'
 import { useChatStore } from '@/store/chat-store'
 
@@ -51,8 +50,6 @@ export const SessionListRow = forwardRef<HTMLDivElement, SessionCardProps>(
       onWorktreeBuildApprove,
       onWorktreeYoloApprove,
       onToggleLabel,
-      onToggleReview,
-      onSetStatusOverride,
       onReconnect,
       isRenaming,
       renameValue,
@@ -67,18 +64,6 @@ export const SessionListRow = forwardRef<HTMLDivElement, SessionCardProps>(
     const isGeneratingName = useChatStore(
       state => state.namingSessionIds[card.session.id] ?? false
     )
-    const handleSetStatusOverride =
-      onSetStatusOverride ??
-      (onToggleReview
-        ? (status: 'idle' | 'review' | 'completed' | 'cancelled' | null) => {
-            // Fallback for callers that only wire the legacy review toggle
-            if (status === 'review') {
-              if (card.status !== 'review') onToggleReview()
-            } else if (status === null || status === 'idle') {
-              if (card.status === 'review') onToggleReview()
-            }
-          }
-        : undefined)
     const resumeCommand = getResumeCommand(card.session)
     const canReconnect = canReconnectSession(card.session)
     const renameInputRef = useCallback((node: HTMLInputElement | null) => {
@@ -277,13 +262,6 @@ export const SessionListRow = forwardRef<HTMLDivElement, SessionCardProps>(
               <Tag className="mr-2 h-4 w-4" />
               {card.label ? 'Remove Label' : 'Add Label'}
             </ContextMenuItem>
-          )}
-          {handleSetStatusOverride && (
-            <SessionStatusMenu
-              statusOverride={card.statusOverride}
-              automaticStatus={card.automaticStatus}
-              onSetStatusOverride={handleSetStatusOverride}
-            />
           )}
           <ContextMenuItem onSelect={onArchive}>
             <Archive className="mr-2 h-4 w-4" />

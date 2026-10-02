@@ -64,13 +64,6 @@ export type SessionStatus =
  */
 export type ManualSessionStatus = 'idle' | 'review' | 'completed' | 'cancelled'
 
-export const MANUAL_SESSION_STATUSES: readonly ManualSessionStatus[] = [
-  'idle',
-  'review',
-  'completed',
-  'cancelled',
-] as const
-
 export function isManualSessionStatus(
   value: string | null | undefined
 ): value is ManualSessionStatus {
@@ -145,9 +138,6 @@ export interface SessionCardProps {
   onWorktreeBuildApprove?: () => void
   onWorktreeYoloApprove?: () => void
   onToggleLabel?: () => void
-  /** @deprecated Prefer onSetStatusOverride for full manual status control. */
-  onToggleReview?: () => void
-  onSetStatusOverride?: (status: ManualSessionStatus | null) => void
   onReconnect?: () => void
   onRename?: (sessionId: string, newName: string) => void
   isRenaming?: boolean

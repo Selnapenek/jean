@@ -2,6 +2,14 @@ import { describe, it, expect } from 'vitest'
 import { isUsageLimitError } from './usage-limit'
 
 describe('isUsageLimitError', () => {
+  it('matches Claude session limit messages with a local reset time', () => {
+    expect(
+      isUsageLimitError(
+        "You've hit your session limit · resets 1:10am (Asia/Tbilisi)"
+      )
+    ).toBe(true)
+  })
+
   it('matches real backend limit messages', () => {
     expect(
       isUsageLimitError('Claude usage limit reached. Your limit will reset at 2PM.')

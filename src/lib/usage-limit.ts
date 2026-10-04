@@ -8,6 +8,7 @@
  */
 const LIMIT_PATTERNS = [
   'usage limit',
+  'session limit',
   'rate limit',
   'rate_limit',
   'ratelimit',

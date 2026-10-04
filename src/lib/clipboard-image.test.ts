@@ -54,3 +54,38 @@ it('copies remote pixels to the local native clipboard and releases resources on
     vi.unstubAllGlobals()
   }
 })
+
+it('copies a Markdown data URL without a CSP-blocked fetch', async () => {
+  const { copyImageToClipboard } = await import('./clipboard')
+  const fetchMock = vi.fn().mockRejectedValue(new Error('CSP blocked fetch'))
+  vi.stubGlobal('fetch', fetchMock)
+  const pixels = new Uint8ClampedArray([0, 255, 0, 255])
+  let decodedSrc = ''
+  vi.spyOn(window, 'Image').mockImplementation(function () {
+    return {
+      src: '',
+      naturalWidth: 1,
+      naturalHeight: 1,
+      async decode() {
+        decodedSrc = this.src
+      },
+    } as HTMLImageElement
+  })
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+    drawImage: vi.fn(),
+    getImageData: () => ({ data: pixels }),
+  } as unknown as CanvasRenderingContext2D)
+  writeImage.mockClear()
+  try {
+    const src = 'data:image/png;base64,remoteScreenshot'
+    await copyImageToClipboard(src)
+    expect(decodedSrc).toBe(src)
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(writeImage).toHaveBeenCalledWith(
+      await createImage.mock.results.at(-1)?.value
+    )
+  } finally {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  }
+})

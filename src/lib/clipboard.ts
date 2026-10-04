@@ -163,10 +163,15 @@ function execCommandCopyFallback(text: string): boolean {
 
 /** Copy rendered image pixels to this device, never the owning remote server. */
 export async function copyImageToClipboard(src: string): Promise<void> {
-  const response = await fetch(src)
-  if (!response.ok) throw new Error('Failed to load image')
-  const blob = await response.blob()
-  const url = URL.createObjectURL(blob)
+  // Markdown screenshots are often data URLs. They can render under img-src,
+  // but fetching them is blocked by the native webview's connect-src policy.
+  const inline = /^(data:|blob:)/i.test(src)
+  let url = src
+  if (!inline) {
+    const response = await fetch(src)
+    if (!response.ok) throw new Error('Failed to load image')
+    url = URL.createObjectURL(await response.blob())
+  }
   try {
     const image = new window.Image()
     image.src = url
@@ -215,6 +220,6 @@ export async function copyImageToClipboard(src: string): Promise<void> {
     })
     await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
   } finally {
-    URL.revokeObjectURL(url)
+    if (!inline) URL.revokeObjectURL(url)
   }
 }

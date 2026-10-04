@@ -131,7 +131,8 @@ export function findKeybindingAction(
   keybindings: KeybindingsMap
 ): KeybindingAction | null {
   for (const [action, binding] of Object.entries(keybindings)) {
-    if (binding === shortcut) return action as KeybindingAction
+    if (Object.hasOwn(DEFAULT_KEYBINDINGS, action) && binding === shortcut)
+      return action as KeybindingAction
   }
 
   return null
@@ -293,21 +294,25 @@ export function applySessionRenamedToCaches(
     if (!old || old.name === newName) return old
     return { ...old, name: newName }
   })
-  queryClient.setQueryData<AllSessionsResponse>(['all-sessions'], old => {
-    if (!old) return old
-    let changed = false
-    const entries = old.entries.map(entry => {
-      let entryChanged = false
-      const sessions = entry.sessions.map(session => {
-        if (session.id !== sessionId || session.name === newName) return session
-        entryChanged = true
-        changed = true
-        return { ...session, name: newName }
+  queryClient.setQueriesData<AllSessionsResponse>(
+    { queryKey: ['all-sessions'] },
+    old => {
+      if (!old) return old
+      let changed = false
+      const entries = old.entries.map(entry => {
+        let entryChanged = false
+        const sessions = entry.sessions.map(session => {
+          if (session.id !== sessionId || session.name === newName)
+            return session
+          entryChanged = true
+          changed = true
+          return { ...session, name: newName }
+        })
+        return entryChanged ? { ...entry, sessions } : entry
       })
-      return entryChanged ? { ...entry, sessions } : entry
-    })
-    return changed ? { ...old, entries } : old
-  })
+      return changed ? { ...old, entries } : old
+    }
+  )
   queryClient.setQueriesData<{ items: RecentWorktreeItem[] }>(
     { queryKey: ['recent-worktrees'] },
     old => {
@@ -845,9 +850,6 @@ function executeKeybindingAction(
       }
       break
     }
-    case 'open_github_dashboard':
-      useUIStore.getState().setGitHubDashboardOpen(true)
-      break
     case 'open_quick_menu':
       window.dispatchEvent(new CustomEvent('toggle-quick-menu'))
       break
@@ -1028,7 +1030,7 @@ export function useMainWindowEventListeners() {
         }
       }
 
-      // Mod+1–9: dashboard tabs, Recent sessions (when the Recent list is
+      // Mod+1–9: Recent sessions (when the Recent list is
       // visible), session tabs (when modal open), or worktree by index
       // Use platform mod (Cmd on macOS native, Ctrl elsewhere) so Ctrl+digit reaches terminals.
       if (isModKeyEvent(e) && !e.shiftKey && !e.altKey) {
@@ -1038,10 +1040,7 @@ export function useMainWindowEventListeners() {
         if (digit >= 1 && digit <= 9) {
           e.preventDefault()
           e.stopPropagation()
-          if (
-            isRecentSessionsShortcutActive() &&
-            !useUIStore.getState().githubDashboardOpen
-          ) {
+          if (isRecentSessionsShortcutActive()) {
             window.dispatchEvent(
               new CustomEvent('open-recent-session-by-index', {
                 detail: { index: digit - 1 },
@@ -1051,17 +1050,6 @@ export function useMainWindowEventListeners() {
             window.dispatchEvent(
               new CustomEvent('switch-session', {
                 detail: { index: digit - 1 },
-              })
-            )
-          } else if (
-            useUIStore.getState().githubDashboardOpen &&
-            digit >= 1 &&
-            digit <= 4
-          ) {
-            const TAB_MAP = ['issues', 'prs', 'security', 'advisories']
-            window.dispatchEvent(
-              new CustomEvent('switch-dashboard-tab', {
-                detail: { tab: TAB_MAP[digit - 1] },
               })
             )
           } else {

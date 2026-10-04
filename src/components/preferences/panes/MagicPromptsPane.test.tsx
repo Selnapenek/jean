@@ -146,7 +146,7 @@ describe('MagicPromptsPane', () => {
     render(<MagicPromptsPane />)
 
     await user.click(screen.getByRole('combobox', { name: 'Default mode' }))
-    await user.click(screen.getByRole('option', { name: 'Yolo' }))
+    await user.click(screen.getByRole('option', { name: 'Full access' }))
 
     expect(mutateMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -536,7 +536,7 @@ describe('MagicPromptsPane', () => {
     await user.click(
       screen.getByRole('combobox', { name: 'Mode for all prompts' })
     )
-    await user.click(screen.getByRole('option', { name: 'Yolo' }))
+    await user.click(screen.getByRole('option', { name: 'Full access' }))
     await user.click(
       screen.getByRole('button', { name: 'Apply to all prompts' })
     )
@@ -713,7 +713,7 @@ describe('MagicPromptsPane', () => {
     ).toHaveTextContent('Plan')
 
     await user.click(screen.getByRole('combobox', { name: 'Review 2 mode' }))
-    await user.click(screen.getByRole('option', { name: 'Yolo' }))
+    await user.click(screen.getByRole('option', { name: 'Full access' }))
 
     expect(mutateMock).toHaveBeenCalledWith(
       expect.objectContaining({

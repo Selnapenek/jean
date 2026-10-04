@@ -1668,7 +1668,7 @@ export const MagicPromptsPane: React.FC<MagicPromptsPaneProps> = ({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="plan">Plan</SelectItem>
-            <SelectItem value="yolo">Yolo</SelectItem>
+            <SelectItem value="yolo">Full access</SelectItem>
           </SelectContent>
         </Select>
         <Button
@@ -1960,7 +1960,7 @@ export const MagicPromptsPane: React.FC<MagicPromptsPaneProps> = ({
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="plan">Plan</SelectItem>
-                            <SelectItem value="yolo">Yolo</SelectItem>
+                            <SelectItem value="yolo">Full access</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -2452,7 +2452,7 @@ export const MagicPromptsPane: React.FC<MagicPromptsPaneProps> = ({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="plan">Plan</SelectItem>
-                    <SelectItem value="yolo">Yolo</SelectItem>
+                    <SelectItem value="yolo">Full access</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

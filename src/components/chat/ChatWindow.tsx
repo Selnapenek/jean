@@ -1,3 +1,4 @@
+import { AcpPermissionsRequest } from './AcpPermissionsRequest'
 import {
   useCallback,
   useDeferredValue,
@@ -1055,9 +1056,9 @@ function ChatWindowContent({
   // ChatInput notifies on mount, session change, and empty/non-empty boundary changes
   const [hasInputValue, setHasInputValue] = useState(false)
   const [steerModifierActive, setSteerModifierActive] = useState(false)
-  // Per-session execution mode (defaults to preference or 'plan' for new sessions)
+  // Per-session execution mode (defaults to preference or Full access for new sessions)
   // Uses deferredSessionId for display consistency with other content
-  const defaultExecutionMode = preferences?.default_execution_mode ?? 'plan'
+  const defaultExecutionMode = preferences?.default_execution_mode ?? 'yolo'
   const executionMode = useChatStore(state =>
     deferredSessionId
       ? (state.executionModes[deferredSessionId] ??
@@ -2978,6 +2979,14 @@ function ChatWindowContent({
                                 }
                               />
                             )}
+
+                            {activeSessionId &&
+                              (selectedBackend === 'grok' ||
+                                selectedBackend === 'kimi') && (
+                                <AcpPermissionsRequest
+                                  sessionId={activeSessionId}
+                                />
+                              )}
 
                             {activeOpencodePermissionRequest && (
                               <OpenCodePermissionsRequest

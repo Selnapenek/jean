@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowDownUp, ChevronDown } from '@/components/icons/reicon'
 import {
   convertFileSrc,
@@ -84,10 +84,18 @@ export function ProjectTreeItem({
       enabled: shouldLoadWorktrees,
     }
   )
-  const worktrees = loadedWorktrees ?? []
+  const worktrees = useMemo(
+    () =>
+      (loadedWorktrees ?? []).filter(
+        worktree => worktree.origin !== 'auto_fix'
+      ),
+    [loadedWorktrees]
+  )
   const { data: appDataDir = '' } = useAppDataDir()
   // Prefer loaded worktrees: project.worktree_count can be stale
-  const worktreeCount = loadedWorktrees?.length ?? project.worktree_count ?? 0
+  const worktreeCount = loadedWorktrees
+    ? worktrees.length
+    : (project.worktree_count ?? 0)
   const hasWorktrees = !isOffline && worktreeCount > 0
   const projectMatchesSearch = matchesProjectSearch(project, searchQuery)
   const hasMatchingWorktree = worktrees.some(worktree =>

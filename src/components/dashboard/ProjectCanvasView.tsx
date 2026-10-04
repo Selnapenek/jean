@@ -190,6 +190,7 @@ import {
   type CanvasPredefinedFilterTab,
   type CanvasPredefinedFilterTabItem,
 } from './canvas-worktree-filters'
+import { MrRobotPanel, MrRobotProgress } from './MrRobotPanel'
 import { getWorktreeLabelContainerClassName } from './worktree-label-layout'
 const GitDiffModal = lazy(() =>
   import('@/components/chat/GitDiffModal').then(mod => ({
@@ -1030,7 +1031,11 @@ export function ProjectCanvasView({
   }, [visibleWorktrees])
 
   const pinnedLabelTabs = useMemo(
-    () => getPinnedWorktreeLabelTabs(visibleWorktrees, projectPinnedLabels),
+    () =>
+      getPinnedWorktreeLabelTabs(
+        visibleWorktrees.filter(worktree => worktree.origin !== 'auto_fix'),
+        projectPinnedLabels
+      ),
     [visibleWorktrees, projectPinnedLabels]
   )
 
@@ -1329,6 +1334,20 @@ export function ProjectCanvasView({
     worktreeSortMode,
     activeFilterTab,
   ])
+
+  // Summary counts are independent of canvas search and the selected tab.
+  const robotRows = useMemo(
+    () =>
+      visibleWorktrees
+        .filter(worktree => worktree.origin === 'auto_fix')
+        .map(worktree => ({
+          worktree,
+          cards: (sessionsByWorktreeId.get(worktree.id)?.sessions ?? []).map(
+            session => sessionCardDataCache(session, storeState)
+          ),
+        })),
+    [visibleWorktrees, sessionsByWorktreeId, sessionCardDataCache, storeState]
+  )
 
   const canvasReorderEnabled =
     activeFilterTab === 'all' && searchQuery.trim().length === 0
@@ -3394,7 +3413,7 @@ export function ProjectCanvasView({
                               : 'bg-muted text-muted-foreground'
                           )}
                         >
-                          {count}
+                          {count} {count === 1 ? 'worktree' : 'worktrees'}
                         </span>
                       </button>
                       <button
@@ -3472,6 +3491,10 @@ export function ProjectCanvasView({
           </div>
         </div>
 
+        {activeFilterTab === 'auto_fix' && (
+          <MrRobotPanel key={project.id} project={project} rows={robotRows} />
+        )}
+
         {/* Canvas View */}
         <div
           className={`flex-1 pb-16 ${worktreeSections.length === 0 && !searchQuery ? '' : 'pt-5 px-4'}`}
@@ -3482,7 +3505,8 @@ export function ProjectCanvasView({
                 No {activeFilterLabel.toLowerCase()} worktrees or sessions match
                 your search
               </div>
-            ) : activeFilterTab === 'all' && !hasAnyVisibleWorktrees ? (
+            ) : activeFilterTab === 'auto_fix' ? null : activeFilterTab ===
+                'all' && !hasAnyVisibleWorktrees ? (
               <EmptyDashboardTabs
                 projectId={projectId}
                 projectPath={project?.path ?? null}
@@ -3587,6 +3611,25 @@ export function ProjectCanvasView({
                           onResolveConflicts={handleCanvasResolveConflicts}
                           disableTextSelection={disableWorktreeTextSelection}
                         />
+                        {activeFilterTab === 'auto_fix' && (
+                          <MrRobotProgress
+                            row={
+                              robotRows.find(
+                                row => row.worktree.id === section.worktree.id
+                              ) ?? section
+                            }
+                            onOpen={(worktree, card) => {
+                              if (card)
+                                useChatStore
+                                  .getState()
+                                  .setActiveSession(
+                                    worktree.id,
+                                    card.session.id
+                                  )
+                              openWorktreeModal(worktree.id, worktree.path)
+                            }}
+                          />
+                        )}
                       </div>
                     </SortableCanvasWorktreeSection>
                   )

@@ -24,13 +24,6 @@ import { DesktopBackendModelPicker } from '@/components/chat/toolbar/DesktopBack
 import { useInstalledBackends } from '@/hooks/useInstalledBackends'
 import { resolveSelectedModelForBackend } from '@/lib/session-defaults'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -379,19 +372,8 @@ function NewWorktreeModalContent() {
                   }
                   installedBackends={installedBackends}
                   customCliProfiles={preferences?.custom_cli_profiles ?? []}
-                  onModelChange={setInvestigationModel}
-                  onBackendModelChange={(backend, model) => {
-                    setInvestigationBackend(backend)
-                    setInvestigationModel(model)
-                    if (backend !== 'claude')
-                      setInvestigationProvider('__anthropic__')
-                  }}
-                />
-              )}
-              {investigationBackend === 'claude' && (
-                <Select
-                  value={investigationProvider}
-                  onValueChange={provider => {
+                  onProviderChange={provider => {
+                    setInvestigationBackend('claude')
                     setInvestigationProvider(provider)
                     setInvestigationModel(
                       provider === '__anthropic__'
@@ -403,22 +385,14 @@ function NewWorktreeModalContent() {
                         : 'sonnet'
                     )
                   }}
-                >
-                  <SelectTrigger
-                    className="h-8 min-w-0 flex-1 text-xs"
-                    aria-label="Investigation provider"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__anthropic__">Anthropic</SelectItem>
-                    {(preferences?.custom_cli_profiles ?? []).map(profile => (
-                      <SelectItem key={profile.name} value={profile.name}>
-                        {profile.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onModelChange={setInvestigationModel}
+                  onBackendModelChange={(backend, model) => {
+                    setInvestigationBackend(backend)
+                    setInvestigationModel(model)
+                    if (backend !== 'claude')
+                      setInvestigationProvider('__anthropic__')
+                  }}
+                />
               )}
             </div>
           )}

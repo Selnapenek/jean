@@ -192,6 +192,8 @@ describe('model option helpers', () => {
       'gpt-5.6-luna',
     ])
     expect(values).not.toContain('gpt-5.6')
+    expect(normalizeCodexModel('')).toBe('gpt-6.1-sol')
+    expect(normalizeCodexModel('not-a-model')).toBe('gpt-6.1-sol')
     expect(normalizeCodexModel('gpt-6.1-sol')).toBe('gpt-6.1-sol')
     expect(normalizeCodexModel('gpt-6.1-sol-fast')).toBe('gpt-6.1-sol-fast')
     expect(normalizeCodexModel('gpt-6-astra')).toBe('gpt-6-astra')
@@ -222,13 +224,13 @@ describe('model option helpers', () => {
     expect(normalizeCodexModel('gpt-5.5-fast')).toBe('gpt-5.5-fast')
   })
 
-  it('uses GPT 5.6 Sol for Codex magic presets', () => {
+  it('uses GPT 6.1 Sol for Codex magic presets', () => {
     expect(new Set(Object.values(CODEX_DEFAULT_MAGIC_PROMPT_MODELS))).toEqual(
-      new Set(['gpt-5.6-sol'])
+      new Set(['gpt-6.1-sol'])
     )
     expect(
       new Set(Object.values(CODEX_FAST_DEFAULT_MAGIC_PROMPT_MODELS))
-    ).toEqual(new Set(['gpt-5.6-sol-fast']))
+    ).toEqual(new Set(['gpt-6.1-sol-fast']))
   })
 
   it('provides standard and fast GPT 5.6 magic presets for every variant', () => {

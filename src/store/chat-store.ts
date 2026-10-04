@@ -25,10 +25,10 @@ import {
   type CodexDynamicToolCallRequest,
   type ExecutionMode,
   type SendMessageArgs,
+  type PermissionMode,
   type LabelData,
   type ScheduledWakeup,
   type PinnedTable,
-  EXECUTION_MODE_CYCLE,
   isPlanToolCall,
 } from '@/types/chat'
 
@@ -49,10 +49,10 @@ export type { ManualSessionStatus }
 export const DEFAULT_MODEL: ClaudeModel = 'claude-opus-5-5'
 
 /** Default Codex model */
-export const DEFAULT_CODEX_MODEL: CodexModel = 'gpt-5.6-sol'
+export const DEFAULT_CODEX_MODEL: CodexModel = 'gpt-6.1-sol'
 
 /** Default OpenCode model */
-export const DEFAULT_OPENCODE_MODEL = 'opencode/gpt-5.6-sol'
+export const DEFAULT_OPENCODE_MODEL = 'opencode/gpt-6.1-sol'
 
 /** Default thinking level */
 export const DEFAULT_THINKING_LEVEL: ThinkingLevel = 'off'
@@ -157,8 +157,9 @@ interface ChatUIState {
   // Draft input per session (preserves text when switching tabs)
   inputDrafts: Record<string, string>
 
-  // Execution mode per session (defaults to 'plan' for new sessions)
+  // Execution policy per session (Full access for new sessions)
   executionModes: Record<string, ExecutionMode>
+  permissionModes: Record<string, PermissionMode>
 
   // Thinking level per session (defaults to 'off')
   thinkingLevels: Record<string, ThinkingLevel>
@@ -505,6 +506,7 @@ interface ChatUIState {
 
   // Actions - Execution mode (session-based)
   cycleExecutionMode: (sessionId: string) => void
+  setPermissionMode: (sessionId: string, mode: PermissionMode) => void
   setExecutionMode: (sessionId: string, mode: ExecutionMode) => void
   getExecutionMode: (sessionId: string) => ExecutionMode
 
@@ -791,6 +793,7 @@ const SESSION_SCOPED_RECORD_KEYS = [
   'streamingThinkingContent',
   'inputDrafts',
   'executionModes',
+  'permissionModes',
   'thinkingLevels',
   'effortLevels',
   'selectedBackends',
@@ -951,6 +954,7 @@ export const useChatStore = create<ChatUIState>()(
       streamingThinkingContent: {},
       inputDrafts: {},
       executionModes: {},
+      permissionModes: {},
       thinkingLevels: {},
       effortLevels: {},
       selectedBackends: {},
@@ -1692,7 +1696,7 @@ export const useChatStore = create<ChatUIState>()(
         )) {
           if (isSending && state.sessionWorktreeMap[sessionId] === worktreeId) {
             const mode = state.executingModes[sessionId]
-            if (mode === 'build' || mode === 'yolo') {
+            if (mode && mode !== 'plan') {
               return true
             }
           }
@@ -2405,23 +2409,26 @@ export const useChatStore = create<ChatUIState>()(
         ),
 
       // Execution mode (session-based)
-      cycleExecutionMode: sessionId =>
-        set(
-          state => {
-            const current = state.executionModes[sessionId] ?? 'plan'
-            const currentIndex = EXECUTION_MODE_CYCLE.indexOf(current)
-            const nextIndex = (currentIndex + 1) % EXECUTION_MODE_CYCLE.length
-            // EXECUTION_MODE_CYCLE[nextIndex] is always defined due to modulo
-            const next = EXECUTION_MODE_CYCLE[nextIndex] as ExecutionMode
-            return {
-              executionModes: {
-                ...state.executionModes,
-                [sessionId]: next,
-              },
-            }
-          },
-          undefined,
-          'cycleExecutionMode'
+      cycleExecutionMode: sessionId => {
+        const state = get()
+        state.setExecutionMode(
+          sessionId,
+          state.executionModes[sessionId] === 'plan'
+            ? (state.permissionModes[sessionId] ?? 'yolo')
+            : 'plan'
+        )
+      },
+
+      setPermissionMode: (sessionId, mode) =>
+        set(state =>
+          state.permissionModes[sessionId] === mode
+            ? state
+            : {
+                permissionModes: {
+                  ...state.permissionModes,
+                  [sessionId]: mode,
+                },
+              }
         ),
 
       setExecutionMode: (sessionId, mode) =>
@@ -2454,9 +2461,29 @@ export const useChatStore = create<ChatUIState>()(
               return state
             }
 
+            const permissionUpdate =
+              mode === 'plan'
+                ? state.executionModes[sessionId] &&
+                  state.executionModes[sessionId] !== 'plan'
+                  ? {
+                      permissionModes: {
+                        ...state.permissionModes,
+                        [sessionId]: state.executionModes[
+                          sessionId
+                        ] as PermissionMode,
+                      },
+                    }
+                  : {}
+                : {
+                    permissionModes: {
+                      ...state.permissionModes,
+                      [sessionId]: mode,
+                    },
+                  }
             const newState: Partial<ChatUIState> = modeUnchanged
               ? {}
               : {
+                  ...permissionUpdate,
                   executionModes: {
                     ...state.executionModes,
                     [sessionId]: mode,
@@ -2520,7 +2547,7 @@ export const useChatStore = create<ChatUIState>()(
           'setExecutionMode'
         ),
 
-      getExecutionMode: sessionId => get().executionModes[sessionId] ?? 'plan',
+      getExecutionMode: sessionId => get().executionModes[sessionId] ?? 'yolo',
 
       // Thinking level (session-based)
       setThinkingLevel: (sessionId, level) =>
@@ -2616,6 +2643,12 @@ export const useChatStore = create<ChatUIState>()(
         set(
           state => {
             const updates: Partial<ChatUIState> = {}
+            const permission = state.permissionModes[fromId]
+            if (permission)
+              updates.permissionModes = {
+                ...state.permissionModes,
+                [toId]: permission,
+              }
             const em = state.executionModes[fromId]
             if (em !== undefined) {
               updates.executionModes = { ...state.executionModes, [toId]: em }

@@ -1,6 +1,6 @@
 import { getModifierSymbol, isClientMacOS } from '@/lib/platform'
 import { isNativeApp } from '@/lib/environment'
-import { edgePrimary, raisedInset } from '@/components/ui/button'
+import { edgePrimary, raised } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Kbd } from '@/components/ui/kbd'
 import {
@@ -45,7 +45,7 @@ export function SendCancelButton({
             onClick={onCancel}
             className={cn(
               'flex h-8 items-center justify-center gap-1.5 px-3 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90',
-              raisedInset,
+              raised,
               edgePrimary
             )}
           >
@@ -136,7 +136,7 @@ export function SendCancelButton({
             'flex h-8 items-center justify-center px-3 text-xs font-medium transition-colors disabled:pointer-events-none disabled:opacity-50',
             canSend
               ? cn(
-                  raisedInset,
+                  raised,
                   edgePrimary,
                   'bg-primary text-primary-foreground hover:bg-primary/90'
                 )

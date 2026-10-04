@@ -312,7 +312,7 @@ pub struct AppPreferences {
     #[serde(default = "default_confirm_session_close")]
     pub confirm_session_close: bool, // Show confirmation dialog before closing sessions/worktrees
     #[serde(default = "default_execution_mode")]
-    pub default_execution_mode: String, // Default execution mode: "plan", "build", or "yolo"
+    pub default_execution_mode: String, // Default workflow/permission policy for new sessions
     #[serde(default = "default_backend")]
     pub default_backend: String, // Default CLI backend: "claude", "codex", "opencode", "cursor", "pi", or "commandcode"
     #[serde(default = "default_new_session_kind")]
@@ -664,7 +664,7 @@ fn default_confirm_session_close() -> bool {
 }
 
 fn default_execution_mode() -> String {
-    "plan".to_string()
+    "yolo".to_string()
 }
 
 fn default_backend() -> String {
@@ -755,11 +755,11 @@ fn maybe_auto_select_system_cli_preferences(
 }
 
 fn default_codex_model() -> String {
-    "gpt-5.6-sol".to_string()
+    "gpt-6.1-sol".to_string()
 }
 
 fn default_opencode_model() -> String {
-    "opencode/gpt-5.6-sol".to_string()
+    "opencode/gpt-6.1-sol".to_string()
 }
 
 fn default_cursor_model() -> String {
@@ -2983,10 +2983,6 @@ pub struct UIState {
     #[serde(default)]
     pub pinned_recent_session_ids: Vec<String>,
 
-    /// Favorited projects shown first in the GitHub Dashboard
-    #[serde(default)]
-    pub github_dashboard_favorite_project_ids: Vec<String>,
-
     /// Last opened worktree+session per project: projectId → { worktree_id, session_id }
     #[serde(default)]
     pub last_opened_per_project: std::collections::HashMap<String, LastOpenedEntry>,
@@ -3144,7 +3140,6 @@ impl Default for UIState {
             dashboard_worktree_collapse_overrides: std::collections::HashMap::new(),
             project_canvas_settings: std::collections::HashMap::new(),
             pinned_recent_session_ids: Vec::new(),
-            github_dashboard_favorite_project_ids: Vec::new(),
             last_opened_per_project: std::collections::HashMap::new(),
             seen_failed_workflow_run_ids: Vec::new(),
             auto_resume: Vec::new(),

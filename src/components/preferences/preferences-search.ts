@@ -493,8 +493,10 @@ const sectionEntries: PreferenceSearchEntry[] = [
     keywords: [
       'default backend',
       'default mode',
-      'build execution',
-      'yolo execution',
+      'plan approval',
+      'selected permissions',
+      'full-access plan approval',
+      'full access',
       'ai language',
       'editor',
       'terminal',

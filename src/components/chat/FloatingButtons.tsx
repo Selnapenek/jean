@@ -26,9 +26,9 @@ interface FloatingButtonsProps {
   isAtBottom: boolean
   /** Keyboard shortcut for approve */
   approveShortcut: string
-  /** Callback for approve (build mode) */
+  /** Callback for approve (selected permissions) */
   onApprove: () => void
-  /** Callback for approve (yolo mode) */
+  /** Callback for approve (Full access) */
   onYoloApprove: () => void
   /** Label for the build default backend/model */
   buildDefaultModelLabel?: string | null
@@ -97,11 +97,11 @@ export const FloatingButtons = memo(function FloatingButtons({
                     className="h-8 gap-1.5 rounded-r-none text-sm"
                     onClick={withScroll(onYoloApprove)}
                   >
-                    YOLO
+                    Full access
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  Approve with yolo mode (
+                  Approve with Full access (
                   {formatShortcutDisplay(DEFAULT_KEYBINDINGS.approve_plan_yolo)}
                   )
                 </TooltipContent>

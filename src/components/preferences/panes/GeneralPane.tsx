@@ -1,3 +1,5 @@
+import { useInstalledBackends } from '@/hooks/useInstalledBackends'
+import { useSettingsTargetServerId } from '@/lib/settings-target'
 import React, {
   useState,
   useCallback,
@@ -110,7 +112,6 @@ import {
   useAvailableKimiModels,
   kimiCliQueryKeys,
 } from '@/services/kimi-cli'
-import { useAntigravityCliStatus } from '@/services/antigravity-cli'
 import type { ClaudeAuthStatus } from '@/types/claude-cli'
 import type { GhAuthStatus } from '@/types/gh-cli'
 import type { CodexAuthStatus } from '@/types/codex-cli'
@@ -206,7 +207,12 @@ import {
   fetchRemoteServerInfo,
   formatJeanVersionLabel,
 } from '@/lib/remote-version'
-import type { ThinkingLevel, EffortLevel } from '@/types/chat'
+import {
+  getSupportedPermissionModes,
+  type ThinkingLevel,
+  type EffortLevel,
+  type ExecutionMode,
+} from '@/types/chat'
 import {
   hasBackend,
   isNativeApp,
@@ -217,8 +223,8 @@ import { isNewerVersion } from '@/lib/version-utils'
 import { cn } from '@/lib/utils'
 import { copyToClipboard } from '@/lib/clipboard'
 import { getPathUpdateAction } from '@/lib/cli-update'
-import { BackendPaneHeader, SettingsSection } from '../SettingsSection'
-import { BackendCliSourceCards } from '../BackendCliSourceCards'
+import { SettingsSection } from '../SettingsSection'
+import { BackendCliSourceSelect } from '../BackendCliSourceSelect'
 import { AiLanguageField } from './AiLanguageField'
 import {
   resolveDefaultModelForBackend,
@@ -284,6 +290,11 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
   scope = 'general',
 }) => {
   const isGeneralScope = scope === 'general'
+  const serverId = useSettingsTargetServerId()
+  const { installedBackends } = useInstalledBackends({
+    enabled: isGeneralScope,
+    serverId,
+  })
   const queryClient = useQueryClient()
   const activeRemoteConnection = getActiveRemoteConnection()
   const { data: remoteServerInfo, isLoading: isRemoteServerInfoLoading } =
@@ -307,9 +318,9 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
   const codexReasoning = getCatalogModelReasoning(
     modelCatalog,
     'codex',
-    preferences?.selected_codex_model ?? 'gpt-5.6-sol'
+    preferences?.selected_codex_model ?? 'gpt-6.1-sol'
   )
-  const selectedCodexModel = preferences?.selected_codex_model ?? 'gpt-5.6-sol'
+  const selectedCodexModel = preferences?.selected_codex_model ?? 'gpt-6.1-sol'
   const selectedCodexReasoningOptions = withAdaptiveEffortOption(
     codexReasoning?.type === 'effort'
       ? codexReasoning.levels
@@ -418,7 +429,6 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
     useCommandCodeCliStatus()
   const { data: grokStatus, isLoading: isGrokLoading } = useGrokCliStatus()
   const { data: kimiStatus, isLoading: isKimiLoading } = useKimiCliStatus()
-  const { data: antigravityStatus } = useAntigravityCliStatus()
   const isGhPathSource = preferences?.gh_cli_source === 'path'
   const { data: ghVersions, isLoading: isGhVersionsLoading } =
     useAvailableGhVersions({ enabled: isGhPathSource && !!ghStatus?.installed })
@@ -1000,79 +1010,14 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
   // at send time / backend settings — hiding unauthenticated backends made Claude
   // (and others) disappear from Defaults when auth probes were false-negative.
   const stored = preferences?.default_backend ?? 'claude'
-  const claudeInstalled = !!cliStatus?.installed
-  const codexInstalled = !!codexStatus?.installed
-  const opencodeInstalled = !!opencodeStatus?.installed
-  const cursorInstalled = !!cursorStatus?.installed
-  const piInstalled = !!piStatus?.installed
-  const commandcodeInstalled = !!commandcodeStatus?.installed
-  const grokInstalled = !!grokStatus?.installed
-  const kimiInstalled = !!kimiStatus?.installed
-  const antigravityInstalled = !!antigravityStatus?.installed
   const installedBackendOptions = useMemo(
     () =>
-      backendOptions.filter(option =>
-        option.value === 'claude'
-          ? claudeInstalled
-          : option.value === 'codex'
-            ? codexInstalled
-            : option.value === 'opencode'
-              ? opencodeInstalled
-              : option.value === 'cursor'
-                ? cursorInstalled
-                : option.value === 'pi'
-                  ? piInstalled
-                  : option.value === 'commandcode'
-                    ? commandcodeInstalled
-                    : option.value === 'grok'
-                      ? grokInstalled
-                      : option.value === 'kimi'
-                        ? kimiInstalled
-                        : option.value === 'antigravity'
-                          ? antigravityInstalled
-                          : false
-      ),
-    [
-      claudeInstalled,
-      codexInstalled,
-      opencodeInstalled,
-      cursorInstalled,
-      piInstalled,
-      commandcodeInstalled,
-      grokInstalled,
-      kimiInstalled,
-      antigravityInstalled,
-    ]
+      backendOptions.filter(option => installedBackends.includes(option.value)),
+    [installedBackends]
   )
-
-  const effectiveBackend = useMemo(() => {
-    const installed: Record<string, boolean | undefined> = {
-      claude: claudeInstalled,
-      codex: codexInstalled,
-      opencode: opencodeInstalled,
-      cursor: cursorInstalled,
-      pi: piInstalled,
-      commandcode: commandcodeInstalled,
-      grok: grokInstalled,
-      kimi: kimiInstalled,
-      antigravity: antigravityInstalled,
-    }
-    if (installed[stored]) return stored
-    const first = installedBackendOptions[0]
-    return first?.value ?? stored
-  }, [
-    stored,
-    claudeInstalled,
-    codexInstalled,
-    opencodeInstalled,
-    cursorInstalled,
-    piInstalled,
-    commandcodeInstalled,
-    grokInstalled,
-    kimiInstalled,
-    antigravityInstalled,
-    installedBackendOptions,
-  ])
+  const effectiveBackend = installedBackends.includes(stored)
+    ? stored
+    : (installedBackendOptions[0]?.value ?? stored)
 
   const handleCodexModelChange = (value: CodexModel) => {
     if (preferences) {
@@ -1150,7 +1095,7 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
   }
 
   const selectedOpenCodeModel =
-    preferences?.selected_opencode_model ?? 'opencode/gpt-5.6-sol'
+    preferences?.selected_opencode_model ?? 'opencode/gpt-6.1-sol'
   const openCodeModelOptions = (
     availableOpencodeModels?.length
       ? availableOpencodeModels
@@ -1781,11 +1726,9 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
   }, [])
 
   return (
-    <div className="space-y-6">
-      {backendPaneScopes.includes(scope) && (
-        <BackendPaneHeader backend={scope as CliBackend} />
-      )}
-
+    <div
+      className={cn('space-y-6', backendPaneScopes.includes(scope) && 'w-full')}
+    >
       {hasBackend() && scope === 'claude' && (
         <SettingsSection
           title="CLI source"
@@ -1902,7 +1845,7 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                 </Tooltip>
               }
             >
-              <BackendCliSourceCards
+              <BackendCliSourceSelect
                 value={preferences?.claude_cli_source ?? 'jean'}
                 onValueChange={handleClaudeSourceChange}
                 backendName="Claude CLI"
@@ -2055,7 +1998,7 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="jean">Jean (managed)</SelectItem>
+                  <SelectItem value="jean">Jean managed</SelectItem>
                   <SelectItem value="path" disabled={!ghPathDetection?.found}>
                     System PATH
                     {!ghPathDetection?.found && ' (not found)'}
@@ -2209,7 +2152,7 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="jean">Jean (managed)</SelectItem>
+                      <SelectItem value="jean">Jean managed</SelectItem>
                       <SelectItem
                         value="path"
                         disabled={!coderabbitPathDetection?.found}
@@ -2355,7 +2298,7 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                 </Tooltip>
               }
             >
-              <BackendCliSourceCards
+              <BackendCliSourceSelect
                 value={preferences?.codex_cli_source ?? 'jean'}
                 onValueChange={handleCodexSourceChange}
                 backendName="Codex CLI"
@@ -2509,7 +2452,7 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                 </Tooltip>
               }
             >
-              <BackendCliSourceCards
+              <BackendCliSourceSelect
                 value={preferences?.opencode_cli_source ?? 'jean'}
                 onValueChange={handleOpencodeSourceChange}
                 backendName="OpenCode CLI"
@@ -2727,7 +2670,7 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                 </Tooltip>
               }
             >
-              <BackendCliSourceCards
+              <BackendCliSourceSelect
                 value={preferences?.pi_cli_source ?? 'jean'}
                 onValueChange={handlePiSourceChange}
                 backendName="PI CLI"
@@ -2842,7 +2785,7 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                 </Tooltip>
               }
             >
-              <BackendCliSourceCards
+              <BackendCliSourceSelect
                 value={preferences?.commandcode_cli_source ?? 'jean'}
                 onValueChange={handleCommandCodeSourceChange}
                 backendName="Command Code CLI"
@@ -2987,7 +2930,7 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
           <div className="space-y-4">
             <InlineField label="Model">
               <Select
-                value={preferences?.selected_codex_model ?? 'gpt-5.6-sol'}
+                value={preferences?.selected_codex_model ?? 'gpt-6.1-sol'}
                 onValueChange={handleCodexModelChange}
               >
                 <SelectTrigger className="w-full sm:w-80">
@@ -3054,8 +2997,10 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="build">Build</SelectItem>
-                  <SelectItem value="yolo">Yolo</SelectItem>
+                  <SelectItem value="build">
+                    Auto-accept edits / legacy Build
+                  </SelectItem>
+                  <SelectItem value="yolo">Full access</SelectItem>
                 </SelectContent>
               </Select>
             </InlineField>
@@ -3411,7 +3356,7 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                   </Tooltip>
                 }
               >
-                <BackendCliSourceCards
+                <BackendCliSourceSelect
                   value={preferences?.grok_cli_source ?? 'jean'}
                   onValueChange={handleGrokSourceChange}
                   backendName="Grok CLI"
@@ -3580,7 +3525,7 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                   </Tooltip>
                 }
               >
-                <BackendCliSourceCards
+                <BackendCliSourceSelect
                   value={preferences?.kimi_cli_source ?? 'jean'}
                   onValueChange={handleKimiSourceChange}
                   backendName="Kimi Code CLI"
@@ -3674,12 +3619,12 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
             </InlineField>
 
             <InlineField
-              label="Default mode"
-              description="Permission mode for new sessions"
+              label="Default permissions"
+              description="Permission policy for new sessions on the default backend."
             >
               <Select
-                value={preferences?.default_execution_mode ?? 'plan'}
-                onValueChange={(value: 'plan' | 'build' | 'yolo') => {
+                value={preferences?.default_execution_mode ?? 'yolo'}
+                onValueChange={(value: ExecutionMode) => {
                   patchPreferences.mutate({ default_execution_mode: value })
                 }}
               >
@@ -3687,9 +3632,29 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="plan">Plan</SelectItem>
-                  <SelectItem value="build">Build</SelectItem>
-                  <SelectItem value="yolo">Yolo</SelectItem>
+                  {preferences?.default_execution_mode === 'plan' && (
+                    <SelectItem value="plan">Plan (legacy workflow)</SelectItem>
+                  )}
+                  {preferences?.default_execution_mode === 'build' &&
+                    !getSupportedPermissionModes(
+                      preferences?.default_backend ?? 'claude'
+                    ).includes('build') && (
+                      <SelectItem value="build">Legacy Build</SelectItem>
+                    )}
+                  {getSupportedPermissionModes(
+                    preferences?.default_backend ?? 'claude'
+                  ).map(mode => (
+                    <SelectItem key={mode} value={mode}>
+                      {
+                        {
+                          supervised: 'Supervised',
+                          build: 'Auto-accept edits',
+                          auto: 'Auto',
+                          yolo: 'Full access',
+                        }[mode]
+                      }
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </InlineField>
@@ -3721,8 +3686,8 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
             </InlineField>
 
             <InlineField
-              label="Build execution"
-              description="Backend, model, thinking, and effort override when approving plans"
+              label="Plan approval"
+              description="Backend, model, thinking, and effort overrides when approving a plan with the selected permissions"
             >
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
                 <div>
@@ -3968,8 +3933,8 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
             </InlineField>
 
             <InlineField
-              label="Yolo execution"
-              description="Backend, model, thinking, and effort override when yolo-approving plans"
+              label="Full-access plan approval"
+              description="Backend, model, thinking, and effort overrides when approving a plan with Full access"
             >
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
                 <div>
@@ -4533,7 +4498,7 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
 
               <InlineField
                 label="Close original session on clear context"
-                description="Automatically close the original session when using Clear Context and yolo"
+                description="Automatically close the original session when using Clear context with Full access"
               >
                 <Switch
                   checked={preferences?.close_original_on_clear_context ?? true}

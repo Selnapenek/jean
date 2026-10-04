@@ -2983,10 +2983,6 @@ pub struct UIState {
     #[serde(default)]
     pub pinned_recent_session_ids: Vec<String>,
 
-    /// Favorited projects shown first in the GitHub Dashboard
-    #[serde(default)]
-    pub github_dashboard_favorite_project_ids: Vec<String>,
-
     /// Last opened worktree+session per project: projectId → { worktree_id, session_id }
     #[serde(default)]
     pub last_opened_per_project: std::collections::HashMap<String, LastOpenedEntry>,
@@ -3130,7 +3126,6 @@ impl Default for UIState {
             dashboard_worktree_collapse_overrides: std::collections::HashMap::new(),
             project_canvas_settings: std::collections::HashMap::new(),
             pinned_recent_session_ids: Vec::new(),
-            github_dashboard_favorite_project_ids: Vec::new(),
             last_opened_per_project: std::collections::HashMap::new(),
             seen_failed_workflow_run_ids: Vec::new(),
             version: default_ui_state_version(),

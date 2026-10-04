@@ -25,7 +25,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
     id={anchorId}
     className={cn(
       variant === 'card'
-        ? 'space-y-3 sm:[&_.settings-inline-field]:justify-between sm:[&_.settings-inline-field>div:first-child]:w-auto'
+        ? 'min-w-0 space-y-4 rounded-xl border border-border bg-card p-4 sm:p-5 sm:[&_.settings-inline-field]:flex-wrap sm:[&_.settings-inline-field]:justify-between sm:[&_.settings-inline-field>div:first-child]:w-auto [&_.settings-inline-field>div:first-child]:min-w-32 [&_.settings-inline-field>div:first-child]:flex-1 [&_.settings-inline-field>div:first-child]:break-words'
         : 'space-y-4'
     )}
   >
@@ -53,7 +53,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
       {description && (
         <p className="mt-1 text-sm text-muted-foreground">{description}</p>
       )}
-      {variant !== 'card' && <Separator className="mt-2" />}
+      <Separator className={variant === 'card' ? 'mt-4' : 'mt-2'} />
     </div>
     {children}
   </div>

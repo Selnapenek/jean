@@ -191,7 +191,7 @@ describe('ContextMentionPopover', () => {
     expect(onSelectContext).toHaveBeenCalledWith(items[0], true)
   })
 
-  it('shows keyboard hints on native desktop', () => {
+  it('shows keyboard hints in tooltips on native desktop', async () => {
     platform.native = true
     render(
       <ContextMentionPopover
@@ -205,7 +205,13 @@ describe('ContextMentionPopover', () => {
       />
     )
 
-    expect(screen.getByText('Shift+Enter')).toBeInTheDocument()
+    expect(screen.queryByText('Shift+Enter')).not.toBeInTheDocument()
+    fireEvent.focus(
+      screen.getByRole('button', {
+        name: `Add ${items[0].label} and start investigating`,
+      })
+    )
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Shift+Enter')
   })
 
   it('hides keyboard hints on mobile and web access', () => {

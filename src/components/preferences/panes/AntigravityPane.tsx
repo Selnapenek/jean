@@ -58,7 +58,7 @@ export function AntigravityPane() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="w-full max-w-3xl space-y-6">
       <BackendPaneHeader
         backend="antigravity"
         description="Google's official Antigravity CLI."

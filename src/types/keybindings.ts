@@ -41,7 +41,6 @@ export type KeybindingAction =
   | 'scroll_chat_down_medium'
   | 'scroll_chat_up_small'
   | 'scroll_chat_down_small'
-  | 'open_github_dashboard'
   | 'open_quick_menu'
   | 'open_command_palette'
   | 'search_chat'
@@ -104,7 +103,6 @@ export const DEFAULT_KEYBINDINGS: KeybindingsMap = {
   scroll_chat_down_medium: 'mod+alt+arrowdown',
   scroll_chat_up_small: 'arrowup',
   scroll_chat_down_small: 'arrowdown',
-  open_github_dashboard: 'mod+shift+d',
   open_quick_menu: 'mod+period',
   open_command_palette: 'mod+k',
   search_chat: 'mod+f',
@@ -395,14 +393,6 @@ export const KEYBINDING_DEFINITIONS: KeybindingDefinition[] = [
     description: 'Scroll the chat message list down by a small increment',
     default_shortcut: 'arrowdown',
     category: 'chat',
-  },
-  {
-    action: 'open_github_dashboard',
-    label: 'GitHub Dashboard',
-    description:
-      'Open the GitHub Dashboard (issues, PRs, security across all projects)',
-    default_shortcut: 'mod+shift+d',
-    category: 'navigation',
   },
   {
     action: 'open_quick_menu',

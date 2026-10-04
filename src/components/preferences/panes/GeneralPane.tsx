@@ -1781,7 +1781,12 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
   }, [])
 
   return (
-    <div className="space-y-6">
+    <div
+      className={cn(
+        'space-y-6',
+        backendPaneScopes.includes(scope) && 'w-full max-w-3xl'
+      )}
+    >
       {backendPaneScopes.includes(scope) && (
         <BackendPaneHeader backend={scope as CliBackend} />
       )}

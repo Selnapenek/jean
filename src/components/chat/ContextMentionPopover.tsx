@@ -82,6 +82,10 @@ export function ContextMentionPopover({
   const queryClient = useQueryClient()
   const isMobile = useIsMobile()
   const showKeyboardHints = isNativeApp() && !isMobile
+  const actionButtonClass = cn(
+    'flex min-h-8 items-center gap-1 rounded hover:bg-muted',
+    isMobile ? 'min-w-8 justify-center' : 'px-1.5'
+  )
   const [includeClosed, setIncludeClosed] = useState(false)
   const [menuSearch, setMenuSearch] = useState('')
   const [issueLimit, setIssueLimit] = useState(8)
@@ -330,14 +334,14 @@ export function ContextMentionPopover({
                                 <button
                                   type="button"
                                   aria-label={`Add ${item.label} to session context`}
-                                  className="flex min-h-8 items-center gap-1 rounded px-1.5 hover:bg-muted"
+                                  className={actionButtonClass}
                                   onClick={event => {
                                     event.stopPropagation()
                                     handleSelect(item)
                                   }}
                                 >
                                   <Plus className="size-3.5" />
-                                  <span>Attach</span>
+                                  {!isMobile && <span>Attach</span>}
                                 </button>
                               </TooltipTrigger>
                               <TooltipContent className="flex items-center gap-2">
@@ -352,14 +356,14 @@ export function ContextMentionPopover({
                                 <button
                                   type="button"
                                   aria-label={`Add ${item.label} and start investigating`}
-                                  className="flex min-h-8 items-center gap-1 rounded px-1.5 hover:bg-muted"
+                                  className={actionButtonClass}
                                   onClick={event => {
                                     event.stopPropagation()
                                     handleSelect(item, true)
                                   }}
                                 >
                                   <Sparkles className="size-3.5" />
-                                  <span>Investigate</span>
+                                  {!isMobile && <span>Investigate</span>}
                                 </button>
                               </TooltipTrigger>
                               <TooltipContent className="flex items-center gap-2">

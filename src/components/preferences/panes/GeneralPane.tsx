@@ -1,3 +1,5 @@
+import { useInstalledBackends } from '@/hooks/useInstalledBackends'
+import { useSettingsTargetServerId } from '@/lib/settings-target'
 import React, {
   useState,
   useCallback,
@@ -110,7 +112,6 @@ import {
   useAvailableKimiModels,
   kimiCliQueryKeys,
 } from '@/services/kimi-cli'
-import { useAntigravityCliStatus } from '@/services/antigravity-cli'
 import type { ClaudeAuthStatus } from '@/types/claude-cli'
 import type { GhAuthStatus } from '@/types/gh-cli'
 import type { CodexAuthStatus } from '@/types/codex-cli'
@@ -284,6 +285,11 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
   scope = 'general',
 }) => {
   const isGeneralScope = scope === 'general'
+  const serverId = useSettingsTargetServerId()
+  const { installedBackends } = useInstalledBackends({
+    enabled: isGeneralScope,
+    serverId,
+  })
   const queryClient = useQueryClient()
   const activeRemoteConnection = getActiveRemoteConnection()
   const { data: remoteServerInfo, isLoading: isRemoteServerInfoLoading } =
@@ -418,7 +424,6 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
     useCommandCodeCliStatus()
   const { data: grokStatus, isLoading: isGrokLoading } = useGrokCliStatus()
   const { data: kimiStatus, isLoading: isKimiLoading } = useKimiCliStatus()
-  const { data: antigravityStatus } = useAntigravityCliStatus()
   const isGhPathSource = preferences?.gh_cli_source === 'path'
   const { data: ghVersions, isLoading: isGhVersionsLoading } =
     useAvailableGhVersions({ enabled: isGhPathSource && !!ghStatus?.installed })
@@ -1000,79 +1005,14 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
   // at send time / backend settings — hiding unauthenticated backends made Claude
   // (and others) disappear from Defaults when auth probes were false-negative.
   const stored = preferences?.default_backend ?? 'claude'
-  const claudeInstalled = !!cliStatus?.installed
-  const codexInstalled = !!codexStatus?.installed
-  const opencodeInstalled = !!opencodeStatus?.installed
-  const cursorInstalled = !!cursorStatus?.installed
-  const piInstalled = !!piStatus?.installed
-  const commandcodeInstalled = !!commandcodeStatus?.installed
-  const grokInstalled = !!grokStatus?.installed
-  const kimiInstalled = !!kimiStatus?.installed
-  const antigravityInstalled = !!antigravityStatus?.installed
   const installedBackendOptions = useMemo(
     () =>
-      backendOptions.filter(option =>
-        option.value === 'claude'
-          ? claudeInstalled
-          : option.value === 'codex'
-            ? codexInstalled
-            : option.value === 'opencode'
-              ? opencodeInstalled
-              : option.value === 'cursor'
-                ? cursorInstalled
-                : option.value === 'pi'
-                  ? piInstalled
-                  : option.value === 'commandcode'
-                    ? commandcodeInstalled
-                    : option.value === 'grok'
-                      ? grokInstalled
-                      : option.value === 'kimi'
-                        ? kimiInstalled
-                        : option.value === 'antigravity'
-                          ? antigravityInstalled
-                          : false
-      ),
-    [
-      claudeInstalled,
-      codexInstalled,
-      opencodeInstalled,
-      cursorInstalled,
-      piInstalled,
-      commandcodeInstalled,
-      grokInstalled,
-      kimiInstalled,
-      antigravityInstalled,
-    ]
+      backendOptions.filter(option => installedBackends.includes(option.value)),
+    [installedBackends]
   )
-
-  const effectiveBackend = useMemo(() => {
-    const installed: Record<string, boolean | undefined> = {
-      claude: claudeInstalled,
-      codex: codexInstalled,
-      opencode: opencodeInstalled,
-      cursor: cursorInstalled,
-      pi: piInstalled,
-      commandcode: commandcodeInstalled,
-      grok: grokInstalled,
-      kimi: kimiInstalled,
-      antigravity: antigravityInstalled,
-    }
-    if (installed[stored]) return stored
-    const first = installedBackendOptions[0]
-    return first?.value ?? stored
-  }, [
-    stored,
-    claudeInstalled,
-    codexInstalled,
-    opencodeInstalled,
-    cursorInstalled,
-    piInstalled,
-    commandcodeInstalled,
-    grokInstalled,
-    kimiInstalled,
-    antigravityInstalled,
-    installedBackendOptions,
-  ])
+  const effectiveBackend = installedBackends.includes(stored)
+    ? stored
+    : (installedBackendOptions[0]?.value ?? stored)
 
   const handleCodexModelChange = (value: CodexModel) => {
     if (preferences) {

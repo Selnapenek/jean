@@ -108,13 +108,16 @@ function clearLocalWorktreeState(
         queryKey: ['chat', 'session', sessionId],
       })
     }
-    queryClient.setQueryData<AllSessionsResponse>(['all-sessions'], old => {
-      if (!old) return old
-      const entries = old.entries.filter(
-        entry => entry.worktree_id !== worktreeId
-      )
-      return entries.length === old.entries.length ? old : { ...old, entries }
-    })
+    queryClient.setQueriesData<AllSessionsResponse>(
+      { queryKey: ['all-sessions'] },
+      old => {
+        if (!old) return old
+        const entries = old.entries.filter(
+          entry => entry.worktree_id !== worktreeId
+        )
+        return entries.length === old.entries.length ? old : { ...old, entries }
+      }
+    )
     queryClient.invalidateQueries({ queryKey: ['all-sessions'] })
     queryClient.invalidateQueries({ queryKey: ['unread-session-count'] })
   }

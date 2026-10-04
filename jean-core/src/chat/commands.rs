@@ -790,68 +790,124 @@ pub async fn get_unread_session_count(app: AppHandle) -> Result<usize, String> {
             .into_iter()
             .filter(|worktree| worktree.archived_at.is_none())
         {
-            let index = load_index(&app, &worktree.id)?;
-            let mut legacy_summaries = HashMap::new();
-
-            for entry in &index.sessions {
-                if entry.archived_at.is_some() {
-                    continue;
-                }
-
-                let summary = if let Some(summary) = &entry.unread_summary {
-                    summary.clone()
-                } else {
-                    // Older indexes do not contain summaries. Read each legacy
-                    // metadata file once, then persist the compact result so
-                    // future count checks stay index-only.
-                    match load_metadata(&app, &entry.id) {
-                        Ok(Some(metadata)) => {
-                            let summary = metadata.to_unread_summary();
-                            legacy_summaries.insert(entry.id.clone(), summary.clone());
-                            summary
-                        }
-                        Ok(None) => {
-                            let summary = SessionUnreadSummary::default();
-                            legacy_summaries.insert(entry.id.clone(), summary.clone());
-                            summary
-                        }
-                        Err(error) => {
-                            log::warn!(
-                                "Failed to load legacy unread metadata for session {}: {error}",
-                                entry.id
-                            );
-                            continue;
-                        }
-                    }
-                };
-
-                if summary.is_unread() {
-                    unread_count += 1;
-                }
-            }
-
-            if !legacy_summaries.is_empty() {
-                let migration_result = with_index_mut(&app, &worktree.id, |index| {
-                    for (session_id, summary) in &legacy_summaries {
-                        if let Some(entry) = index.find_session_mut(session_id) {
-                            if entry.unread_summary.is_none() {
-                                entry.unread_summary = Some(summary.clone());
-                            }
-                        }
-                    }
-                    Ok(())
-                });
-                if let Err(error) = migration_result {
-                    log::warn!(
-                        "Failed to persist unread index migration for worktree {}: {error}",
-                        worktree.id
-                    );
-                }
-            }
+            unread_count += unread_session_ids_for_worktree(&app, &worktree.id)?.len();
         }
     }
 
     Ok(unread_count)
+}
+
+/// List only unread sessions across all projects, grouped like `list_all_sessions`.
+///
+/// The finished-session popover needs session objects, but only for unread
+/// sessions. Filtering on the index summaries first avoids reading the
+/// metadata file of every session in every worktree.
+pub async fn list_unread_sessions(app: AppHandle) -> Result<AllSessionsResponse, String> {
+    log::trace!("Listing unread sessions across all worktrees");
+
+    let projects_data = load_projects_data(&app)?;
+    let mut entries = Vec::new();
+
+    for project in &projects_data.projects {
+        for worktree in projects_data
+            .worktrees_for_project(&project.id)
+            .into_iter()
+            .filter(|worktree| worktree.archived_at.is_none())
+        {
+            let sessions: Vec<Session> = unread_session_ids_for_worktree(&app, &worktree.id)?
+                .iter()
+                .filter_map(|session_id| match load_metadata(&app, session_id) {
+                    Ok(Some(metadata)) => Some(metadata.to_session()),
+                    Ok(None) => None,
+                    Err(error) => {
+                        log::warn!("Failed to load unread session {session_id}: {error}");
+                        None
+                    }
+                })
+                .filter(is_unread_session)
+                .collect();
+
+            if !sessions.is_empty() {
+                entries.push(AllSessionsEntry {
+                    project_id: project.id.clone(),
+                    project_name: project.name.clone(),
+                    worktree_id: worktree.id.clone(),
+                    worktree_name: worktree.name.clone(),
+                    worktree_path: worktree.path.clone(),
+                    sessions,
+                });
+            }
+        }
+    }
+
+    Ok(AllSessionsResponse { entries })
+}
+
+/// Return the ids of unread sessions in one worktree, using index summaries.
+fn unread_session_ids_for_worktree(
+    app: &AppHandle,
+    worktree_id: &str,
+) -> Result<Vec<String>, String> {
+    let index = load_index(app, worktree_id)?;
+    let mut legacy_summaries = HashMap::new();
+    let mut unread_ids = Vec::new();
+
+    for entry in &index.sessions {
+        if entry.archived_at.is_some() {
+            continue;
+        }
+
+        let summary = if let Some(summary) = &entry.unread_summary {
+            summary.clone()
+        } else {
+            // Older indexes do not contain summaries. Read each legacy
+            // metadata file once, then persist the compact result so
+            // future unread checks stay index-only.
+            match load_metadata(app, &entry.id) {
+                Ok(Some(metadata)) => {
+                    let summary = metadata.to_unread_summary();
+                    legacy_summaries.insert(entry.id.clone(), summary.clone());
+                    summary
+                }
+                Ok(None) => {
+                    let summary = SessionUnreadSummary::default();
+                    legacy_summaries.insert(entry.id.clone(), summary.clone());
+                    summary
+                }
+                Err(error) => {
+                    log::warn!(
+                        "Failed to load legacy unread metadata for session {}: {error}",
+                        entry.id
+                    );
+                    continue;
+                }
+            }
+        };
+
+        if summary.is_unread() {
+            unread_ids.push(entry.id.clone());
+        }
+    }
+
+    if !legacy_summaries.is_empty() {
+        let migration_result = with_index_mut(app, worktree_id, |index| {
+            for (session_id, summary) in &legacy_summaries {
+                if let Some(entry) = index.find_session_mut(session_id) {
+                    if entry.unread_summary.is_none() {
+                        entry.unread_summary = Some(summary.clone());
+                    }
+                }
+            }
+            Ok(())
+        });
+        if let Err(error) = migration_result {
+            log::warn!(
+                "Failed to persist unread index migration for worktree {worktree_id}: {error}"
+            );
+        }
+    }
+
+    Ok(unread_ids)
 }
 
 fn is_unread_session(session: &Session) -> bool {

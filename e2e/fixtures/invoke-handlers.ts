@@ -60,6 +60,7 @@ export const defaultResponses: Record<string, unknown> = {
     messages: [],
   },
   list_all_sessions: { worktrees: {} },
+  list_unread_sessions: { entries: [] },
   create_session: {
     id: 'session-new',
     name: 'New Session',

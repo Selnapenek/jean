@@ -294,21 +294,25 @@ export function applySessionRenamedToCaches(
     if (!old || old.name === newName) return old
     return { ...old, name: newName }
   })
-  queryClient.setQueryData<AllSessionsResponse>(['all-sessions'], old => {
-    if (!old) return old
-    let changed = false
-    const entries = old.entries.map(entry => {
-      let entryChanged = false
-      const sessions = entry.sessions.map(session => {
-        if (session.id !== sessionId || session.name === newName) return session
-        entryChanged = true
-        changed = true
-        return { ...session, name: newName }
+  queryClient.setQueriesData<AllSessionsResponse>(
+    { queryKey: ['all-sessions'] },
+    old => {
+      if (!old) return old
+      let changed = false
+      const entries = old.entries.map(entry => {
+        let entryChanged = false
+        const sessions = entry.sessions.map(session => {
+          if (session.id !== sessionId || session.name === newName)
+            return session
+          entryChanged = true
+          changed = true
+          return { ...session, name: newName }
+        })
+        return entryChanged ? { ...entry, sessions } : entry
       })
-      return entryChanged ? { ...entry, sessions } : entry
-    })
-    return changed ? { ...old, entries } : old
-  })
+      return changed ? { ...old, entries } : old
+    }
+  )
   queryClient.setQueriesData<{ items: RecentWorktreeItem[] }>(
     { queryKey: ['recent-worktrees'] },
     old => {

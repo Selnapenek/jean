@@ -57,7 +57,10 @@ import type {
 } from '@/types/projects'
 import { preserveQueryCacheOnError } from '@/lib/query-error'
 import { renameTableKeyMessage } from '@/lib/pinned-table-reveal'
-import { useConsolidatedAllSessions } from './multi-server-sessions'
+import {
+  useConsolidatedAllSessions,
+  useConsolidatedUnreadSessions,
+} from './multi-server-sessions'
 
 /** Default number of recent runs loaded on initial session fetch. */
 export const INITIAL_RUN_LIMIT = 10
@@ -128,7 +131,7 @@ export function removeSessionFromAllSessionsCache(
   queryClient: QueryClient,
   sessionId: string
 ): void {
-  queryClient.setQueryData(['all-sessions'], old => {
+  queryClient.setQueriesData({ queryKey: ['all-sessions'] }, old => {
     const data = old as { entries?: { sessions?: Session[] }[] } | undefined
     if (!data?.entries) return old
     return {
@@ -157,17 +160,20 @@ export async function refreshWorktreeSessionsCaches(
       worktreePath,
     })
     queryClient.setQueryData(chatQueryKeys.sessions(worktreeId), sessions)
-    queryClient.setQueryData<AllSessionsResponse>(['all-sessions'], old => {
-      if (!old?.entries) return old
-      return {
-        ...old,
-        entries: old.entries.map(entry =>
-          entry.worktree_id === worktreeId
-            ? { ...entry, sessions: sessions.sessions }
-            : entry
-        ),
+    queryClient.setQueriesData<AllSessionsResponse>(
+      { queryKey: ['all-sessions'] },
+      old => {
+        if (!old?.entries) return old
+        return {
+          ...old,
+          entries: old.entries.map(entry =>
+            entry.worktree_id === worktreeId
+              ? { ...entry, sessions: sessions.sessions }
+              : entry
+          ),
+        }
       }
-    })
+    )
     return sessions
   } catch (error) {
     logger.warn('Failed to refresh worktree sessions caches', {
@@ -667,6 +673,11 @@ export async function prefetchSessions(
  */
 export function useAllSessions(enabled = true) {
   return useConsolidatedAllSessions(enabled)
+}
+
+/** Unread sessions only (finished-session popover); much lighter than all. */
+export function useUnreadSessions(enabled = true) {
+  return useConsolidatedUnreadSessions(enabled)
 }
 
 export const MIN_SESSION_SEARCH_LEN = 3

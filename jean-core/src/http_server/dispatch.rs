@@ -1204,6 +1204,10 @@ pub async fn dispatch_command(
                 crate::chat::search::search_session_messages(app.clone(), query, limit).await?;
             to_value(result)
         }
+        "list_unread_sessions" => {
+            let result = crate::chat::list_unread_sessions(app.clone()).await?;
+            to_value(result)
+        }
         "get_unread_session_count" => {
             let result = crate::chat::get_unread_session_count(app.clone()).await?;
             to_value(result)

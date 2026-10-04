@@ -974,13 +974,13 @@ function makeMagicPromptModelsPreset(
   }
 }
 
-/** Codex preset: use GPT-5.6 Sol for all magic prompts */
+/** Codex preset: use GPT-6.1 Sol for all magic prompts */
 export const CODEX_DEFAULT_MAGIC_PROMPT_MODELS: MagicPromptModels =
-  makeMagicPromptModelsPreset('gpt-5.6-sol')
+  makeMagicPromptModelsPreset('gpt-6.1-sol')
 
-/** Codex fast preset: use GPT-5.6 Sol Fast for all magic prompts */
+/** Codex fast preset: use GPT-6.1 Sol Fast for all magic prompts */
 export const CODEX_FAST_DEFAULT_MAGIC_PROMPT_MODELS: MagicPromptModels =
-  makeMagicPromptModelsPreset('gpt-5.6-sol-fast')
+  makeMagicPromptModelsPreset('gpt-6.1-sol-fast')
 
 /** GPT-5.6 Codex presets for all magic prompts */
 export const CODEX_56_SOL_DEFAULT_MAGIC_PROMPT_MODELS: MagicPromptModels =
@@ -998,7 +998,7 @@ export const CODEX_56_TERRA_FAST_DEFAULT_MAGIC_PROMPT_MODELS: MagicPromptModels 
 
 /** OpenCode preset for all magic prompts */
 export const OPENCODE_DEFAULT_MAGIC_PROMPT_MODELS: MagicPromptModels =
-  makeMagicPromptModelsPreset('opencode/gpt-5.6-sol')
+  makeMagicPromptModelsPreset('opencode/gpt-6.1-sol')
 
 /** PI preset for all magic prompts */
 export const PI_DEFAULT_MAGIC_PROMPT_MODELS: MagicPromptModels =
@@ -1351,7 +1351,7 @@ export interface AppPreferences {
   fast_mode_models: string[] // Model keys ("backend:baseModel") with fast tier last enabled
 
   confirm_session_close: boolean // Show confirmation dialog before closing sessions/worktrees
-  default_execution_mode: ExecutionMode // Default execution mode for new sessions: 'plan', 'build', or 'yolo'
+  default_execution_mode: ExecutionMode // Default workflow/permission policy for new sessions
   default_backend: CliBackend // Default CLI backend for new sessions
   default_new_session_kind: NewSessionKind // Default action for CMD+T: 'chat', 'terminal', or a CLI backend
   selected_codex_model: CodexModel // Default Codex model
@@ -1950,7 +1950,7 @@ export function normalizeCodexModel(model: string): CodexModel {
     ]
   }
 
-  return isCodexModel(model) ? model : 'gpt-5.6-sol'
+  return isCodexModel(model) ? model : 'gpt-6.1-sol'
 }
 
 export type CodexReasoningEffort = string
@@ -2499,11 +2499,11 @@ export const defaultPreferences: AppPreferences = {
   favorite_base_branches: [],
   fast_mode_models: [],
   confirm_session_close: true, // Default: enabled (show confirmation)
-  default_execution_mode: 'plan', // Default: plan mode
+  default_execution_mode: 'yolo', // Default: Full access
   default_backend: 'claude', // Default: Claude
   default_new_session_kind: 'chat', // Default: Jean Chat for CMD+T
-  selected_codex_model: 'gpt-5.6-sol', // Default: latest Codex model
-  selected_opencode_model: 'opencode/gpt-5.6-sol', // Default OpenCode model
+  selected_codex_model: 'gpt-6.1-sol', // Default: latest Codex model
+  selected_opencode_model: 'opencode/gpt-6.1-sol', // Default OpenCode model
   selected_cursor_model: 'cursor/auto', // Default Cursor model
   selected_pi_model: 'pi/sonnet', // Default PI model
   selected_commandcode_model: 'commandcode/default', // Default Command Code model

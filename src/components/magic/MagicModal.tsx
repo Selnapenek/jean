@@ -445,9 +445,9 @@ export function MagicModal() {
     const model =
       preferences?.magic_prompt_models?.[modelKey] ??
       (backend === 'codex'
-        ? (preferences?.selected_codex_model ?? 'gpt-5.6-sol')
+        ? (preferences?.selected_codex_model ?? 'gpt-6.1-sol')
         : backend === 'opencode'
-          ? (preferences?.selected_opencode_model ?? 'opencode/gpt-5.6-sol')
+          ? (preferences?.selected_opencode_model ?? 'opencode/gpt-6.1-sol')
           : backend === 'cursor'
             ? (preferences?.selected_cursor_model ?? 'cursor/auto')
             : backend === 'commandcode'
@@ -481,9 +481,9 @@ export function MagicModal() {
     const model =
       preferences?.magic_prompt_models?.[RESOLVE_CONFLICTS_MODEL_KEY] ??
       (backend === 'codex'
-        ? (preferences?.selected_codex_model ?? 'gpt-5.6-sol')
+        ? (preferences?.selected_codex_model ?? 'gpt-6.1-sol')
         : backend === 'opencode'
-          ? (preferences?.selected_opencode_model ?? 'opencode/gpt-5.6-sol')
+          ? (preferences?.selected_opencode_model ?? 'opencode/gpt-6.1-sol')
           : backend === 'cursor'
             ? (preferences?.selected_cursor_model ?? 'cursor/auto')
             : backend === 'commandcode'
@@ -1180,10 +1180,10 @@ export function MagicModal() {
                   RESOLVE_CONFLICTS_MODEL_KEY
                 ] ??
                 (resolvedBackend === 'codex'
-                  ? (preferences?.selected_codex_model ?? 'gpt-5.6-sol')
+                  ? (preferences?.selected_codex_model ?? 'gpt-6.1-sol')
                   : resolvedBackend === 'opencode'
                     ? (preferences?.selected_opencode_model ??
-                      'opencode/gpt-5.6-sol')
+                      'opencode/gpt-6.1-sol')
                     : resolvedBackend === 'cursor'
                       ? (preferences?.selected_cursor_model ?? 'cursor/auto')
                       : (preferences?.selected_model ?? 'sonnet'))
@@ -1359,10 +1359,10 @@ ${resolveInstructions}`
               override?.model ??
               preferences?.magic_prompt_models?.[RESOLVE_CONFLICTS_MODEL_KEY] ??
               (resolvedBackend === 'codex'
-                ? (preferences?.selected_codex_model ?? 'gpt-5.6-sol')
+                ? (preferences?.selected_codex_model ?? 'gpt-6.1-sol')
                 : resolvedBackend === 'opencode'
                   ? (preferences?.selected_opencode_model ??
-                    'opencode/gpt-5.6-sol')
+                    'opencode/gpt-6.1-sol')
                   : resolvedBackend === 'cursor'
                     ? (preferences?.selected_cursor_model ?? 'cursor/auto')
                     : (preferences?.selected_model ?? 'sonnet'))

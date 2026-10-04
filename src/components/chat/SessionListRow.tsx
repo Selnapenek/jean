@@ -186,7 +186,7 @@ export const SessionListRow = forwardRef<HTMLDivElement, SessionCardProps>(
                       onYolo()
                     }}
                   >
-                    YOLO
+                    Full access
                     <Kbd className="ml-1 h-3.5 text-[9px] bg-white/20 text-white">
                       {formatShortcutDisplay(
                         DEFAULT_KEYBINDINGS.approve_plan_yolo
@@ -202,7 +202,7 @@ export const SessionListRow = forwardRef<HTMLDivElement, SessionCardProps>(
                         onClearContextApprove()
                       }}
                     >
-                      Clear Context and yolo
+                      Clear context with Full access
                       <Kbd className="ml-1 h-3.5 text-[9px] bg-white/20 text-white">
                         {formatShortcutDisplay(
                           DEFAULT_KEYBINDINGS.approve_plan_clear_context
@@ -219,7 +219,7 @@ export const SessionListRow = forwardRef<HTMLDivElement, SessionCardProps>(
                         onWorktreeBuildApprove()
                       }}
                     >
-                      WT Build
+                      WT Approve
                       <Kbd className="ml-1 h-3.5 text-[9px]">
                         {formatShortcutDisplay(
                           DEFAULT_KEYBINDINGS.approve_plan_worktree_build
@@ -236,7 +236,7 @@ export const SessionListRow = forwardRef<HTMLDivElement, SessionCardProps>(
                         onWorktreeYoloApprove()
                       }}
                     >
-                      WT YOLO
+                      WT Full access
                       <Kbd className="ml-1 h-3.5 text-[9px]">
                         {formatShortcutDisplay(
                           DEFAULT_KEYBINDINGS.approve_plan_worktree_yolo

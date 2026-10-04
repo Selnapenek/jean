@@ -337,6 +337,7 @@ export function WorktreeItem({
   // Responsive padding based on sidebar width
   const sidebarWidth = useSidebarWidth()
   const isNarrowSidebar = sidebarWidth < 200
+  const showStatusBadges = sidebarWidth >= 320
 
   // Inline editing state
   const [isEditing, setIsEditing] = useState(false)
@@ -629,7 +630,7 @@ export function WorktreeItem({
           )}
 
           {/* Sync / Pull / Push badges */}
-          {(behindCount > 0 || pushCount > 0) && (
+          {showStatusBadges && (behindCount > 0 || pushCount > 0) && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -667,7 +668,7 @@ export function WorktreeItem({
           )}
 
           {/* Uncommitted changes */}
-          {hasUncommitted && (
+          {showStatusBadges && hasUncommitted && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="inline-flex shrink-0 items-center gap-0.5 text-[11px] font-medium">
@@ -681,11 +682,13 @@ export function WorktreeItem({
               <TooltipContent>{`Uncommitted: +${uncommittedAdded}/-${uncommittedRemoved} lines`}</TooltipContent>
             </Tooltip>
           )}
-          <CollapsedCountBadge
-            count={sessionsData?.sessions.length ?? 0}
-            label="sessions"
-            isExpanded={isExpanded}
-          />
+          {showStatusBadges && (
+            <CollapsedCountBadge
+              count={sessionsData?.sessions.length ?? 0}
+              label="sessions"
+              isExpanded={isExpanded}
+            />
+          )}
         </div>
       </WorktreeContextMenu>
 

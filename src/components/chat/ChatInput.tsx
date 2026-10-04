@@ -1346,16 +1346,12 @@ export const ChatInput = memo(function ChatInput({
         data-chat-input
         placeholder={
           isSending
-            ? executionMode === 'yolo'
-              ? 'Yolo: Type to queue next message...'
-              : executionMode === 'plan'
-                ? 'Plan: Type to queue next message...'
-                : 'Build: Type to queue next message...'
+            ? executionMode === 'plan'
+              ? 'Plan: Type to queue next message...'
+              : 'Build: Type to queue next message...'
             : executionMode === 'plan'
               ? 'Planning: Plan a task, @ files or # issues...'
-              : executionMode === 'yolo'
-                ? 'Yolo: No limits, only your imagination and tokens...'
-                : 'Build: Ask, @ files or # issues...'
+              : 'Build: Ask, @ files or # issues...'
         }
         // PERFORMANCE: Uncontrolled input - no value prop
         // Value is managed via valueRef and direct DOM manipulation

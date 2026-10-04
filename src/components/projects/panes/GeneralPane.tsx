@@ -1,3 +1,4 @@
+import { SettingsSection } from '@/components/preferences/SettingsSection'
 import React, { useState, useCallback, useMemo, useRef } from 'react'
 import {
   Check,
@@ -20,7 +21,6 @@ import { DirectoryBrowser } from '@/components/projects/DirectoryBrowser'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import {
@@ -55,19 +55,6 @@ import {
 import { BackendLabel } from '@/components/ui/backend-label'
 import { useInstalledBackends } from '@/hooks/useInstalledBackends'
 import type { CliBackend } from '@/types/preferences'
-
-const SettingsSection: React.FC<{
-  title: string
-  children: React.ReactNode
-}> = ({ title, children }) => (
-  <div className="space-y-4">
-    <div>
-      <h3 className="text-lg font-medium text-foreground">{title}</h3>
-      <Separator className="mt-2" />
-    </div>
-    {children}
-  </div>
-)
 
 const InlineField: React.FC<{
   label: string

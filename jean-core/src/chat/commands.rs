@@ -158,7 +158,7 @@ fn clear_stale_pending_cancel_before_send(session_id: &str) {
 
 fn codex_execution_mode_instruction(execution_mode: Option<&str>) -> Option<&'static str> {
     match execution_mode.unwrap_or("plan") {
-        "build" => Some(
+        "build" | "supervised" | "auto" => Some(
             "You are in BUILD MODE. Start implementing immediately. \
              This current BUILD MODE instruction supersedes any earlier plan-mode \
              instructions remembered from conversation history; treat the approved plan \
@@ -183,7 +183,7 @@ fn codex_execution_mode_instruction(execution_mode: Option<&str>) -> Option<&'st
 
 fn codex_default_global_system_prompt(execution_mode: Option<&str>) -> String {
     match execution_mode.unwrap_or("plan") {
-        "build" | "yolo" => CODEX_DEFAULT_NOT_PLAN_MODE_PROMPT.to_string(),
+        "build" | "yolo" | "supervised" | "auto" => CODEX_DEFAULT_NOT_PLAN_MODE_PROMPT.to_string(),
         _ => CODEX_DEFAULT_PLAN_MODE_PROMPT.to_string(),
     }
 }
@@ -437,6 +437,24 @@ fn resolve_send_model(
         .or_else(|| normalize_optional_string(backend_default_model))
 }
 
+fn validate_execution_policy(mode: &str, backend: &Backend) -> Result<(), String> {
+    let supported = match mode {
+        "plan" | "yolo" => true,
+        "build" => *backend != Backend::Cursor,
+        "supervised" => matches!(
+            backend,
+            Backend::Claude | Backend::Codex | Backend::Opencode
+        ),
+        "auto" => matches!(backend, Backend::Claude | Backend::Codex),
+        _ => false,
+    };
+    if supported {
+        Ok(())
+    } else {
+        Err(format!("Permission policy '{mode}' is not supported by this backend. Select Plan or a supported permission policy."))
+    }
+}
+
 /// Resolve execution mode for a send: explicit override → session selection →
 /// preferences default. The UI toolbar shows the preferences default for
 /// sessions without a selection (e.g. created via MCP), so the run must match.
@@ -641,6 +659,7 @@ pub async fn list_sessions_summary(
                 "selectedModel": session.selected_model,
                 "selectedProvider": session.selected_provider,
                 "selectedExecutionMode": session.selected_execution_mode,
+                "selectedPermissionMode": session.selected_permission_mode,
                 "createdAt": session.created_at,
                 "updatedAt": session.updated_at,
                 "lastMessageAt": session.last_message_at,
@@ -690,6 +709,7 @@ pub async fn get_session_status(
         "selectedModel": metadata.selected_model,
         "selectedProvider": metadata.selected_provider,
         "selectedExecutionMode": metadata.selected_execution_mode,
+        "selectedPermissionMode": metadata.selected_permission_mode,
         "waitingForInput": metadata.waiting_for_input,
         "waitingForInputType": metadata.waiting_for_input_type,
         "latestRun": latest_run.map(|run| serde_json::json!({
@@ -1020,6 +1040,19 @@ pub async fn create_session(
             sessions.sessions.len() as u32,
             backend_enum.clone(),
         );
+        let default_policy = preferences
+            .as_ref()
+            .map(|prefs| prefs.default_execution_mode.clone())
+            .unwrap_or_else(|| "yolo".to_string());
+        let policy = if validate_execution_policy(&default_policy, &backend_enum).is_ok() {
+            default_policy
+        } else {
+            "plan".to_string()
+        };
+        session.set_execution_policy(Some(policy));
+        if session.selected_permission_mode.is_none() {
+            session.selected_permission_mode = Some("yolo".to_string());
+        }
         session.primary_surface = primary_surface.clone();
         session.terminal_command = terminal_command.clone();
         session.terminal_command_args = terminal_command_args.clone().unwrap_or_default();
@@ -1684,11 +1717,21 @@ pub async fn update_session_state(
     selected_execution_mode: Option<Option<String>>,
     table_checked_rows: Option<std::collections::HashMap<String, Vec<u32>>>,
     pinned_tables: Option<Vec<super::types::PinnedTable>>,
+    selected_permission_mode: Option<String>,
 ) -> Result<(), String> {
     log::trace!("Updating session state for: {session_id}");
+    if let Some(mode) = selected_permission_mode.as_deref() {
+        if !matches!(mode, "supervised" | "build" | "auto" | "yolo") {
+            return Err(format!("Unsupported permission policy: {mode}"));
+        }
+    }
+    let permission_setting = selected_permission_mode.clone();
 
     with_sessions_mut(&app, &worktree_path, &worktree_id, |sessions| {
         if let Some(session) = sessions.find_session_mut(&session_id) {
+            if let Some(Some(mode)) = selected_execution_mode.as_ref() {
+                validate_execution_policy(mode, &session.backend)?;
+            }
             if let Some(v) = answered_questions {
                 session.answered_questions = v;
             }
@@ -1787,7 +1830,10 @@ pub async fn update_session_state(
                     &session_id,
                     v.as_deref() == Some("yolo"),
                 );
-                session.selected_execution_mode = v;
+                session.set_execution_policy(v);
+            }
+            if let Some(mode) = selected_permission_mode {
+                session.selected_permission_mode = Some(mode);
             }
             if let Some(v) = table_checked_rows {
                 session.table_checked_rows = v;
@@ -1801,6 +1847,11 @@ pub async fn update_session_state(
             Ok(())
         }
     })?;
+
+    if let Some(mode) = permission_setting {
+        broadcast_session_setting(app.clone(), session_id, "permissionMode".to_string(), mode)
+            .await?;
+    }
 
     // Notify all clients (native + web access) to refetch session data.
     // This is the single cache invalidation point for session state mutations —
@@ -3038,6 +3089,10 @@ pub async fn send_chat_message(
     } else {
         effective_backend
     };
+
+    if let Some(mode) = execution_mode.as_deref() {
+        validate_execution_policy(mode, &effective_backend)?;
+    }
 
     // Final model fallback: preferences default for the resolved backend.
     // Covers sessions created before selected_model was persisted, or when
@@ -5836,13 +5891,17 @@ pub async fn set_session_execution_mode(
     session_id: String,
     execution_mode: String,
 ) -> Result<(), String> {
-    if !matches!(execution_mode.as_str(), "plan" | "build" | "yolo") {
+    if !matches!(
+        execution_mode.as_str(),
+        "plan" | "build" | "yolo" | "supervised" | "auto"
+    ) {
         return Err(format!("Unsupported execution mode: {execution_mode}"));
     }
 
     with_sessions_mut(&app, &worktree_path, &worktree_id, |sessions| {
         if let Some(session) = sessions.find_session_mut(&session_id) {
-            session.selected_execution_mode = Some(execution_mode);
+            validate_execution_policy(&execution_mode, &session.backend)?;
+            session.set_execution_policy(Some(execution_mode));
             Ok(())
         } else {
             Err(format!("Session not found: {session_id}"))
@@ -10435,6 +10494,37 @@ pub async fn respond_opencode_permission(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn permission_policy_capabilities_never_escalate_unknown_modes() {
+        for backend in [
+            Backend::Claude,
+            Backend::Codex,
+            Backend::Opencode,
+            Backend::Cursor,
+            Backend::Pi,
+            Backend::Commandcode,
+            Backend::Grok,
+            Backend::Kimi,
+            Backend::Antigravity,
+        ] {
+            assert!(validate_execution_policy("plan", &backend).is_ok());
+            assert!(validate_execution_policy("yolo", &backend).is_ok());
+            assert!(validate_execution_policy("unknown", &backend).is_err());
+            assert_eq!(
+                validate_execution_policy("auto", &backend).is_ok(),
+                matches!(backend, Backend::Claude | Backend::Codex)
+            );
+            assert_eq!(
+                validate_execution_policy("supervised", &backend).is_ok(),
+                matches!(
+                    backend,
+                    Backend::Claude | Backend::Codex | Backend::Opencode
+                )
+            );
+        }
+        assert!(validate_execution_policy("build", &Backend::Cursor).is_err());
+    }
 
     #[test]
     fn resumed_grok_host_error_uses_chat_error_event() {

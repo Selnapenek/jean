@@ -154,7 +154,11 @@ export function usePlanApproval({
         )
       }
 
-      setExecutionMode(sessionId, 'build')
+      const permissionMode =
+        useChatStore.getState().permissionModes[sessionId] ??
+        card.session.selected_permission_mode ??
+        'build'
+      setExecutionMode(sessionId, permissionMode)
       clearToolCalls(sessionId)
       clearStreamingContentBlocks(sessionId)
       setSessionReviewing(sessionId, false)
@@ -253,14 +257,14 @@ export function usePlanApproval({
             sessionId,
             waitingForInput: false,
             waitingForInputType: null,
-            selectedExecutionMode: 'build',
+            selectedExecutionMode: permissionMode,
           })
         )
         .then(() => {
           invoke('broadcast_session_setting', {
             sessionId,
             key: 'executionMode',
-            value: 'build',
+            value: permissionMode,
           }).catch(err => {
             console.error(
               '[usePlanApproval] Broadcast executionMode=build failed:',
@@ -286,7 +290,7 @@ export function usePlanApproval({
           setError(sessionId, null)
           addSendingSession(sessionId)
           setSelectedModel(sessionId, model)
-          setExecutingMode(sessionId, 'build')
+          setExecutingMode(sessionId, permissionMode)
 
           sendMessage.mutate({
             sessionId,
@@ -294,7 +298,7 @@ export function usePlanApproval({
             worktreePath,
             message,
             model,
-            executionMode: 'build',
+            executionMode: permissionMode,
             thinkingLevel,
             effortLevel,
             backend: sessionBackend,

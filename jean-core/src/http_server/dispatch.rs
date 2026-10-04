@@ -302,7 +302,8 @@ pub async fn dispatch_command(
         }
         "delete_worktree" => {
             let worktree_id: String = field(&args, "worktreeId", "worktree_id")?;
-            crate::projects::delete_worktree(app.clone(), worktree_id).await?;
+            let skip_teardown: Option<bool> = field_opt(&args, "skipTeardown", "skip_teardown")?;
+            crate::projects::delete_worktree(app.clone(), worktree_id, skip_teardown).await?;
             emit_cache_invalidation(app, &["projects"]);
             Ok(Value::Null)
         }
@@ -366,11 +367,49 @@ pub async fn dispatch_command(
         }
         "get_auto_fix_status" => {
             let project_id: String = field(&args, "projectId", "project_id")?;
-            to_value(crate::auto_fix::scheduler::get_auto_fix_status(&project_id))
+            let data = crate::projects::storage::load_projects_data(app)?;
+            let project = data
+                .projects
+                .iter()
+                .find(|project| project.id == project_id)
+                .ok_or("Project not found")?;
+            let mut status = crate::auto_fix::scheduler::get_auto_fix_status(&project_id);
+            status.active_now = project
+                .auto_fix_settings
+                .as_ref()
+                .is_some_and(crate::auto_fix::scheduler::auto_fix_active_now);
+            to_value(status)
+        }
+        "request_auto_fix_scan" => {
+            let project_id: String = field(&args, "projectId", "project_id")?;
+            let data = crate::projects::storage::load_projects_data(app)?;
+            let settings = data
+                .projects
+                .iter()
+                .find(|project| project.id == project_id)
+                .and_then(|project| project.auto_fix_settings.as_ref())
+                .ok_or("Configure Mr. Robot first")?;
+            if !settings.enabled {
+                return Err("Mr. Robot is off".to_string());
+            }
+            if !crate::auto_fix::scheduler::auto_fix_active_now(settings) {
+                return Err("Outside active hours on the Jean server".to_string());
+            }
+            crate::auto_fix::scheduler::request_auto_fix_scan(&project_id)?;
+            emit_cache_invalidation(app, &["projects"]);
+            Ok(Value::Null)
+        }
+        "preview_auto_fix_issues" => {
+            let project_id: String = field(&args, "projectId", "project_id")?;
+            to_value(
+                crate::auto_fix::scheduler::preview_auto_fix_issues(app.clone(), project_id)
+                    .await?,
+            )
         }
         "clear_auto_fix_failures" => {
             let project_id: String = field(&args, "projectId", "project_id")?;
             crate::auto_fix::scheduler::clear_auto_fix_failures(&project_id);
+            emit_cache_invalidation(app, &["projects"]);
             Ok(Value::Null)
         }
         "reorder_projects" => {
@@ -2294,6 +2333,7 @@ pub async fn dispatch_command(
                 selected_execution_mode,
                 table_checked_rows,
                 pinned_tables,
+                field_opt(&args, "selectedPermissionMode", "selected_permission_mode")?,
             )
             .await?;
             emit_cache_invalidation(app, &["sessions"]);

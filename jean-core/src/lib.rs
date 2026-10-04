@@ -312,7 +312,7 @@ pub struct AppPreferences {
     #[serde(default = "default_confirm_session_close")]
     pub confirm_session_close: bool, // Show confirmation dialog before closing sessions/worktrees
     #[serde(default = "default_execution_mode")]
-    pub default_execution_mode: String, // Default execution mode: "plan", "build", or "yolo"
+    pub default_execution_mode: String, // Default workflow/permission policy for new sessions
     #[serde(default = "default_backend")]
     pub default_backend: String, // Default CLI backend: "claude", "codex", "opencode", "cursor", "pi", or "commandcode"
     #[serde(default = "default_new_session_kind")]
@@ -664,7 +664,7 @@ fn default_confirm_session_close() -> bool {
 }
 
 fn default_execution_mode() -> String {
-    "plan".to_string()
+    "yolo".to_string()
 }
 
 fn default_backend() -> String {
@@ -755,11 +755,11 @@ fn maybe_auto_select_system_cli_preferences(
 }
 
 fn default_codex_model() -> String {
-    "gpt-5.6-sol".to_string()
+    "gpt-6.1-sol".to_string()
 }
 
 fn default_opencode_model() -> String {
-    "opencode/gpt-5.6-sol".to_string()
+    "opencode/gpt-6.1-sol".to_string()
 }
 
 fn default_cursor_model() -> String {

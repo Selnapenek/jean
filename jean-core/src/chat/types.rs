@@ -852,9 +852,15 @@ pub struct Session {
     /// Selected provider (custom CLI profile name) for this session
     #[serde(default)]
     pub selected_provider: Option<String>,
-    /// Selected execution mode for this session (plan/build/yolo)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Selected workflow/permission policy for this session
+    #[serde(
+        default = "legacy_execution_mode",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub selected_execution_mode: Option<String>,
+    /// Build permission policy retained while planning.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selected_permission_mode: Option<String>,
     /// Whether session naming has been attempted for this session
     /// Prevents re-triggering on app restart
     #[serde(default)]
@@ -1026,7 +1032,26 @@ pub struct LoadedMessages {
     pub loaded_run_start_index: usize,
 }
 
+// Old sessions without a saved choice started in Plan. Do not escalate them
+// when the new-session default changes to Full access.
+fn legacy_execution_mode() -> Option<String> {
+    Some("plan".to_string())
+}
+
 impl Session {
+    /// Retain the Build policy when switching to Plan, including IPC/MCP callers.
+    pub fn set_execution_policy(&mut self, mode: Option<String>) {
+        let permission = mode.as_deref().filter(|mode| *mode != "plan").or_else(|| {
+            self.selected_execution_mode
+                .as_deref()
+                .filter(|mode| *mode != "plan")
+        });
+        if let Some(permission) = permission {
+            self.selected_permission_mode = Some(permission.to_string());
+        }
+        self.selected_execution_mode = mode;
+    }
+
     /// Create a new session with the given name and backend
     pub fn new(name: String, order: u32, backend: Backend) -> Self {
         Self {
@@ -1059,7 +1084,8 @@ impl Session {
             selected_thinking_level: None,
             selected_effort_level: None,
             selected_provider: None,
-            selected_execution_mode: None,
+            selected_execution_mode: Some("yolo".to_string()),
+            selected_permission_mode: Some("yolo".to_string()),
             session_naming_completed: false,
             archived_at: None,
             archived_by_base_close: None,
@@ -1405,6 +1431,7 @@ impl SessionMetadata {
             selected_effort_level: self.selected_effort_level.clone(),
             selected_provider: self.selected_provider.clone(),
             selected_execution_mode: self.selected_execution_mode.clone(),
+            selected_permission_mode: self.selected_permission_mode.clone(),
             session_naming_completed: self.session_naming_completed,
             archived_at: self.archived_at,
             archived_by_base_close: self.archived_by_base_close,
@@ -1473,6 +1500,7 @@ impl SessionMetadata {
         self.selected_effort_level = session.selected_effort_level.clone();
         self.selected_provider = session.selected_provider.clone();
         self.selected_execution_mode = session.selected_execution_mode.clone();
+        self.selected_permission_mode = session.selected_permission_mode.clone();
         self.session_naming_completed = session.session_naming_completed;
         self.archived_at = session.archived_at;
         self.archived_by_base_close = session.archived_by_base_close;
@@ -1859,9 +1887,15 @@ pub struct SessionMetadata {
     /// Selected provider (custom CLI profile name) for this session
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selected_provider: Option<String>,
-    /// Selected execution mode for this session (plan/build/yolo)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Selected workflow/permission policy for this session
+    #[serde(
+        default = "legacy_execution_mode",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub selected_execution_mode: Option<String>,
+    /// Build permission policy retained while planning.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selected_permission_mode: Option<String>,
     /// Whether session naming has been attempted
     #[serde(default)]
     pub session_naming_completed: bool,
@@ -2071,6 +2105,7 @@ impl SessionMetadata {
             selected_effort_level: None,
             selected_provider: None,
             selected_execution_mode: None,
+            selected_permission_mode: None,
             session_naming_completed: false,
             archived_at: None,
             archived_by_base_close: None,
@@ -2152,6 +2187,44 @@ mod tests {
     // ========================================================================
     // ThinkingLevel tests
     // ========================================================================
+
+    #[test]
+    fn permission_policy_roundtrip_and_legacy_session_defaults() {
+        let mut session = Session::new("Permissions".to_string(), 0, Backend::Codex);
+        session.selected_execution_mode = Some("plan".to_string());
+        session.selected_permission_mode = Some("auto".to_string());
+        let mut metadata = SessionMetadata::new(
+            session.id.clone(),
+            "worktree".to_string(),
+            session.name.clone(),
+            0,
+        );
+        metadata.update_from_session(&session);
+        let restored: SessionMetadata =
+            serde_json::from_value(serde_json::to_value(&metadata).unwrap()).unwrap();
+        assert_eq!(
+            restored.to_session().selected_permission_mode.as_deref(),
+            Some("auto")
+        );
+        session.set_execution_policy(Some("supervised".to_string()));
+        session.set_execution_policy(Some("plan".to_string()));
+        assert_eq!(
+            session.selected_permission_mode.as_deref(),
+            Some("supervised")
+        );
+        let mut legacy = serde_json::to_value(&session).unwrap();
+        legacy
+            .as_object_mut()
+            .unwrap()
+            .remove("selected_execution_mode");
+        legacy
+            .as_object_mut()
+            .unwrap()
+            .remove("selected_permission_mode");
+        let restored: Session = serde_json::from_value(legacy).unwrap();
+        assert_eq!(restored.selected_execution_mode.as_deref(), Some("plan"));
+        assert!(restored.selected_permission_mode.is_none());
+    }
 
     #[test]
     fn test_effort_level_ultracode_value() {
@@ -2473,6 +2546,8 @@ mod tests {
         assert!(session.messages.is_empty());
         assert!(session.claude_session_id.is_none());
         assert!(!session.session_naming_completed);
+        assert_eq!(session.selected_execution_mode.as_deref(), Some("yolo"));
+        assert_eq!(session.selected_permission_mode.as_deref(), Some("yolo"));
     }
 
     #[test]

@@ -115,7 +115,7 @@ Always use ASD-STE100 Simplified Technical English when you talk to me.\n\
 
 fn execution_mode_instruction(execution_mode: Option<&str>) -> Option<&'static str> {
     match execution_mode.unwrap_or("plan") {
-        "build" => Some(
+        "build" | "auto" | "supervised" => Some(
             "You are in BUILD MODE. Start implementing immediately. \
              Do NOT enter plan mode and do NOT use ExitPlanMode unless the user explicitly asks \
              for a new plan. If a required decision is missing, use AskUserQuestion instead of \
@@ -432,7 +432,9 @@ fn split_fast_model(model: &str) -> (&str, bool) {
 
 fn claude_permission_mode(execution_mode: Option<&str>) -> &'static str {
     match execution_mode.unwrap_or("plan") {
+        "supervised" => "default",
         "build" => "acceptEdits",
+        "auto" => "auto",
         "yolo" => "bypassPermissions",
         _ => "plan",
     }
@@ -774,7 +776,10 @@ fn build_claude_args(
 
     // In build/yolo, remove ExitPlanMode entirely so Claude can't loop back
     // into plan-approval after the user already approved one.
-    if matches!(execution_mode.unwrap_or("plan"), "build" | "yolo") {
+    if matches!(
+        execution_mode.unwrap_or("plan"),
+        "build" | "yolo" | "auto" | "supervised"
+    ) {
         args.push("--disallowedTools".to_string());
         args.push("ExitPlanMode".to_string());
     }
@@ -3225,6 +3230,8 @@ mod tests {
     #[test]
     fn permission_modes_by_execution_mode() {
         assert_eq!(claude_permission_mode(Some("yolo")), "bypassPermissions");
+        assert_eq!(claude_permission_mode(Some("supervised")), "default");
+        assert_eq!(claude_permission_mode(Some("auto")), "auto");
         assert_eq!(claude_permission_mode(Some("build")), "acceptEdits");
         assert_eq!(claude_permission_mode(Some("plan")), "plan");
         assert_eq!(claude_permission_mode(None), "plan");

@@ -23,6 +23,7 @@ import { disposeAllWorktreeTerminals } from '@/lib/terminal-instances'
 import { toastActionLabel } from '@/lib/toast-action-label'
 import type {
   AutoFixStatus,
+  AutoFixIssuePreview,
   Project,
   Worktree,
   DetectPrResponse,
@@ -197,6 +198,7 @@ export async function fetchRecentWorktrees(
   }
   const items = successful
     .flatMap(result => result.response.items)
+    .filter(item => item.worktree.origin !== 'auto_fix')
     .sort(
       (a, b) =>
         b.lastActivityAt - a.lastActivityAt ||
@@ -1633,7 +1635,7 @@ export function useWorktreeEvents() {
     // Listen for successful deletion
     unlistenPromises.push(
       listen<WorktreeDeletedEvent>('worktree:deleted', event => {
-        const { id, project_id, teardown_output } = event.payload
+        const { id, project_id } = event.payload
         logger.info('Worktree deleted (background complete)', { id })
         clearLocalWorktreeState(id, queryClient)
 
@@ -1661,28 +1663,6 @@ export function useWorktreeEvents() {
         if (selectedWorktreeId === id) {
           selectWorktree(null)
         }
-
-        // Show teardown output if a teardown script ran
-        if (teardown_output) {
-          // Stable id: the same event can arrive over several server
-          // connections; reuse one toast instead of stacking duplicates.
-          toast.success('Teardown completed', {
-            id: `teardown-${id}`,
-            description:
-              teardown_output.length > 200
-                ? teardown_output.slice(0, 200) + '…'
-                : teardown_output,
-            action: {
-              label: toastActionLabel('View Output'),
-              onClick: () =>
-                window.dispatchEvent(
-                  new CustomEvent('show-teardown-output', {
-                    detail: { output: teardown_output, success: true },
-                  })
-                ),
-            },
-          })
-        }
       })
     )
 
@@ -1709,7 +1689,13 @@ export function useWorktreeEvents() {
             onClick: () =>
               window.dispatchEvent(
                 new CustomEvent('show-teardown-output', {
-                  detail: { output: error, success: false },
+                  detail: {
+                    output: error,
+                    success: false,
+                    ...(error.startsWith('Teardown script failed:')
+                      ? { worktreeId: id, projectId: project_id }
+                      : {}),
+                  },
                 })
               ),
           },
@@ -1934,16 +1920,21 @@ export function useDeleteWorktree() {
     mutationFn: async ({
       worktreeId,
       projectId,
+      skipTeardown,
     }: {
       worktreeId: string
       projectId: string
+      skipTeardown?: boolean
     }): Promise<{ worktreeId: string; projectId: string }> => {
       if (!isTauri()) {
         throw new Error('Not in Tauri context')
       }
 
       logger.debug('Deleting worktree (background)', { worktreeId })
-      await invoke('delete_worktree', { worktreeId })
+      await invoke('delete_worktree', {
+        worktreeId,
+        ...(skipTeardown ? { skipTeardown: true } : {}),
+      })
       logger.info('Worktree deletion started (background)')
       return { worktreeId, projectId }
     },
@@ -3246,6 +3237,54 @@ export function useAutoFixStatus(projectId: string, enabled: boolean) {
     enabled: enabled && Boolean(projectId),
     refetchInterval: enabled ? 10_000 : false,
     staleTime: 5_000,
+  })
+}
+
+/** Preview uses the scheduler's own selection rules and does not start work. */
+export function useAutoFixPreview(projectId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['auto-fix-preview', projectId],
+    queryFn: async (): Promise<AutoFixIssuePreview[]> => {
+      const { serverId, resourceId } = resolveProjectServer(projectId)
+      return invokeForServer<AutoFixIssuePreview[]>(
+        serverId,
+        'preview_auto_fix_issues',
+        {
+          projectId: resourceId,
+        }
+      )
+    },
+    enabled: enabled && Boolean(projectId),
+    staleTime: 0,
+    retry: false,
+  })
+}
+
+export function useRequestAutoFixScan() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (projectId: string) => {
+      const id = toast.loading('Requesting a scan...')
+      try {
+        const { serverId, resourceId } = resolveProjectServer(projectId)
+        await invokeForServer<null>(serverId, 'request_auto_fix_scan', {
+          projectId: resourceId,
+        })
+        toast.success('Scan requested', {
+          id,
+          description:
+            'Starts on the next scheduler tick. Safety limits still apply.',
+        })
+      } catch (error) {
+        toast.error('Cannot start scan', { id, description: String(error) })
+        throw error
+      }
+    },
+    onSuccess: (_data, projectId) => {
+      queryClient.invalidateQueries({
+        queryKey: projectsQueryKeys.autoFixStatus(projectId),
+      })
+    },
   })
 }
 

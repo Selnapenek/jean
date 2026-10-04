@@ -27,6 +27,7 @@ import type {
   QuestionAnswer,
   ThinkingLevel,
   ExecutionMode,
+  PermissionMode,
   EffortLevel,
   LabelData,
   QueuedMessage,
@@ -472,6 +473,7 @@ export async function prefetchSessions(
     > = {}
     const waitingUpdates: Record<string, boolean> = {}
     const executionModeUpdates: Record<string, ExecutionMode> = {}
+    const permissionModeUpdates: Record<string, PermissionMode> = {}
     const primarySurfaceUpdates: Record<string, 'chat' | 'terminal'> = {}
     const labelUpdates: Record<string, LabelData> = {}
     const reviewResultsUpdates: Record<string, StoredReviewResults> = {}
@@ -513,6 +515,8 @@ export async function prefetchSessions(
       if (session.selected_execution_mode) {
         executionModeUpdates[session.id] = session.selected_execution_mode
       }
+      if (session.selected_permission_mode)
+        permissionModeUpdates[session.id] = session.selected_permission_mode
       if (session.primary_surface) {
         primarySurfaceUpdates[session.id] = session.primary_surface
       }
@@ -582,6 +586,12 @@ export async function prefetchSessions(
       storeUpdates.executionModes = {
         ...currentState.executionModes,
         ...executionModeUpdates,
+      }
+    }
+    if (Object.keys(permissionModeUpdates).length > 0) {
+      storeUpdates.permissionModes = {
+        ...currentState.permissionModes,
+        ...permissionModeUpdates,
       }
     }
     if (Object.keys(primarySurfaceUpdates).length > 0) {
@@ -1022,6 +1032,7 @@ export function useUpdateSessionState() {
       pendingPlanMessageId,
       enabledMcpServers,
       selectedExecutionMode,
+      selectedPermissionMode,
       tableCheckedRows,
       pinnedTables,
     }: {
@@ -1101,6 +1112,7 @@ export function useUpdateSessionState() {
       pendingPlanMessageId?: string | null
       enabledMcpServers?: string[] | null
       selectedExecutionMode?: ExecutionMode | null
+      selectedPermissionMode?: PermissionMode
       tableCheckedRows?: Record<string, number[]>
       pinnedTables?: PinnedTable[]
     }): Promise<void> => {
@@ -1130,6 +1142,7 @@ export function useUpdateSessionState() {
         pendingPlanMessageId,
         enabledMcpServers,
         selectedExecutionMode,
+        selectedPermissionMode,
         tableCheckedRows,
         pinnedTables,
       })

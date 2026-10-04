@@ -57,6 +57,7 @@ import {
 import { isModKeyEvent } from '@/types/keybindings'
 import { isSteerCapableBackend } from '@/lib/backend-auto-steer'
 import { isNativeApp } from '@/lib/environment'
+import { applyYoloInvestigationFixDirective } from '@/lib/investigation-prompt'
 import {
   DEFAULT_INVESTIGATE_ISSUE_PROMPT,
   DEFAULT_INVESTIGATE_PR_PROMPT,
@@ -1182,6 +1183,12 @@ export const ChatInput = memo(function ChatInput({
           .replace(/\{prWord\}/g, 'PR')
           .replace(/\{prRefs\}/g, `#${item.pr?.number}`)
       }
+      if (investigatePrompt) {
+        investigatePrompt = applyYoloInvestigationFixDirective(
+          investigatePrompt,
+          executionMode
+        )
+      }
 
       // Investigate: insert the prompt and send it right away. The send waits
       // for the context to load and stays bound to this session, so the user
@@ -1223,6 +1230,7 @@ export const ChatInput = memo(function ChatInput({
       activeSessionId,
       activeWorktreePath,
       contextMentionToken,
+      executionMode,
       hashTriggerIndex,
       inputRef,
       investigateIssuePrompt,

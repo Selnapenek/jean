@@ -360,7 +360,7 @@ export function useWorktreeApproval({
 
       // Step 8: Send plan as first message with mode-specific overrides
       const isYolo = mode === 'yolo'
-      const modeLabel = isYolo ? 'Yolo' : 'Build'
+      const modeLabel = isYolo ? 'Full access' : 'Build'
       const originalBackend = card.session.backend as CliBackend | undefined
       const modeBackendPref = isYolo
         ? preferences?.yolo_backend

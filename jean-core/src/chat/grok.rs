@@ -3935,7 +3935,7 @@ fn grok_execution_mode_instruction(execution_mode: Option<&str>) -> Option<&'sta
              for a new plan. Ask the user directly if a required decision is missing.",
         ),
         "yolo" => Some(
-            "You are in YOLO EXECUTION MODE. Start implementing immediately. \
+            "You are in FULL ACCESS MODE. Start implementing immediately. \
              This instruction supersedes any earlier plan-mode state or instructions. \
              Do not call enter_plan_mode or exit_plan_mode unless the user explicitly asks \
              for a new plan. Do not ask for confirmation before routine implementation steps. \
@@ -6539,7 +6539,7 @@ Ship the feature end-to-end with tests and clear handoff notes for YOLO.
             .find("Custom project instructions")
             .expect("custom instructions are included");
         let mode_override = message
-            .find("YOLO EXECUTION MODE")
+            .find("FULL ACCESS MODE")
             .expect("yolo mode override is included");
         assert!(mode_override > custom_instructions);
         assert!(message.contains("Do not call enter_plan_mode or exit_plan_mode"));

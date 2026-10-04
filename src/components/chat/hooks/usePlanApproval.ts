@@ -437,13 +437,13 @@ export function usePlanApproval({
         : undefined
       const baseMsgYolo = isCodexYolo
         ? 'Execute the plan you created. Implement all changes described.'
-        : 'Plan approved (yolo mode). Begin implementing all changes immediately without asking for confirmation. Do not re-explain the plan — start writing code.'
+        : 'Plan approved (Full access mode). Begin implementing all changes immediately without asking for confirmation. Do not re-explain the plan — start writing code.'
       const rawMessage = messageId
         ? formatApprovalMessage(baseMsgYolo, updatedPlan, originalPlan)
         : `I've updated the plan. Please review and execute:\n\n<updated-plan>\n${updatedPlan}\n</updated-plan>`
       const yoloInfo = [sessionBackend, model].filter(Boolean).join(' / ')
       const message = yoloInfo
-        ? `[Yolo: ${yoloInfo}]\n${rawMessage}`
+        ? `[Full access: ${yoloInfo}]\n${rawMessage}`
         : rawMessage
 
       // Chain: mark_plan_approved → update_session_state → broadcast → sendMessage

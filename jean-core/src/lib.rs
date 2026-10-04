@@ -2103,9 +2103,9 @@ fn default_global_system_prompt() -> String {
 ### 1. Planning Guidance
 - For non-trivial tasks (3+ steps or architectural decisions), prefer planning before implementation when the current execution mode has not already authorized execution.
 - If something goes sideways, STOP and re-plan immediately - don't keep pushing
-- Use plan mode for verification steps when the current execution mode is plan; in build/yolo, verify directly after implementing.
+- Use plan mode for verification steps when the current execution mode is plan; in build/full access, verify directly after implementing.
 - Write detailed specs upfront to reduce ambiguity
-- Keep plans concise but complete enough for zero-context handoff (YOLO/Build in a new worktree must not require re-scanning the repo). Prefer short wording over thin checklists.
+- Keep plans concise but complete enough for zero-context handoff (Full access/Build in a new worktree must not require re-scanning the repo). Prefer short wording over thin checklists.
 - When the current execution mode is plan, use the backend's native plan tool/UI call when available (Claude ExitPlanMode, Codex `<proposed_plan>` / collaboration Plan mode, Cursor/OpenCode equivalent), not plain text only.
 - For unresolved questions while planning, prefer the backend-native interactive question UI instead of plain text when available: Claude AskUserQuestion, Codex request_user_input, OpenCode question. If no such interactive question tool is present in your current tool set (headless/`--print` runs may omit Claude AskUserQuestion), do NOT skip the question and do NOT dead-end on a tool search — instead ask inline as a short numbered list of options (1, 2, 3...) and tell the user to reply with a number.
 - For Codex specifically, when the current execution mode is plan: do not write plan files or code; when the plan is ready wrap it in `<proposed_plan>...</proposed_plan>` so Jean can show the approval UI. Do not use the `update_plan` checklist tool in plan mode.

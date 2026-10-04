@@ -1503,7 +1503,7 @@ async fn approve_plan_and_start_yolo(
         entry.session_id.clone(),
         entry.worktree_id.clone(),
         entry.worktree_path.clone(),
-        "[Mr. Robot Yolo]\nPlan approved automatically. Begin a new yolo execution turn now. Execute the approved plan, implement the fixes immediately, and do not continue planning or ask for confirmation."
+        "[Mr. Robot Full access]\nPlan approved automatically. Begin a new Full access execution turn now. Execute the approved plan, implement the fixes immediately, and do not continue planning or ask for confirmation."
             .to_string(),
         Some(model),
         Some("yolo".to_string()),

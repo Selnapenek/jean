@@ -83,7 +83,7 @@ const CODEX_DEFAULT_PLAN_MODE_PROMPT: &str = "\
 - If questions block the plan, prefer Codex `request_user_input`; after the user answers, emit a revised complete `<proposed_plan>` block with the **full revised plan**, not only short step titles.
 - Do not call implementation tools or make file changes until the user approves the plan.
 
-### Plan quality (required for YOLO/Build handoff)
+### Plan quality (required for Full access/Build handoff)
 
 Jean may hand this plan to a zero-context agent in a new worktree. Status lines like \"Plan created and ready for approval.\" are not a plan.
 
@@ -168,8 +168,8 @@ fn codex_execution_mode_instruction(execution_mode: Option<&str>) -> Option<&'st
              request_user_input instead of switching back to plan mode.",
         ),
         "yolo" => Some(
-            "You are in YOLO EXECUTION MODE. Start implementing immediately. \
-             This current YOLO EXECUTION MODE instruction supersedes any earlier plan-mode \
+            "You are in FULL ACCESS MODE. Start implementing immediately. \
+             This current FULL ACCESS MODE instruction supersedes any earlier plan-mode \
              instructions remembered from conversation history; treat the approved plan \
              as authorization to implement now. \
              Do NOT emit <proposed_plan> blocks or wait for plan approval unless the user \
@@ -11385,7 +11385,7 @@ mod tests {
             .rfind("STALE_PLAN_MARKER")
             .expect("stale plan rule is present in custom prompt");
         let mode_override = combined
-            .rfind("YOLO EXECUTION MODE")
+            .rfind("FULL ACCESS MODE")
             .expect("yolo override is present");
 
         assert!(
@@ -11409,7 +11409,7 @@ mod tests {
         assert!(build.contains("approved plan"));
 
         let yolo = codex_execution_mode_instruction(Some("yolo")).unwrap();
-        assert!(yolo.contains("YOLO EXECUTION MODE"));
+        assert!(yolo.contains("FULL ACCESS MODE"));
         assert!(yolo.contains("Start implementing immediately"));
         assert!(yolo.contains("Do NOT emit <proposed_plan>"));
         assert!(yolo.contains("Do not ask for confirmation"));

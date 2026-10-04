@@ -67,15 +67,21 @@ export const ErrorBanner = memo(function ErrorBanner({
   const title = isCredits ? 'Out of credits' : 'Request failed'
 
   // Live-tick the countdown once a second while a reset time is shown.
-  const [, setTick] = useState(0)
+  const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     if (!onAutoContinue || limitResetAtMs == null) return
-    const id = setInterval(() => setTick(t => t + 1), 1000)
+    setNow(Date.now())
+    const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
   }, [onAutoContinue, limitResetAtMs])
 
-  const countdown =
-    limitResetAtMs != null ? formatResetCountdown(limitResetAtMs) : null
+  const countdown = (() => {
+    if (limitResetAtMs == null) return null
+    const diffMs = limitResetAtMs - now
+    // Under a minute, show a real seconds countdown (not "<1m").
+    if (diffMs > 0 && diffMs < 60_000) return `${Math.ceil(diffMs / 1000)}s`
+    return formatResetCountdown(limitResetAtMs, now)
+  })()
 
   return (
     <div className="mx-auto max-w-7xl px-4 pb-2 md:px-6">

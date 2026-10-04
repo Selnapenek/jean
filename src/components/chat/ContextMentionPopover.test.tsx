@@ -19,7 +19,7 @@ vi.mock('@/hooks/use-mobile', () => ({
   useIsMobile: () => platform.mobile,
 }))
 
-const items: ContextMentionItem[] = [
+const items: [ContextMentionItem, ContextMentionItem] = [
   {
     id: 'issue:123',
     type: 'issue',

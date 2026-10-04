@@ -24,6 +24,7 @@ import {
   type CodexMcpElicitationRequest,
   type CodexDynamicToolCallRequest,
   type ExecutionMode,
+  type SendMessageArgs,
   type LabelData,
   type ScheduledWakeup,
   type PinnedTable,
@@ -194,6 +195,14 @@ interface ChatUIState {
 
   // Last sent message per session (for restoring on error)
   lastSentMessages: Record<string, string>
+
+  // Full send args per session (captured at send time) so a background
+  // auto-continue can replay the exact send after a usage limit resets.
+  lastSentArgs: Record<string, SendMessageArgs>
+
+  // Sessions armed for auto-continue → reset epoch (ms) to wait for, or null
+  // when the reset time is unknown (fire on the next watcher tick).
+  autoResume: Record<string, number | null>
 
   // Last sent attachments per session (for restoring on cancellation)
   lastSentAttachments: Record<
@@ -549,6 +558,9 @@ interface ChatUIState {
   setError: (sessionId: string, error: string | null) => void
   setLastSentMessage: (sessionId: string, message: string) => void
   clearLastSentMessage: (sessionId: string) => void
+  setLastSentArgs: (sessionId: string, args: SendMessageArgs) => void
+  armAutoResume: (sessionId: string, resumeAtMs: number | null) => void
+  disarmAutoResume: (sessionId: string) => void
   setLastSentAttachments: (
     sessionId: string,
     attachments: {
@@ -951,6 +963,8 @@ export const useChatStore = create<ChatUIState>()(
       submittedAnswers: {},
       errors: {},
       lastSentMessages: {},
+      lastSentArgs: {},
+      autoResume: {},
       lastSentAttachments: {},
       setupScriptResults: {},
       dismissedSetupScripts: {},
@@ -2856,6 +2870,43 @@ export const useChatStore = create<ChatUIState>()(
           },
           undefined,
           'clearLastSentMessage'
+        ),
+
+      setLastSentArgs: (sessionId, args) =>
+        set(
+          state => ({
+            lastSentArgs: { ...state.lastSentArgs, [sessionId]: args },
+          }),
+          undefined,
+          'setLastSentArgs'
+        ),
+
+      armAutoResume: (sessionId, resumeAtMs) =>
+        set(
+          state => {
+            if (
+              sessionId in state.autoResume &&
+              state.autoResume[sessionId] === resumeAtMs
+            ) {
+              return state // No-op guard
+            }
+            return {
+              autoResume: { ...state.autoResume, [sessionId]: resumeAtMs },
+            }
+          },
+          undefined,
+          'armAutoResume'
+        ),
+
+      disarmAutoResume: sessionId =>
+        set(
+          state => {
+            if (!(sessionId in state.autoResume)) return state
+            const { [sessionId]: _, ...rest } = state.autoResume
+            return { autoResume: rest }
+          },
+          undefined,
+          'disarmAutoResume'
         ),
 
       setLastSentAttachments: (sessionId, attachments) =>

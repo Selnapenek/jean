@@ -10,7 +10,16 @@
 // is stored in UI state.
 // Review results are also stored in Session files (review_results field).
 
-import type { LabelData } from '@/types/chat'
+import type { LabelData, SendMessageArgs } from '@/types/chat'
+
+/** A session armed for auto-continue after a usage limit resets. */
+export interface AutoResumeEntry {
+  session_id: string
+  /** Reset epoch (ms) to wait for; null fires on the next watcher tick. */
+  resume_at_ms: number | null
+  /** Exact send args to replay. */
+  send_args: SendMessageArgs
+}
 
 export interface ProjectCanvasSettingsState {
   worktree_sort_mode?: 'created' | 'last_activity' | 'manual'
@@ -176,6 +185,8 @@ export interface UIState {
    * (failed-run badges only count runs not in this list).
    */
   seen_failed_workflow_run_ids?: number[]
+  /** Sessions armed for auto-continue after a usage limit resets */
+  auto_resume?: AutoResumeEntry[]
   version: number
 }
 
@@ -223,5 +234,6 @@ export const defaultUIState: UIState = {
   pinned_recent_session_ids: [],
   github_dashboard_favorite_project_ids: [],
   seen_failed_workflow_run_ids: [],
+  auto_resume: [],
   version: 1,
 }

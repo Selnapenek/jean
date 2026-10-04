@@ -47,6 +47,7 @@ import {
   useCodexUsageUpdateListener,
 } from './services/codex-cli'
 import { useGhCliStatus, useGhCliAuth } from './services/gh-cli'
+import { useAutoResume } from './components/chat/hooks/useAutoResume'
 import {
   useOpencodeCliStatus,
   useOpencodeCliAuth,
@@ -883,6 +884,9 @@ function App() {
 
   // Keep Codex usage UI fresh when the app-server pushes account rate-limit updates.
   useCodexUsageUpdateListener()
+
+  // Auto-continue armed sessions once their usage limit resets.
+  useAutoResume()
 
   // Browser mode: WebSocket starts in parallel with HTTP preload (see above).
   // Bootstrap replay events are ingested into the transport buffer before live

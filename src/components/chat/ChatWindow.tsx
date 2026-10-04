@@ -1,3 +1,4 @@
+import { AcpPermissionsRequest } from './AcpPermissionsRequest'
 import {
   useCallback,
   useDeferredValue,
@@ -2948,6 +2949,14 @@ function ChatWindowContent({
                                 }
                               />
                             )}
+
+                            {activeSessionId &&
+                              (selectedBackend === 'grok' ||
+                                selectedBackend === 'kimi') && (
+                                <AcpPermissionsRequest
+                                  sessionId={activeSessionId}
+                                />
+                              )}
 
                             {activeOpencodePermissionRequest && (
                               <OpenCodePermissionsRequest

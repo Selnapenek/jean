@@ -1337,6 +1337,16 @@ fn default_version() -> u32 {
 }
 
 impl SessionMetadata {
+    pub fn has_pending_acp_approval(&self) -> bool {
+        self.pending_acp_permission_requests.iter().any(|request| {
+            self.runs.iter().any(|run| {
+                run.run_id == request.run_id
+                    && matches!(run.status, RunStatus::Running | RunStatus::Resumable)
+                    && run.backend.as_ref() == Some(&request.backend)
+            })
+        })
+    }
+
     fn has_pending_plan_waiting(&self) -> bool {
         let Some(message_id) = self.pending_plan_message_id.as_ref() else {
             return false;
@@ -1369,6 +1379,7 @@ impl SessionMetadata {
         let has_pending_approval = !self.pending_permission_denials.is_empty()
             || !self.pending_codex_permission_requests.is_empty()
             || !self.pending_opencode_permission_requests.is_empty()
+            || self.has_pending_acp_approval()
             || !self.pending_codex_command_approval_requests.is_empty()
             || !self.pending_codex_user_input_requests.is_empty()
             || !self.pending_codex_mcp_elicitation_requests.is_empty()
@@ -1401,7 +1412,8 @@ impl SessionMetadata {
             last_run.and_then(|r| r.execution_mode.as_ref())
         );
         let is_pending_plan_waiting = self.has_pending_plan_waiting();
-        let waiting_for_input = self.waiting_for_input || is_pending_plan_waiting;
+        let waiting_for_input =
+            self.waiting_for_input || is_pending_plan_waiting || self.has_pending_acp_approval();
         let is_reviewing = self.is_reviewing && !is_pending_plan_waiting;
 
         let updated_at = self.updated_at();
@@ -1526,7 +1538,10 @@ impl SessionMetadata {
         self.denied_message_context = session.denied_message_context.clone();
         self.is_reviewing = session.is_reviewing;
         self.status_override = session.status_override.clone();
-        self.waiting_for_input = session.waiting_for_input;
+        // ACP waiting is derived from run-owned requests, not a durable UI flag.
+        if !self.has_pending_acp_approval() {
+            self.waiting_for_input = session.waiting_for_input;
+        }
         self.waiting_for_input_type = session.waiting_for_input_type.clone();
         self.approved_plan_message_ids = session.approved_plan_message_ids.clone();
         self.plan_file_path = session.plan_file_path.clone();
@@ -1928,6 +1943,8 @@ pub struct SessionMetadata {
     /// Pending OpenCode permission requests awaiting user approval
     #[serde(default)]
     pub pending_opencode_permission_requests: Vec<OpenCodePermissionRequest>,
+    #[serde(default)]
+    pub pending_acp_permission_requests: Vec<super::acp_permissions::AcpPermissionRequest>,
     /// Pending Codex command approval requests awaiting user approval
     #[serde(default)]
     pub pending_codex_command_approval_requests: Vec<CodexCommandApprovalRequest>,
@@ -2116,6 +2133,7 @@ impl SessionMetadata {
             pending_permission_denials: vec![],
             pending_codex_permission_requests: vec![],
             pending_opencode_permission_requests: vec![],
+            pending_acp_permission_requests: vec![],
             pending_codex_command_approval_requests: vec![],
             pending_codex_user_input_requests: vec![],
             pending_codex_mcp_elicitation_requests: vec![],
@@ -2187,6 +2205,39 @@ mod tests {
     // ========================================================================
     // ThinkingLevel tests
     // ========================================================================
+
+    #[test]
+    fn acp_approval_waiting_is_run_owned_and_does_not_latch_after_completion() {
+        let mut metadata =
+            SessionMetadata::new("session".into(), "worktree".into(), "ACP".into(), 0);
+        let run: RunEntry = serde_json::from_value(serde_json::json!({
+            "run_id":"run", "user_message_id":"user", "user_message":"test", "started_at":1,
+            "status":"running", "backend":"grok"
+        }))
+        .unwrap();
+        metadata.runs.push(run);
+        metadata.pending_acp_permission_requests.push(
+            super::super::acp_permissions::AcpPermissionRequest {
+                request_id: "approval".into(),
+                run_id: "run".into(),
+                backend: Backend::Grok,
+                title: "Command".into(),
+                kind: "execute".into(),
+                options: vec![],
+            },
+        );
+        assert!(metadata.to_session().waiting_for_input);
+        metadata.update_from_session(&metadata.to_session());
+        assert!(!metadata.waiting_for_input);
+        let restored: SessionMetadata =
+            serde_json::from_value(serde_json::to_value(&metadata).unwrap()).unwrap();
+        assert!(restored.has_pending_acp_approval());
+        metadata.runs[0].status = RunStatus::Resumable;
+        assert!(metadata.has_pending_acp_approval());
+        metadata.runs[0].status = RunStatus::Cancelled;
+        assert!(!metadata.has_pending_acp_approval());
+        assert!(!metadata.to_session().waiting_for_input);
+    }
 
     #[test]
     fn permission_policy_roundtrip_and_legacy_session_defaults() {

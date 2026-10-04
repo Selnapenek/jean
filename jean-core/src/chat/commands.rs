@@ -443,9 +443,12 @@ fn validate_execution_policy(mode: &str, backend: &Backend) -> Result<(), String
         "build" => *backend != Backend::Cursor,
         "supervised" => matches!(
             backend,
-            Backend::Claude | Backend::Codex | Backend::Opencode
+            Backend::Claude | Backend::Codex | Backend::Opencode | Backend::Grok | Backend::Kimi
         ),
-        "auto" => matches!(backend, Backend::Claude | Backend::Codex),
+        "auto" => matches!(
+            backend,
+            Backend::Claude | Backend::Codex | Backend::Grok | Backend::Kimi
+        ),
         _ => false,
     };
     if supported {
@@ -10513,13 +10516,20 @@ mod tests {
             assert!(validate_execution_policy("unknown", &backend).is_err());
             assert_eq!(
                 validate_execution_policy("auto", &backend).is_ok(),
-                matches!(backend, Backend::Claude | Backend::Codex)
+                matches!(
+                    backend,
+                    Backend::Claude | Backend::Codex | Backend::Grok | Backend::Kimi
+                )
             );
             assert_eq!(
                 validate_execution_policy("supervised", &backend).is_ok(),
                 matches!(
                     backend,
-                    Backend::Claude | Backend::Codex | Backend::Opencode
+                    Backend::Claude
+                        | Backend::Codex
+                        | Backend::Opencode
+                        | Backend::Grok
+                        | Backend::Kimi
                 )
             );
         }

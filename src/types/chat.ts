@@ -69,7 +69,8 @@ export type PermissionMode = Exclude<ExecutionMode, 'plan'>
 export function getSupportedPermissionModes(
   backend: Backend | undefined
 ): PermissionMode[] {
-  if (backend === 'codex') return ['supervised', 'build', 'auto', 'yolo']
+  if (backend === 'codex' || backend === 'kimi' || backend === 'grok')
+    return ['supervised', 'build', 'auto', 'yolo']
   if (backend === 'claude' || backend === undefined)
     return ['supervised', 'build', 'auto', 'yolo']
   if (backend === 'opencode') return ['supervised', 'build', 'yolo']

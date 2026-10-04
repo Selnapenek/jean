@@ -337,7 +337,7 @@ describe('buildCodexUserInputAnswerMap', () => {
 })
 
 describe('permission capabilities', () => {
-  it.each(['claude', 'codex'] as const)(
+  it.each(['claude', 'codex', 'kimi', 'grok'] as const)(
     'offers all policies for %s',
     backend => {
       expect(getSupportedPermissionModes(backend)).toEqual([
@@ -348,25 +348,26 @@ describe('permission capabilities', () => {
       ])
     }
   )
-  it('does not offer automatic review for OpenCode', () => {
-    expect(getSupportedPermissionModes('opencode')).toEqual([
-      'supervised',
-      'build',
-      'yolo',
-    ])
-  })
-  it.each([
-    'cursor',
-    'pi',
-    'commandcode',
-    'grok',
-    'kimi',
-    'antigravity',
-  ] as const)('does not advertise unsupported policies for %s', backend => {
-    expect(getSupportedPermissionModes(backend)).toEqual(['yolo'])
-    expect(normalizeExecutionModeForBackend(backend, 'supervised')).toBe('plan')
-    expect(normalizeExecutionModeForBackend(backend, 'auto')).toBe('plan')
-  })
+  it.each(['opencode'] as const)(
+    'does not offer automatic review for %s',
+    backend => {
+      expect(getSupportedPermissionModes(backend)).toEqual([
+        'supervised',
+        'build',
+        'yolo',
+      ])
+    }
+  )
+  it.each(['cursor', 'pi', 'commandcode', 'antigravity'] as const)(
+    'does not advertise unsupported policies for %s',
+    backend => {
+      expect(getSupportedPermissionModes(backend)).toEqual(['yolo'])
+      expect(normalizeExecutionModeForBackend(backend, 'supervised')).toBe(
+        'plan'
+      )
+      expect(normalizeExecutionModeForBackend(backend, 'auto')).toBe('plan')
+    }
+  )
   it('never escalates unsupported Cursor Build to Full access', () => {
     expect(normalizeExecutionModeForBackend('cursor', 'build')).toBe('plan')
   })

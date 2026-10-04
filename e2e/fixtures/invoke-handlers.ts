@@ -44,6 +44,7 @@ const uiState = {
  * use invokeOverrides in the fixture.
  */
 export const defaultResponses: Record<string, unknown> = {
+  get_acp_permission_requests: [],
   // Projects
   list_projects: [project],
   list_worktrees: [worktree1, worktree2],

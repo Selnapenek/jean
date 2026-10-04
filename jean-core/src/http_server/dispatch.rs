@@ -3228,6 +3228,25 @@ pub async fn dispatch_command(
             .await?;
             Ok(Value::Null)
         }
+        "get_acp_permission_requests" => {
+            let session_id: String = field(&args, "sessionId", "session_id")?;
+            to_value(crate::chat::acp_permissions::get_requests(
+                app,
+                &session_id,
+            )?)
+        }
+        "respond_acp_permission" => {
+            let session_id: String = field(&args, "sessionId", "session_id")?;
+            let request_id: String = field(&args, "requestId", "request_id")?;
+            let option_id: String = field(&args, "optionId", "option_id")?;
+            let app = app.clone();
+            tokio::task::spawn_blocking(move || {
+                crate::chat::acp_permissions::respond(&app, &session_id, &request_id, &option_id)
+            })
+            .await
+            .map_err(|error| error.to_string())??;
+            Ok(Value::Null)
+        }
         "respond_opencode_permission" => {
             let worktree_path: String = field(&args, "worktreePath", "worktree_path")?;
             let request_id: String = field(&args, "requestId", "request_id")?;

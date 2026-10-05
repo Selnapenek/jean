@@ -6,6 +6,7 @@ import {
   RotateCcw,
   Trash2,
 } from '@/components/icons/reicon'
+import { BackendModelPickerContent } from '@/components/chat/toolbar/BackendModelPickerContent'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
@@ -1475,6 +1476,16 @@ export const MagicPromptsPane: React.FC<MagicPromptsPaneProps> = ({
     [preferences, patchPreferences, currentModes, selectedConfig.modeKey]
   )
 
+  const handleBulkModelChange = (backend: CliBackend, model: string) => {
+    const options =
+      backend === 'claude' ? claudeModelOptions : getReviewModelOptions(backend)
+    setBulkSelection({
+      backend,
+      model: model as MagicPromptModel,
+      label: options.find(option => option.value === model)?.label ?? model,
+    })
+  }
+
   const bulkFastModel = bulkSelection
     ? getCatalogModelFastInfo(
         modelCatalog,
@@ -1573,6 +1584,7 @@ export const MagicPromptsPane: React.FC<MagicPromptsPaneProps> = ({
               size="sm"
               role="combobox"
               aria-label="Model for all prompts"
+              disabled={installedBackends.length === 0}
               aria-expanded={bulkModelPopoverOpen}
               className="h-7 text-xs"
             >
@@ -1589,54 +1601,26 @@ export const MagicPromptsPane: React.FC<MagicPromptsPaneProps> = ({
           </PopoverTrigger>
           <PopoverContent
             align="start"
-            className="w-80 max-w-[calc(100vw-2rem)] p-0"
+            className="w-[min(36rem,calc(100vw-2rem))] p-0"
           >
-            <Command>
-              <CommandInput placeholder="Search backends and models..." />
-              <CommandList>
-                <CommandEmpty>No available models found.</CommandEmpty>
-                {installedBackends.map(backend => (
-                  <CommandGroup
-                    key={backend}
-                    heading={getBackendPlainLabel(backend)}
-                  >
-                    {(backend === 'claude'
-                      ? claudeModelOptions
-                      : getReviewModelOptions(backend)
-                    )
-                      .filter(
-                        option =>
-                          !getCatalogModelFastInfo(
-                            modelCatalog,
-                            backend,
-                            option.value
-                          ).isFast
-                      )
-                      .map(option => (
-                        <CommandItem
-                          key={option.value}
-                          value={`${backend} ${option.value} ${option.label}`}
-                          keywords={[getBackendPlainLabel(backend)]}
-                          onSelect={() => {
-                            setBulkSelection({
-                              backend,
-                              model: option.value,
-                              label: option.label,
-                            })
-                            setBulkModelPopoverOpen(false)
-                          }}
-                        >
-                          {option.label}
-                          {bulkSelection?.backend === backend &&
-                            bulkSelection.model === option.value && (
-                              <Check className="ml-auto size-3.5" />
-                            )}
-                        </CommandItem>
-                      ))}
-                  </CommandGroup>
-                ))}
-              </CommandList>
-            </Command>
+            <BackendModelPickerContent
+              open={bulkModelPopoverOpen}
+              selectedBackend={
+                bulkSelection?.backend ?? installedBackends[0] ?? 'claude'
+              }
+              selectedModel={bulkSelection?.model ?? ''}
+              selectedProvider={null}
+              installedBackends={installedBackends}
+              customCliProfiles={profiles}
+              onModelChange={model =>
+                handleBulkModelChange(
+                  bulkSelection?.backend ?? installedBackends[0] ?? 'claude',
+                  model
+                )
+              }
+              onBackendModelChange={handleBulkModelChange}
+              onRequestClose={() => setBulkModelPopoverOpen(false)}
+            />
           </PopoverContent>
         </Popover>
         <label

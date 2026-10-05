@@ -382,14 +382,12 @@ export function ProjectTree({
 }: ProjectTreeProps) {
   const reorderItems = useReorderItems()
   const moveItem = useMoveItem()
-  const {
-    expandFolder,
-    expandedFolderIds,
-    expandedProjectIds,
-    expandAllFolders,
-    collapseAllFolders,
-    setProjectExpanded,
-  } = useProjectsStore()
+  const expandFolder = useProjectsStore(state => state.expandFolder)
+  const expandedFolderIds = useProjectsStore(state => state.expandedFolderIds)
+  const expandedProjectIds = useProjectsStore(state => state.expandedProjectIds)
+  const expandAllFolders = useProjectsStore(state => state.expandAllFolders)
+  const collapseAllFolders = useProjectsStore(state => state.collapseAllFolders)
+  const setProjectExpanded = useProjectsStore(state => state.setProjectExpanded)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [overFolderId, setOverFolderId] = useState<string | null>(null)
   const [isOverRoot, setIsOverRoot] = useState(false)

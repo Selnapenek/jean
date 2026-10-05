@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { createPortal } from 'react-dom'
 import {
   keepPreviousData,
@@ -85,6 +92,7 @@ export function getAdjacentRecentRow(
 }
 
 const MAX_RECENT_SHORTCUTS = 9
+const EMPTY_RECENT_ROWS: RecentWorktreeItem[] = []
 
 /**
  * Pinned rows first. Inside the pinned and unpinned groups, running rows go
@@ -153,12 +161,12 @@ export function RecentWorktreesList({
     placeholderData: keepPreviousData,
     staleTime: 30_000,
   })
-  const rows = query.data?.items ?? []
+  const rows = query.data?.items ?? EMPTY_RECENT_ROWS
   const snoozedBoundaryLoaded = rows
     .slice(0, limit)
     .some(row => isSnoozedSession(row.lastActivityAt))
+  const pinned = useMemo(() => new Set(pinnedSessionIds), [pinnedSessionIds])
   const displayedRows = useMemo(() => {
-    const pinned = new Set(pinnedSessionIds)
     const visibleRows = rows.filter(
       row =>
         showSnoozed ||
@@ -174,13 +182,7 @@ export function RecentWorktreesList({
           waiting: waitingForInputSessionIds[row.session.id] ?? false,
         }).tone === 'working'
     )
-  }, [
-    pinnedSessionIds,
-    rows,
-    showSnoozed,
-    sendingSessionIds,
-    waitingForInputSessionIds,
-  ])
+  }, [pinned, rows, showSnoozed, sendingSessionIds, waitingForInputSessionIds])
   const recentProjectKey = useMemo(
     () => [...new Set(rows.map(row => row.projectId))].sort().join('\0'),
     [rows]
@@ -242,25 +244,28 @@ export function RecentWorktreesList({
     [isMobile, queryClient, selectProject, selectWorktree]
   )
 
+  // Effect Event: reads the latest rows/selection without re-subscribing the
+  // window listener every time the list or session status changes.
+  const onRecentKeyDown = useEffectEvent((event: KeyboardEvent) => {
+    if (!event.metaKey || !['ArrowUp', 'ArrowDown'].includes(event.key)) return
+    event.preventDefault()
+    event.stopPropagation()
+    const row = getAdjacentRecentRow(
+      displayedRows,
+      selectedSessionId,
+      event.key === 'ArrowDown' ? 1 : -1
+    )
+    if (!row) return
+    handleOpen(row)
+    rowRefs.current.get(row.session.id)?.focus()
+  })
+
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!event.metaKey || !['ArrowUp', 'ArrowDown'].includes(event.key))
-        return
-      event.preventDefault()
-      event.stopPropagation()
-      const row = getAdjacentRecentRow(
-        displayedRows,
-        selectedSessionId,
-        event.key === 'ArrowDown' ? 1 : -1
-      )
-      if (!row) return
-      handleOpen(row)
-      rowRefs.current.get(row.session.id)?.focus()
-    }
+    const onKeyDown = (event: KeyboardEvent) => onRecentKeyDown(event)
     window.addEventListener('keydown', onKeyDown, { capture: true })
     return () =>
       window.removeEventListener('keydown', onKeyDown, { capture: true })
-  }, [displayedRows, handleOpen, selectedSessionId])
+  }, [])
 
   // Cmd/Ctrl+1-9 is matched in useMainWindowEventListeners, which dispatches
   // this event only while the Recent list is visible.
@@ -383,13 +388,11 @@ export function RecentWorktreesList({
                   : 'text-muted-foreground'
             const isWorking = status.tone === 'working'
             const isUnread = isUnreadSession(row.session)
-            const isPinned = pinnedSessionIds.includes(row.session.id)
+            const isPinned = pinned.has(row.session.id)
             const showPinnedSeparator =
               !isPinned &&
               index > 0 &&
-              pinnedSessionIds.includes(
-                displayedRows[index - 1]?.session.id ?? ''
-              )
+              pinned.has(displayedRows[index - 1]?.session.id ?? '')
             return (
               <li key={row.session.id} className="group">
                 {showPinnedSeparator && (
@@ -403,9 +406,7 @@ export function RecentWorktreesList({
                   !isPinned &&
                   isSnoozedSession(row.lastActivityAt) &&
                   (index === 0 ||
-                    pinnedSessionIds.includes(
-                      displayedRows[index - 1]?.session.id ?? ''
-                    ) ||
+                    pinned.has(displayedRows[index - 1]?.session.id ?? '') ||
                     !isSnoozedSession(
                       displayedRows[index - 1]?.lastActivityAt ?? 0
                     )) && (

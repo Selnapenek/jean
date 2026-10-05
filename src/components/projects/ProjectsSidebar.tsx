@@ -61,7 +61,9 @@ export function ProjectsSidebar() {
     error,
     refetch,
   } = useProjects()
-  const { setAddProjectDialogOpen } = useProjectsStore()
+  const setAddProjectDialogOpen = useProjectsStore(
+    state => state.setAddProjectDialogOpen
+  )
   const createFolder = useCreateFolder()
   const selectedProjectId = useProjectsStore(state => state.selectedProjectId)
   const sidebarWidth = useSidebarWidth()

@@ -457,9 +457,9 @@ describe('MagicPromptsPane', () => {
     await user.click(
       screen.getByRole('combobox', { name: 'Model for all prompts' })
     )
-    await user.click(screen.getByRole('tab', { name: 'Codex', exact: true }))
+    await user.click(screen.getByRole('tab', { name: 'Codex' }))
     expect(screen.getByRole('option', { name: /Future model/ })).toBeVisible()
-    await user.click(screen.getByRole('tab', { name: 'Grok', exact: true }))
+    await user.click(screen.getByRole('tab', { name: 'Grok' }))
     expect(screen.getByRole('option', { name: /Future Grok/ })).toBeVisible()
     await user.type(
       screen.getByPlaceholderText('Search Grok models...'),
@@ -494,7 +494,6 @@ describe('MagicPromptsPane', () => {
       await user.click(
         screen.getByRole('tab', {
           name: backend === 'codex' ? 'Codex' : 'Claude',
-          exact: true,
         })
       )
       await user.click(screen.getByRole('option', { name: new RegExp(label) }))
@@ -540,7 +539,7 @@ describe('MagicPromptsPane', () => {
       screen.getByRole('combobox', { name: 'Model for all prompts' })
     )
     expect(screen.queryByRole('option', { name: /Fast/ })).toBeNull()
-    await user.click(screen.getByRole('tab', { name: 'Codex', exact: true }))
+    await user.click(screen.getByRole('tab', { name: 'Codex' }))
     await user.click(screen.getByRole('option', { name: /GPT 6 Astra/ }))
     expect(fastSwitch).toBeEnabled()
     await user.click(fastSwitch)

@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   lazy,
+  memo,
   Suspense,
 } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -63,6 +64,15 @@ import {
 } from '@/services/projects'
 import { useProjectsStore } from '@/store/projects-store'
 import type { Worktree } from '@/types/projects'
+import type {
+  AttachedSavedContext,
+  LoadedAdvisoryContext,
+  LoadedIssueContext,
+  LoadedPullRequestContext,
+  LoadedSecurityAlertContext,
+} from '@/types/github'
+import type { LoadedLinearIssueContext } from '@/types/linear'
+import type { SentryIssueContext } from '@/types/sentry'
 import {
   useLoadedIssueContexts,
   useLoadedPRContexts,
@@ -84,6 +94,8 @@ import {
   resolveMagicPromptBackend,
   resolveMagicPromptProvider,
   type CliBackend,
+  type CodexProviderProfile,
+  type CustomCliProfile,
 } from '@/types/preferences'
 import type {
   ChatMessage,
@@ -258,7 +270,7 @@ import { useMessageSending } from './hooks/useMessageSending'
 import { usePlanState } from './hooks/usePlanState'
 import { useActiveTodosAndAgents } from './hooks/useActiveTodosAndAgents'
 import { usePendingAttachments } from './hooks/usePendingAttachments'
-import { dedupeInFlightAssistantMessage } from './in-flight-message-dedupe'
+import { shouldHideInFlightAssistantMessage } from './in-flight-message-dedupe'
 import { shouldShowPermissionApproval } from './permission-approval-utils'
 import { navigateToForkedSession } from './fork-session-navigation'
 
@@ -280,6 +292,29 @@ const EMPTY_CODEX_COMMAND_APPROVAL_REQUESTS: CodexCommandApprovalRequest[] = []
 const EMPTY_CODEX_USER_INPUT_REQUESTS: CodexUserInputRequest[] = []
 const EMPTY_CODEX_MCP_ELICITATION_REQUESTS: CodexMcpElicitationRequest[] = []
 const EMPTY_CODEX_DYNAMIC_TOOL_CALL_REQUESTS: CodexDynamicToolCallRequest[] = []
+const EMPTY_MESSAGES: ChatMessage[] = []
+const EMPTY_ISSUE_CONTEXTS: LoadedIssueContext[] = []
+const EMPTY_PR_CONTEXTS: LoadedPullRequestContext[] = []
+const EMPTY_SECURITY_CONTEXTS: LoadedSecurityAlertContext[] = []
+const EMPTY_ADVISORY_CONTEXTS: LoadedAdvisoryContext[] = []
+const EMPTY_LINEAR_CONTEXTS: LoadedLinearIssueContext[] = []
+const EMPTY_SENTRY_CONTEXTS: SentryIssueContext[] = []
+const EMPTY_SAVED_CONTEXTS: AttachedSavedContext[] = []
+const EMPTY_CLI_PROFILES: CustomCliProfile[] = []
+const EMPTY_CODEX_PROVIDERS: CodexProviderProfile[] = []
+
+/**
+ * PERFORMANCE: TanStack Query v5's useMutation returns a new result object on
+ * every render, but its `mutate` / `mutateAsync` functions are stable. Expose
+ * only those so callbacks that depend on the mutation stay referentially
+ * stable across streaming re-renders.
+ */
+function useStableMutation<T extends { mutate: unknown; mutateAsync: unknown }>(
+  mutation: T
+): Pick<T, 'mutate' | 'mutateAsync'> {
+  const { mutate, mutateAsync } = mutation
+  return useMemo(() => ({ mutate, mutateAsync }), [mutate, mutateAsync])
+}
 
 interface ChatWindowProps {
   /** When true, hides terminal panel and other elements not needed in modal */
@@ -290,7 +325,11 @@ interface ChatWindowProps {
   worktreePath?: string
 }
 
-export function ChatWindow(props: ChatWindowProps = {}) {
+// PERFORMANCE: memoized - props are primitives, so parents re-rendering
+// (e.g. SessionChatModal) don't force this large tree to re-render.
+export const ChatWindow = memo(function ChatWindow(
+  props: ChatWindowProps = {}
+) {
   const storeWorktreeId = useChatStore(state => state.activeWorktreeId)
   const worktreeId = props.worktreeId ?? storeWorktreeId
   const serverId = worktreeId
@@ -302,9 +341,9 @@ export function ChatWindow(props: ChatWindowProps = {}) {
       <ChatWindowContent {...props} />
     </SettingsTargetProvider>
   )
-}
+})
 
-function ChatWindowContent({
+const ChatWindowContent = memo(function ChatWindowContent({
   isModal = false,
   worktreeId: propWorktreeId,
   worktreePath: propWorktreePath,
@@ -704,13 +743,15 @@ function ChatWindowContent({
     (preferences?.keybindings?.approve_plan_clear_context_build ??
       DEFAULT_KEYBINDINGS.approve_plan_clear_context_build) as string
   )
-  const sendMessage = useSendMessage()
-  const createSession = useCreateSession()
-  const setSessionModel = useSetSessionModel()
-  const setSessionThinkingLevel = useSetSessionThinkingLevel()
-  const setSessionEffortLevel = useSetSessionEffortLevel()
-  const setSessionBackend = useSetSessionBackend()
-  const setSessionProvider = useSetSessionProvider()
+  const sendMessage = useStableMutation(useSendMessage())
+  const createSession = useStableMutation(useCreateSession())
+  const setSessionModel = useStableMutation(useSetSessionModel())
+  const setSessionThinkingLevel = useStableMutation(
+    useSetSessionThinkingLevel()
+  )
+  const setSessionEffortLevel = useStableMutation(useSetSessionEffortLevel())
+  const setSessionBackend = useStableMutation(useSetSessionBackend())
+  const setSessionProvider = useStableMutation(useSetSessionProvider())
 
   // Fetch worktree data for PR link display
   const { data: worktree } = useWorktree(activeWorktreeId ?? null)
@@ -1333,6 +1374,32 @@ function ChatWindowContent({
   const approveButtonRef = useRef<HTMLButtonElement>(null)
   const triggerChatAttachRef = useRef<(() => void) | null>(null)
 
+  // PERFORMANCE: Stable ref-backed callbacks for memoized ChatInput/ChatToolbar
+  const handleRegisterClearHandler = useCallback(
+    (handler: (() => void) | null) => {
+      clearChatInputStateRef.current = handler
+    },
+    []
+  )
+  const handleRegisterAttachHandler = useCallback(
+    (handler: (() => void) | null) => {
+      triggerChatAttachRef.current = handler
+    },
+    []
+  )
+  const handleClearChatInputState = useCallback(
+    () => clearChatInputStateRef.current?.(),
+    []
+  )
+  const handleToolbarAttach = useCallback(
+    () => triggerChatAttachRef.current?.(),
+    []
+  )
+  const getCustomProfileName = useCallback(
+    () => selectedProviderRef.current ?? undefined,
+    []
+  )
+
   // Terminal panel ref for imperative collapse/expand
   const terminalPanelRef = useRef<ImperativePanelHandle>(null)
   // Review sidebar panel ref for imperative collapse/expand
@@ -1430,13 +1497,10 @@ function ChatWindowContent({
     lastAssistantMessage,
   })
 
-  // Plan state: finished pending plan, content, file path
+  // Plan state: finished pending plan awaiting approval
   const { pendingPlanMessage, hasPendingPlanApproval } = usePlanState({
     sessionMessages: session?.messages,
     pendingPlanMessageId: session?.pending_plan_message_id,
-    currentToolCalls,
-    currentStreamingContent: streamingContent,
-    currentStreamingContentBlocks,
     isSending,
   })
 
@@ -1642,8 +1706,13 @@ function ChatWindowContent({
     queryClient,
     markAtBottom,
     clearInputDraft,
-    clearChatInputState: () => clearChatInputStateRef.current?.(),
+    clearChatInputState: handleClearChatInputState,
   })
+
+  const handleSteer = useCallback(
+    () => handleSubmit(undefined, { forceSteer: true }),
+    [handleSubmit]
+  )
 
   const handleCheckGitHubIssues = useCallback(() => {
     sendMessageNow({
@@ -1929,6 +1998,10 @@ function ChatWindowContent({
   })
 
   const [reviewMethodModalOpen, setReviewMethodModalOpen] = useState(false)
+  const handleOpenReviewMethodModal = useCallback(
+    () => setReviewMethodModalOpen(true),
+    []
+  )
 
   // Linked projects modal state
   const linkedProjectsModalOpen = useUIStore(
@@ -2077,9 +2150,7 @@ function ChatWindowContent({
     yoloThinkingLevelRef,
     yoloEffortLevelRef,
     selectedBackendRef,
-    getCustomProfileName: () => {
-      return selectedProviderRef.current ?? undefined
-    },
+    getCustomProfileName,
     executionModeRef,
     selectedThinkingLevelRef,
     selectedEffortLevelRef,
@@ -2329,14 +2400,29 @@ function ChatWindowContent({
     sendMessageNow,
   })
 
-  // Pre-calculate last plan message index for approve button logic
-  const lastPlanMessageIndex = useMemo(() => {
-    const messages = dedupeInFlightAssistantMessage(session?.messages ?? [], {
+  // Messages for rendering - hide the in-flight trailing assistant snapshot
+  // while streaming. PERFORMANCE: compute a boolean per render and memoize the
+  // slice on it, so the array reference stays stable across streaming flushes.
+  const rawSessionMessages = session?.messages ?? EMPTY_MESSAGES
+  const hideTrailingInFlightMessage = shouldHideInFlightAssistantMessage(
+    rawSessionMessages,
+    {
       isSending,
       streamingContent,
       streamingContentBlocks: currentStreamingContentBlocks,
       streamingToolCalls: currentToolCalls,
-    })
+    }
+  )
+  const messages = useMemo(
+    () =>
+      hideTrailingInFlightMessage
+        ? rawSessionMessages.slice(0, -1)
+        : rawSessionMessages,
+    [rawSessionMessages, hideTrailingInFlightMessage]
+  )
+
+  // Pre-calculate last plan message index for approve button logic
+  const lastPlanMessageIndex = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       const m = messages[i]
       if (
@@ -2348,31 +2434,7 @@ function ChatWindowContent({
       }
     }
     return -1
-  }, [
-    session?.messages,
-    isSending,
-    streamingContent,
-    currentStreamingContentBlocks,
-    currentToolCalls,
-  ])
-
-  // Messages for rendering - memoize to ensure stable reference
-  const messages = useMemo(
-    () =>
-      dedupeInFlightAssistantMessage(session?.messages ?? [], {
-        isSending,
-        streamingContent,
-        streamingContentBlocks: currentStreamingContentBlocks,
-        streamingToolCalls: currentToolCalls,
-      }),
-    [
-      session?.messages,
-      isSending,
-      streamingContent,
-      currentStreamingContentBlocks,
-      currentToolCalls,
-    ]
-  )
+  }, [messages])
 
   const compactHistoryWindow = useMemo(
     () => getCurrentPromptWindow(messages),
@@ -3312,14 +3374,12 @@ function ChatWindowContent({
                                   investigatePRPrompt={
                                     preferences?.magic_prompts?.investigate_pr
                                   }
-                                  onRegisterClearHandler={(
-                                    handler: (() => void) | null
-                                  ) => {
-                                    clearChatInputStateRef.current = handler
-                                  }}
-                                  onRegisterAttachHandler={handler => {
-                                    triggerChatAttachRef.current = handler
-                                  }}
+                                  onRegisterClearHandler={
+                                    handleRegisterClearHandler
+                                  }
+                                  onRegisterAttachHandler={
+                                    handleRegisterAttachHandler
+                                  }
                                   formRef={formRef}
                                   inputRef={inputRef}
                                   installedBackends={installedBackends}
@@ -3357,11 +3417,7 @@ function ChatWindowContent({
                                       currentQueuedMessages.length
                                     }
                                     onCancel={handleCancel}
-                                    onSteer={() =>
-                                      handleSubmit(undefined, {
-                                        forceSteer: true,
-                                      })
-                                    }
+                                    onSteer={handleSteer}
                                   />
                                 </div>
                               ) : (
@@ -3415,23 +3471,31 @@ function ChatWindowContent({
                                     projectId={worktree?.project_id}
                                     runScripts={runScripts}
                                     loadedIssueContexts={
-                                      loadedIssueContexts ?? []
+                                      loadedIssueContexts ??
+                                      EMPTY_ISSUE_CONTEXTS
                                     }
-                                    loadedPRContexts={loadedPRContexts ?? []}
+                                    loadedPRContexts={
+                                      loadedPRContexts ?? EMPTY_PR_CONTEXTS
+                                    }
                                     loadedSecurityContexts={
-                                      loadedSecurityContexts ?? []
+                                      loadedSecurityContexts ??
+                                      EMPTY_SECURITY_CONTEXTS
                                     }
                                     loadedAdvisoryContexts={
-                                      loadedAdvisoryContexts ?? []
+                                      loadedAdvisoryContexts ??
+                                      EMPTY_ADVISORY_CONTEXTS
                                     }
                                     loadedLinearContexts={
-                                      loadedLinearContexts ?? []
+                                      loadedLinearContexts ??
+                                      EMPTY_LINEAR_CONTEXTS
                                     }
                                     loadedSentryContexts={
-                                      loadedSentryContexts ?? []
+                                      loadedSentryContexts ??
+                                      EMPTY_SENTRY_CONTEXTS
                                     }
                                     attachedSavedContexts={
-                                      attachedSavedContexts ?? []
+                                      attachedSavedContexts ??
+                                      EMPTY_SAVED_CONTEXTS
                                     }
                                     onOpenMagicModal={handleOpenMagicModal}
                                     onSaveContext={handleSaveContext}
@@ -3441,9 +3505,7 @@ function ChatWindowContent({
                                       handleCommitAndPushWithPicker
                                     }
                                     onOpenPr={handleOpenPr}
-                                    onReview={() =>
-                                      setReviewMethodModalOpen(true)
-                                    }
+                                    onReview={handleOpenReviewMethodModal}
                                     onMerge={handleMerge}
                                     onMergePr={handleMergePr}
                                     onResolvePrConflicts={
@@ -3463,10 +3525,12 @@ function ChatWindowContent({
                                       handleToolbarProviderChange
                                     }
                                     customCliProfiles={
-                                      preferences?.custom_cli_profiles ?? []
+                                      preferences?.custom_cli_profiles ??
+                                      EMPTY_CLI_PROFILES
                                     }
                                     customCodexProviders={
-                                      preferences?.custom_codex_providers ?? []
+                                      preferences?.custom_codex_providers ??
+                                      EMPTY_CODEX_PROVIDERS
                                     }
                                     onThinkingLevelChange={
                                       handleToolbarThinkingLevelChange
@@ -3477,9 +3541,7 @@ function ChatWindowContent({
                                     onSetExecutionMode={
                                       handleToolbarSetExecutionMode
                                     }
-                                    onAttach={() =>
-                                      triggerChatAttachRef.current?.()
-                                    }
+                                    onAttach={handleToolbarAttach}
                                     onCancel={handleCancel}
                                     willSteer={
                                       isBackendAutoSteerEnabled(
@@ -3499,11 +3561,7 @@ function ChatWindowContent({
                                     canSteer={isSteerCapableBackend(
                                       selectedBackend
                                     )}
-                                    onSteer={() =>
-                                      handleSubmit(undefined, {
-                                        forceSteer: true,
-                                      })
-                                    }
+                                    onSteer={handleSteer}
                                     queuedMessageCount={
                                       currentQueuedMessages.length
                                     }
@@ -3734,4 +3792,4 @@ function ChatWindowContent({
       </div>
     </ErrorBoundary>
   )
-}
+})

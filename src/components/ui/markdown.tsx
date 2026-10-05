@@ -114,7 +114,13 @@ function openLocalFileLink(href: string | undefined): boolean {
     return false
   }
 
-  return openLocalFile(decodeURIComponent(href))
+  let path = href
+  try {
+    path = decodeURIComponent(href)
+  } catch {
+    // Malformed percent-escape (e.g. a lone `%`) — use the raw href
+  }
+  return openLocalFile(path)
 }
 
 function handleFilePathClick(event: React.MouseEvent<HTMLElement>) {
@@ -469,10 +475,7 @@ export function headingBefore(source: string, offset: number): string | null {
     const match =
       /^#{1,6}\s+(.+?)\s*#*$/.exec(line) ?? /^\*\*(.+)\*\*:?$/.exec(line)
     if (!match?.[1]) continue
-    const text = match[1]
-      .replace(/[*_`]/g, '')
-      .replace(/:$/, '')
-      .trim()
+    const text = match[1].replace(/[*_`]/g, '').replace(/:$/, '').trim()
     if (text) return text
   }
   return null

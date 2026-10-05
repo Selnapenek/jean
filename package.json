@@ -139,5 +139,8 @@
     "typescript-eslint": "^8.38.0",
     "vite": "^7.2.0",
     "vitest": "^4.0.7"
+  },
+  "overrides": {
+    "shiki": "3.23.0"
   }
 }

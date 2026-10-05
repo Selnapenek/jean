@@ -675,7 +675,6 @@ export const ChatInput = memo(function ChatInput({
       canSwitchBackendWithTab,
       onSwitchBackendWithTab,
       isMobile,
-      resizeTextarea,
       selectedBackend,
       onSteerModifierChange,
     ]

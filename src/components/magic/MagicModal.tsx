@@ -2177,6 +2177,7 @@ ${resolveInstructions}`
       isOnCanvas,
       executeGitDirectly,
       hasIssueContexts,
+      hasSentryContexts,
       hasPrContexts,
       hasAdvisoryContexts,
       activeSessionId,

@@ -31,6 +31,7 @@ import type {
   Question,
   QuestionAnswer,
   ReviewFinding,
+  ToolCall,
 } from '@/types/chat'
 import {
   getAskUserQuestions,
@@ -65,6 +66,7 @@ import {
 } from './recap-utils'
 
 const SCROLL_THRESHOLD = 300
+const EMPTY_TOOL_CALLS: ToolCall[] = []
 
 interface CompactMessageListProps {
   messages: ChatMessage[]
@@ -381,7 +383,7 @@ interface CompactActivityRowProps {
   editedFilesShownExternally?: boolean
 }
 
-function CompactActivityRow({
+const CompactActivityRow = memo(function CompactActivityRow({
   group,
   total,
   renderMessage,
@@ -505,7 +507,7 @@ function CompactActivityRow({
       </span>
     </Collapsible>
   )
-}
+})
 
 interface CompactQuestionMessageProps {
   message: ChatMessage
@@ -583,12 +585,16 @@ function CompactQuestionMessage({
     }
     return Boolean(stripped.content && stripped.content.trim() !== '')
   }, [stripped])
+  const activityGroup = useMemo(
+    () => [{ message: stripped, globalIndex }],
+    [stripped, globalIndex]
+  )
 
   return (
     <>
       {hasNonQuestionContent && (
         <CompactActivityRow
-          group={[{ message: stripped, globalIndex }]}
+          group={activityGroup}
           total={1}
           renderMessage={renderMessage}
           hasFollowUpFor={hasFollowUpFor}
@@ -858,6 +864,14 @@ export const CompactMessageList = memo(
         return items
       }, [messages, lastIndex, hasFollowUpMap])
 
+      // Tool calls of the latest compact group, surfaced as edited files
+      // under the row. Memoized so EditedFilesDisplay gets a stable array.
+      const latestCompactToolCalls = useMemo(() => {
+        const last = renderItems[renderItems.length - 1]
+        if (!last || last.kind !== 'compact') return EMPTY_TOOL_CALLS
+        return last.messages.flatMap(({ message }) => message.tool_calls ?? [])
+      }, [renderItems])
+
       const renderMessageItem = useCallback(
         (
           item: { message: ChatMessage; globalIndex: number },
@@ -872,7 +886,7 @@ export const CompactMessageList = memo(
             message={item.message}
             getMessages={getMessages}
             messageIndex={item.globalIndex}
-            totalMessages={totalMessages}
+            isLastMessage={item.globalIndex === totalMessages - 1}
             lastPlanMessageIndex={lastPlanMessageIndex}
             hasFollowUpMessage={extra.hasFollowUpMessage}
             sessionId={sessionId}
@@ -911,7 +925,7 @@ export const CompactMessageList = memo(
           />
         ),
         [
-          messages,
+          getMessages,
           totalMessages,
           lastPlanMessageIndex,
           sessionId,
@@ -1207,10 +1221,8 @@ export const CompactMessageList = memo(
             const surfaceRecap = latestTextIsRecap && showLatestText
             const surfacedLatestToolCalls =
               isLatestCompact && (showLatestText || hasCancelledMessage)
-                ? item.messages.flatMap(
-                    ({ message }) => message.tool_calls ?? []
-                  )
-                : []
+                ? latestCompactToolCalls
+                : EMPTY_TOOL_CALLS
             return (
               <div key={item.key}>
                 <CompactActivityRow

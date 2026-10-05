@@ -104,6 +104,7 @@ export function WorktreeDropdownMenu({
   const {
     showDeleteConfirm,
     setShowDeleteConfirm,
+    deleteSkipTeardown,
     isBase,
     runScripts,
     preferences,
@@ -113,6 +114,7 @@ export function WorktreeDropdownMenu({
     handleOpenInTerminal,
     handleOpenInEditor,
     handleArchiveOrClose,
+    openDeleteConfirm,
     handleDelete,
   } = useWorktreeMenuActions({ worktree, projectId })
   const isMobile = useIsMobile()
@@ -443,10 +445,16 @@ export function WorktreeDropdownMenu({
           </DropdownMenuItem>
 
           {!isBase && (
-            <DropdownMenuItem onClick={() => setShowDeleteConfirm(true)}>
-              <Trash2 className="mr-2 h-4 w-4 text-destructive" />
-              Delete Worktree
-            </DropdownMenuItem>
+            <>
+              <DropdownMenuItem onClick={() => openDeleteConfirm(false)}>
+                <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+                Delete Worktree
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => openDeleteConfirm(true)}>
+                <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+                Delete Without Teardown
+              </DropdownMenuItem>
+            </>
           )}
         </DropdownMenuContent>
       </DropdownMenu>
@@ -463,10 +471,16 @@ export function WorktreeDropdownMenu({
           }}
         >
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Worktree</AlertDialogTitle>
+            <AlertDialogTitle>
+              {deleteSkipTeardown
+                ? 'Delete Without Teardown'
+                : 'Delete Worktree'}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete the worktree, its branch, and all
               associated sessions. This action cannot be undone.
+              {deleteSkipTeardown &&
+                ' The teardown script will not run, so resources it manages may need manual cleanup.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -111,3 +111,10 @@
 - UI chrome is monochrome (`primary`, `foreground`, `muted-foreground`, `accent`). Use color only for status.
 - Status colors: `success`, `warning`, `info`, `destructive` (+ `*-foreground` on solid backgrounds). They have light and dark values in `src/App.css`; opacity modifiers work (`bg-warning/10`).
 - Do not add hardcoded hues such as `text-yellow-400`: they are tuned for one theme and fail contrast in the other. For categorical identity colors (file types, brands, GitHub closed/merged purple), use a `-600` + `dark:-400` pair.
+
+## Keep hot render paths cheap
+
+- Streaming flushes re-render anything that subscribes to streaming state, so memoized children need stable props: `useCallback` handlers, module-level empty arrays, and `.mutate`/`.mutateAsync` instead of whole `useMutation` results (new object each render).
+- Subscribe list rows to their own slice. Mount store-heavy subscriptions only in the expanded child that needs them.
+- Do not mount hidden heavy content (collapsed Markdown, diffs, stats). Tick timers in the smallest leaf component.
+- Keep heavy libraries (xterm, diff editors) behind dynamic `import()` so core services do not pull them into the boot bundle.

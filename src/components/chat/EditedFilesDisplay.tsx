@@ -208,8 +208,11 @@ export const EditedFilesDisplay = memo(function EditedFilesDisplay({
     [editTools, codexChanges]
   )
 
+  // Stats are only shown in the expanded content, so skip the per-edit
+  // line diffing until the user expands the list.
   const fileStats = useMemo(() => {
     const map = new Map<string, { additions: number; deletions: number }>()
+    if (!isExpanded) return map
     const addStats = (
       filePath: string,
       delta: { additions: number; deletions: number }
@@ -231,7 +234,7 @@ export const EditedFilesDisplay = memo(function EditedFilesDisplay({
       addStats(change.path, computeUnifiedDiffStats(change.diff))
     }
     return map
-  }, [editTools, codexChanges])
+  }, [editTools, codexChanges, isExpanded])
 
   const selectedEdits = useMemo(
     () =>

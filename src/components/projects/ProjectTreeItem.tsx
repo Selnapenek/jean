@@ -66,13 +66,14 @@ export function ProjectTreeItem({
   const isMobile = useIsMobile()
   const sidebarWidth = useSidebarWidth()
   const isOffline = project.offline === true
-  const {
-    expandedProjectIds,
-    selectedProjectId,
-    selectProject,
-    toggleProjectExpanded,
-  } = useProjectsStore()
-  const isProjectExpanded = expandedProjectIds.has(project.id)
+  const isProjectExpanded = useProjectsStore(state =>
+    state.expandedProjectIds.has(project.id)
+  )
+  const selectedProjectId = useProjectsStore(state => state.selectedProjectId)
+  const selectProject = useProjectsStore(state => state.selectProject)
+  const toggleProjectExpanded = useProjectsStore(
+    state => state.toggleProjectExpanded
+  )
   const shouldLoadWorktrees =
     !isOffline &&
     (Boolean(searchQuery) ||

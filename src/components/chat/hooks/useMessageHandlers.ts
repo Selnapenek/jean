@@ -335,6 +335,12 @@ export function useMessageHandlers({
 }: UseMessageHandlersParams): MessageHandlers {
   'use no memo'
 
+  // PERFORMANCE: Depend on the stable mutate/mutateAsync functions rather than
+  // the whole useMutation result, which is a new object every render in
+  // TanStack Query v5. Keeps handlers (and memoized message rows) stable.
+  const { mutate: sendMessageMutate } = sendMessage
+  const { mutateAsync: createSessionMutateAsync } = createSession
+
   // Handle answer submission for AskUserQuestion
   // PERFORMANCE: Uses refs for session/worktree IDs to keep callback stable across session switches
   const handleQuestionAnswer = useCallback(
@@ -454,7 +460,7 @@ export function useMessageHandlers({
       setExecutingMode(sessionId, executionModeRef.current)
 
       // Send the formatted answer
-      sendMessage.mutate(
+      sendMessageMutate(
         {
           sessionId,
           worktreeId,
@@ -487,7 +493,7 @@ export function useMessageHandlers({
       useAdaptiveThinkingRef,
       getMcpConfig,
       getCustomProfileName,
-      sendMessage,
+      sendMessageMutate,
       markAtBottom,
       inputRef,
       queryClient,
@@ -738,7 +744,7 @@ export function useMessageHandlers({
             queryKey: chatQueryKeys.sessions(worktreeId),
           })
 
-          sendMessage.mutate(
+          sendMessageMutate(
             {
               sessionId,
               worktreeId,
@@ -777,7 +783,7 @@ export function useMessageHandlers({
       getMcpConfig,
       getCustomProfileName,
       markAtBottom,
-      sendMessage,
+      sendMessageMutate,
       queryClient,
       inputRef,
     ]
@@ -910,7 +916,7 @@ export function useMessageHandlers({
             queryKey: chatQueryKeys.sessions(worktreeId),
           })
 
-          sendMessage.mutate(
+          sendMessageMutate(
             {
               sessionId,
               worktreeId,
@@ -949,7 +955,7 @@ export function useMessageHandlers({
       getMcpConfig,
       getCustomProfileName,
       markAtBottom,
-      sendMessage,
+      sendMessageMutate,
       queryClient,
       inputRef,
     ]
@@ -1024,7 +1030,7 @@ export function useMessageHandlers({
     addSendingSession(sessionId)
     setExecutingMode(sessionId, 'build')
 
-    sendMessage.mutate(
+    sendMessageMutate(
       {
         sessionId,
         worktreeId,
@@ -1061,7 +1067,7 @@ export function useMessageHandlers({
     getMcpConfig,
     getCustomProfileName,
     markAtBottom,
-    sendMessage,
+    sendMessageMutate,
     inputRef,
   ])
 
@@ -1124,7 +1130,7 @@ export function useMessageHandlers({
     addSendingSession(sessionId)
     setExecutingMode(sessionId, 'yolo')
 
-    sendMessage.mutate(
+    sendMessageMutate(
       {
         sessionId,
         worktreeId,
@@ -1161,7 +1167,7 @@ export function useMessageHandlers({
     getMcpConfig,
     getCustomProfileName,
     markAtBottom,
-    sendMessage,
+    sendMessageMutate,
     inputRef,
   ])
 
@@ -1244,7 +1250,7 @@ export function useMessageHandlers({
       // Create new session
       let newSession: Session
       try {
-        newSession = await createSession.mutateAsync({
+        newSession = await createSessionMutateAsync({
           worktreeId,
           worktreePath,
         })
@@ -1357,7 +1363,7 @@ export function useMessageHandlers({
           mapCodexReasoningToEffort(modeEffortRef.current) ??
           selectedEffortLevelRef.current
       }
-      sendMessage.mutate({
+      sendMessageMutate({
         sessionId: newSession.id,
         worktreeId,
         worktreePath,
@@ -1428,8 +1434,8 @@ export function useMessageHandlers({
       useAdaptiveThinkingRef,
       getMcpConfig,
       getCustomProfileName,
-      createSession,
-      sendMessage,
+      createSessionMutateAsync,
+      sendMessageMutate,
       queryClient,
     ]
   )
@@ -1491,7 +1497,7 @@ export function useMessageHandlers({
       // Create new session
       let newSession: Session
       try {
-        newSession = await createSession.mutateAsync({
+        newSession = await createSessionMutateAsync({
           worktreeId,
           worktreePath,
         })
@@ -1600,7 +1606,7 @@ export function useMessageHandlers({
           mapCodexReasoningToEffort(modeEffortRef.current) ??
           selectedEffortLevelRef.current
       }
-      sendMessage.mutate({
+      sendMessageMutate({
         sessionId: newSession.id,
         worktreeId,
         worktreePath,
@@ -1671,8 +1677,8 @@ export function useMessageHandlers({
       useAdaptiveThinkingRef,
       getMcpConfig,
       getCustomProfileName,
-      createSession,
-      sendMessage,
+      createSessionMutateAsync,
+      sendMessageMutate,
       queryClient,
     ]
   )
@@ -1951,7 +1957,7 @@ export function useMessageHandlers({
           mapCodexReasoningToEffort(modeEffortRef.current) ??
           selectedEffortLevelRef.current
       }
-      sendMessage.mutate({
+      sendMessageMutate({
         sessionId: newSession.id,
         worktreeId: readyWorktree.id,
         worktreePath: readyWorktree.path,
@@ -2016,7 +2022,7 @@ export function useMessageHandlers({
       useAdaptiveThinkingRef,
       getMcpConfig,
       getCustomProfileName,
-      sendMessage,
+      sendMessageMutate,
       queryClient,
     ]
   )
@@ -2265,7 +2271,7 @@ export function useMessageHandlers({
           mapCodexReasoningToEffort(modeEffortRef.current) ??
           selectedEffortLevelRef.current
       }
-      sendMessage.mutate({
+      sendMessageMutate({
         sessionId: newSession.id,
         worktreeId: readyWorktree.id,
         worktreePath: readyWorktree.path,
@@ -2330,7 +2336,7 @@ export function useMessageHandlers({
       useAdaptiveThinkingRef,
       getMcpConfig,
       getCustomProfileName,
-      sendMessage,
+      sendMessageMutate,
       queryClient,
     ]
   )
@@ -2536,7 +2542,7 @@ export function useMessageHandlers({
       setSelectedModel(sessionId, modelToUse)
       setExecutingMode(sessionId, modeToUse)
 
-      sendMessage.mutate(
+      sendMessageMutate(
         {
           sessionId,
           worktreeId,
@@ -2571,7 +2577,7 @@ export function useMessageHandlers({
       getMcpConfig,
       getCustomProfileName,
       scrollToBottom,
-      sendMessage,
+      sendMessageMutate,
       inputRef,
     ]
   )
@@ -2715,7 +2721,7 @@ export function useMessageHandlers({
       setSelectedModel(sessionId, modelToUse)
       setExecutingMode(sessionId, 'yolo')
 
-      sendMessage.mutate(
+      sendMessageMutate(
         {
           sessionId,
           worktreeId,
@@ -2748,7 +2754,7 @@ export function useMessageHandlers({
       getMcpConfig,
       getCustomProfileName,
       scrollToBottom,
-      sendMessage,
+      sendMessageMutate,
       inputRef,
     ]
   )
@@ -3345,7 +3351,7 @@ Please apply this fix to the file.`
       setSelectedModel(sessionId, selectedModelRef.current)
       setExecutingMode(sessionId, 'build') // Fixes are always in build mode
 
-      sendMessage.mutate(
+      sendMessageMutate(
         {
           sessionId,
           worktreeId,
@@ -3377,7 +3383,7 @@ Please apply this fix to the file.`
       useAdaptiveThinkingRef,
       getMcpConfig,
       getCustomProfileName,
-      sendMessage,
+      sendMessageMutate,
       queryClient,
       inputRef,
     ]
@@ -3486,7 +3492,7 @@ Please apply all these fixes to the respective files.`
       setSelectedModel(sessionId, selectedModelRef.current)
       setExecutingMode(sessionId, 'build') // Fixes are always in build mode
 
-      sendMessage.mutate(
+      sendMessageMutate(
         {
           sessionId,
           worktreeId,
@@ -3518,7 +3524,7 @@ Please apply all these fixes to the respective files.`
       useAdaptiveThinkingRef,
       getMcpConfig,
       getCustomProfileName,
-      sendMessage,
+      sendMessageMutate,
       queryClient,
       inputRef,
     ]

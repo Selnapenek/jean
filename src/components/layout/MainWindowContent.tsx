@@ -1,6 +1,7 @@
 import {
   Suspense,
   lazy,
+  memo,
   useCallback,
   useEffect,
   useState,
@@ -44,7 +45,7 @@ interface MainWindowContentProps {
   }
 }
 
-export function MainWindowContent({
+export const MainWindowContent = memo(function MainWindowContent({
   children,
   className,
   sidebarSwipeContainerRef,
@@ -234,6 +235,6 @@ export function MainWindowContent({
       )}
     </div>
   )
-}
+})
 
 export default MainWindowContent

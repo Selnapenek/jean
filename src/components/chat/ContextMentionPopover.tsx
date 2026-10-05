@@ -146,12 +146,18 @@ export function ContextMentionPopover({
     }
   }, [projectId, projectPath, queryClient])
 
-  useEffect(() => {
-    if (!open) return
+  const resetListPosition = useCallback(() => {
     setSelectedIndex(0)
     setIssueLimit(8)
     setPrLimit(8)
-  }, [open, searchQuery, menuSearch, includeClosed, projectPath])
+  }, [])
+
+  // Prop-driven resets. Local filter changes (menuSearch, includeClosed)
+  // reset in their own event handlers to avoid chaining effects.
+  useEffect(() => {
+    if (!open) return
+    resetListPosition()
+  }, [open, searchQuery, projectPath, resetListPosition])
 
   useEffect(() => {
     if (open) setMenuSearch('')
@@ -226,7 +232,10 @@ export function ContextMentionPopover({
             </button>
             <button
               type="button"
-              onClick={() => setIncludeClosed(value => !value)}
+              onClick={() => {
+                setIncludeClosed(value => !value)
+                resetListPosition()
+              }}
               className={cn(
                 'rounded px-2 py-1 text-xs transition-colors',
                 includeClosed
@@ -244,7 +253,10 @@ export function ContextMentionPopover({
           <CommandInput
             placeholder="Search issue title or description..."
             value={menuSearch}
-            onValueChange={setMenuSearch}
+            onValueChange={value => {
+              setMenuSearch(value)
+              resetListPosition()
+            }}
             onKeyDown={event => {
               event.stopPropagation()
               switch (event.key) {

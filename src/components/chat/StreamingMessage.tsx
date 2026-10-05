@@ -49,7 +49,7 @@ function WorkingVisualRow() {
         <span className="font-medium shrink-0 flex-none whitespace-nowrap">
           Working…
         </span>
-        <Loader2 className="ml-auto h-3 w-3 shrink-0 animate-spin text-muted-foreground/50" />
+        <Loader2 className="ml-auto h-3.5 w-3.5 shrink-0 animate-spin text-foreground" />
       </div>
     </div>
   )
@@ -189,27 +189,35 @@ export const StreamingMessage = memo(function StreamingMessage({
     }
   }, [displayBlocks, toolCalls, sessionId])
 
-  const streamingResponseText = useMemo(() => {
+  // Cheap non-whitespace check per flush; the full joined/trimmed response
+  // text is only built lazily when the user actually copies it.
+  const hasStreamingResponseText = useMemo(
+    () =>
+      displayBlocks.some(
+        block => block.type === 'text' && /\S/.test(block.text)
+      ) || /\S/.test(streamingContent),
+    [displayBlocks, streamingContent]
+  )
+
+  const handleCopyStreamingResponse = useCallback(() => {
     const fromBlocks = displayBlocks
       .flatMap(block => (block.type === 'text' ? [block.text] : []))
       .join('\n')
       .trim()
-    return fromBlocks || streamingContent.trim()
-  }, [displayBlocks, streamingContent])
-
-  const handleCopyStreamingResponse = useCallback(() => {
-    if (!streamingResponseText) return
-    void copyToClipboard(streamingResponseText)
+    const text = fromBlocks || streamingContent.trim()
+    if (!text) return
+    void copyToClipboard(text)
       .then(() => toast.success('Response copied to clipboard'))
       .catch(() => toast.error('Failed to copy response'))
-  }, [streamingResponseText])
+  }, [displayBlocks, streamingContent])
 
   return (
+    // messageText is omitted: when there is response text, onCopyMessage
+    // handles copying (and enables the menu item); otherwise it'd be empty.
     <MessageThreadContextMenu
-      messageText={streamingResponseText}
       copyMessageLabel="Copy response"
       onCopyMessage={
-        streamingResponseText ? handleCopyStreamingResponse : undefined
+        hasStreamingResponseText ? handleCopyStreamingResponse : undefined
       }
     >
       <div className="text-foreground/90">

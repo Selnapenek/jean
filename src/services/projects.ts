@@ -1683,8 +1683,9 @@ export function useWorktreeEvents() {
         queryClient.invalidateQueries({ queryKey: ['recent-worktrees'] })
         invalidateProjectLists(queryClient)
 
+        const toastId = `teardown-${id}`
         toast.error('Failed to delete worktree', {
-          id: `teardown-${id}`,
+          id: toastId,
           description: error,
           duration: Infinity,
           action: {
@@ -1692,16 +1693,32 @@ export function useWorktreeEvents() {
             onClick: () =>
               window.dispatchEvent(
                 new CustomEvent('show-teardown-output', {
-                  detail: {
-                    output: error,
-                    success: false,
-                    ...(error.startsWith('Teardown script failed:')
-                      ? { worktreeId: id, projectId: project_id }
-                      : {}),
-                  },
+                  detail: { output: error, success: false },
                 })
               ),
           },
+          ...(error.startsWith('Teardown script failed:')
+            ? {
+                cancel: {
+                  label: 'Delete without teardown',
+                  onClick: () => {
+                    startWorktreeDeletion(queryClient, {
+                      worktreeId: id,
+                      projectId: project_id,
+                      skipTeardown: true,
+                    }).catch(err => {
+                      logger.error('Failed to start worktree deletion', {
+                        error: err,
+                      })
+                      toast.error('Failed to delete worktree', {
+                        id: toastId,
+                        description: String(err),
+                      })
+                    })
+                  },
+                },
+              }
+            : {}),
         })
       })
     )
@@ -1908,6 +1925,65 @@ export function useRenameWorktree() {
 }
 
 /**
+ * Start a background worktree deletion and drop it from local caches.
+ * Shared by useDeleteWorktree and the teardown-failure toast.
+ */
+export async function startWorktreeDeletion(
+  queryClient: QueryClient,
+  {
+    worktreeId,
+    projectId,
+    skipTeardown,
+  }: { worktreeId: string; projectId: string; skipTeardown?: boolean }
+): Promise<void> {
+  if (!isTauri()) {
+    throw new Error('Not in Tauri context')
+  }
+
+  logger.debug('Deleting worktree (background)', { worktreeId })
+  await invoke('delete_worktree', {
+    worktreeId,
+    ...(skipTeardown ? { skipTeardown: true } : {}),
+  })
+  logger.info('Worktree deletion started (background)')
+
+  // Remove from cache now. The backend already dropped it from storage, and
+  // emits no worktree:deleting event when the worktree was already gone
+  // (e.g. its folder was deleted outside Jean).
+  queryClient.setQueryData<Worktree[]>(
+    projectsQueryKeys.worktrees(projectId),
+    old => {
+      if (!old) return []
+      return old.filter(w => w.id !== worktreeId)
+    }
+  )
+  removeWorktreeFromRecentCaches(queryClient, worktreeId)
+  invalidateProjectLists(queryClient)
+
+  // Drop the worktree's sessions from the finished-session bell, which
+  // reads from ['all-sessions'].
+  queryClient.invalidateQueries({
+    queryKey: ['unread-session-count'],
+  })
+  queryClient.invalidateQueries({ queryKey: ['all-sessions'] })
+
+  // Cleanup terminal instances for this worktree
+  clearLocalWorktreeState(worktreeId, queryClient)
+
+  // Clear chat if the deleted worktree was active
+  const { activeWorktreeId, clearActiveWorktree } = useChatStore.getState()
+  if (activeWorktreeId === worktreeId) {
+    clearActiveWorktree()
+  }
+
+  // Clear selection if this worktree was selected
+  const { selectedWorktreeId, selectWorktree } = useProjectsStore.getState()
+  if (selectedWorktreeId === worktreeId) {
+    selectWorktree(null)
+  }
+}
+
+/**
  * Hook to delete a worktree (background deletion with events)
  *
  * The backend returns immediately after marking the worktree for deletion,
@@ -1920,63 +1996,11 @@ export function useDeleteWorktree() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({
-      worktreeId,
-      projectId,
-      skipTeardown,
-    }: {
+    mutationFn: (args: {
       worktreeId: string
       projectId: string
       skipTeardown?: boolean
-    }): Promise<{ worktreeId: string; projectId: string }> => {
-      if (!isTauri()) {
-        throw new Error('Not in Tauri context')
-      }
-
-      logger.debug('Deleting worktree (background)', { worktreeId })
-      await invoke('delete_worktree', {
-        worktreeId,
-        ...(skipTeardown ? { skipTeardown: true } : {}),
-      })
-      logger.info('Worktree deletion started (background)')
-      return { worktreeId, projectId }
-    },
-    onSuccess: ({ worktreeId, projectId }) => {
-      // Remove from cache now. The backend already dropped it from storage, and
-      // emits no worktree:deleting event when the worktree was already gone
-      // (e.g. its folder was deleted outside Jean).
-      queryClient.setQueryData<Worktree[]>(
-        projectsQueryKeys.worktrees(projectId),
-        old => {
-          if (!old) return []
-          return old.filter(w => w.id !== worktreeId)
-        }
-      )
-      removeWorktreeFromRecentCaches(queryClient, worktreeId)
-      invalidateProjectLists(queryClient)
-
-      // Drop the worktree's sessions from the finished-session bell, which
-      // reads from ['all-sessions'].
-      queryClient.invalidateQueries({
-        queryKey: ['unread-session-count'],
-      })
-      queryClient.invalidateQueries({ queryKey: ['all-sessions'] })
-
-      // Cleanup terminal instances for this worktree
-      clearLocalWorktreeState(worktreeId, queryClient)
-
-      // Clear chat if the deleted worktree was active
-      const { activeWorktreeId, clearActiveWorktree } = useChatStore.getState()
-      if (activeWorktreeId === worktreeId) {
-        clearActiveWorktree()
-      }
-
-      // Clear selection if this worktree was selected
-      const { selectedWorktreeId, selectWorktree } = useProjectsStore.getState()
-      if (selectedWorktreeId === worktreeId) {
-        selectWorktree(null)
-      }
-    },
+    }) => startWorktreeDeletion(queryClient, args),
     onError: error => {
       const message =
         error instanceof Error
@@ -2756,7 +2780,10 @@ export function useRunScripts(worktreePath: string | null) {
       return scripts
     },
     enabled: !!worktreePath,
-    staleTime: 0,
+    // Rendered per sidebar worktree row, so avoid refetching on every mount.
+    // jean.json saves, pulls and rebases invalidate ['run-scripts'], and
+    // starting a run always re-reads jean.json from disk.
+    staleTime: 5 * 60 * 1000,
   })
 }
 
@@ -2810,7 +2837,8 @@ export interface TerminalPortInfo {
 
 /**
  * Hook to discover TCP LISTEN ports owned by terminal processes.
- * Polls every 5s when enabled. Returns empty array on non-native platforms.
+ * Polls every 15s when enabled (each poll runs lsof). Returns empty array on
+ * non-native platforms.
  */
 export function useTerminalListeningPorts(enabled: boolean) {
   return useQuery<TerminalPortInfo[]>({
@@ -2820,7 +2848,7 @@ export function useTerminalListeningPorts(enabled: boolean) {
       return invoke<TerminalPortInfo[]>('get_terminal_listening_ports')
     },
     enabled,
-    refetchInterval: 5_000,
+    refetchInterval: 15_000,
     staleTime: 3_000,
   })
 }

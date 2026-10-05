@@ -176,10 +176,12 @@ describe('PreferencesDialog', () => {
       within(desktopHeaderActions).getByPlaceholderText('Search settings...')
     await user.type(desktopSearchInput, 'provider')
 
+    const headerActions = dialog.querySelector<HTMLElement>('header .ml-auto')
+    if (!headerActions) {
+      throw new Error('Expected header actions to be rendered')
+    }
     await user.click(
-      within(dialog.querySelector('header .ml-auto')!).getByRole('button', {
-        name: 'Close',
-      })
+      within(headerActions).getByRole('button', { name: 'Close' })
     )
 
     await waitFor(() => {

@@ -2306,6 +2306,8 @@ pub async fn dispatch_command(
                 field_opt(&args, "selectedExecutionMode", "selected_execution_mode")?;
             let table_checked_rows: Option<std::collections::HashMap<String, Vec<u32>>> =
                 field_opt(&args, "tableCheckedRows", "table_checked_rows")?;
+            let hidden_table_checklists: Option<Vec<String>> =
+                field_opt(&args, "hiddenTableChecklists", "hidden_table_checklists")?;
             let pinned_tables: Option<Vec<crate::chat::types::PinnedTable>> =
                 field_opt(&args, "pinnedTables", "pinned_tables")?;
             crate::chat::update_session_state(
@@ -2336,6 +2338,7 @@ pub async fn dispatch_command(
                 enabled_mcp_servers,
                 selected_execution_mode,
                 table_checked_rows,
+                hidden_table_checklists,
                 pinned_tables,
                 field_opt(&args, "selectedPermissionMode", "selected_permission_mode")?,
             )

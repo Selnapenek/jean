@@ -10869,6 +10869,7 @@ async fn update_review_session_state(
         None,
         None,
         None,
+        None, // hidden_table_checklists
         None, // pinned_tables
         None, // selected_permission_mode
     )

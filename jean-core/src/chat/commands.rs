@@ -1775,6 +1775,7 @@ pub async fn update_session_state(
     enabled_mcp_servers: Option<Option<Vec<String>>>,
     selected_execution_mode: Option<Option<String>>,
     table_checked_rows: Option<std::collections::HashMap<String, Vec<u32>>>,
+    hidden_table_checklists: Option<Vec<String>>,
     pinned_tables: Option<Vec<super::types::PinnedTable>>,
     selected_permission_mode: Option<String>,
 ) -> Result<(), String> {
@@ -1896,6 +1897,9 @@ pub async fn update_session_state(
             }
             if let Some(v) = table_checked_rows {
                 session.table_checked_rows = v;
+            }
+            if let Some(v) = hidden_table_checklists {
+                session.hidden_table_checklists = v;
             }
             if let Some(v) = pinned_tables {
                 session.pinned_tables = v;

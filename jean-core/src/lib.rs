@@ -1449,7 +1449,10 @@ Investigate the loaded GitHub {issueWord} ({issueRefs})
 1. Validate the issue before deeper investigation:
    - Read the issue context file(s), including its current status, description, and comments
    - Confirm that the issue is still valid, relevant, and not already resolved or superseded
-   - Decide whether it makes sense to work on it now; if not, stop and explain why
+   - Take the request with a grain of salt: do not assume it must be fixed or added just because it was reported
+   - Check whether it is actually needed: is the bug real and reproducible, or is it user error, a misconfiguration, or expected behavior? Does the feature fit the project's scope, or does existing functionality already cover it?
+   - Weigh the value against the cost: how many users it affects, added complexity, maintenance burden, and regression risk
+   - Decide whether it makes sense to work on it now and is worth fixing or adding at all; if not, stop and explain why, and recommend a response (for example: close, ask for more information, or won't fix)
 2. Analyze the problem:
    - What is the expected vs actual behavior?
    - Are there error messages, stack traces, or reproduction steps?
@@ -1499,7 +1502,10 @@ Investigate the loaded GitHub {prWord} ({prRefs})
 1. Validate the PR before deeper investigation:
    - Read the PR context file(s), including its current status, description, reviews, and comments
    - Confirm that the PR is still valid, relevant, and not already merged, closed, or superseded
-   - Decide whether it makes sense to work on it now; if not, stop and explain why
+   - Take the PR with a grain of salt: do not assume it should be merged just because it was opened
+   - Check whether it is actually needed: does it solve a real problem, fit the project's scope, and not duplicate existing functionality?
+   - Weigh the value against the cost: added complexity, maintenance burden, regression risk, and the size of the change compared to its benefit
+   - Decide whether it makes sense to work on it now and is worth merging at all; if not, stop and explain why, and recommend a response (for example: close, request changes, or ask for more context)
 2. Understand the changes:
    - What is the PR trying to accomplish?
    - What branches are involved (head → base)?

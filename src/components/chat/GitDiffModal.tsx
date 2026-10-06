@@ -1864,7 +1864,7 @@ export function GitDiffModal({
             <AlertDialogCancel disabled={isReverting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               data-revert-action
-              className="bg-destructive text-white hover:bg-destructive/90"
+              variant="destructive"
               disabled={isReverting}
               onClick={handleRevertFile}
             >

@@ -340,10 +340,10 @@ export function PermissionApproval({
         {onApproveYolo && (
           <Button
             size="sm"
-            variant="outline"
+            variant="destructive"
             onClick={handleApproveYolo}
             disabled={selectedIndices.size === 0}
-            className="gap-1 !bg-destructive !border-destructive !text-white hover:!bg-destructive/90 dark:!bg-destructive/60"
+            className="gap-1"
           >
             <Play className="h-3 w-3" />
             Approve (yolo)

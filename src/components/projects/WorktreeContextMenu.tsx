@@ -180,7 +180,7 @@ export function WorktreeContextMenu({
             <AlertDialogAction
               autoFocus
               onClick={handleDelete}
-              className="bg-destructive text-white hover:bg-destructive/90"
+              variant="destructive"
             >
               Delete
               <kbd className="ml-1.5 text-xs opacity-70">↵</kbd>

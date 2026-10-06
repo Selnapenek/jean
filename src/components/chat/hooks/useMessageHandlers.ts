@@ -34,7 +34,10 @@ import { formatAnswersAsNaturalLanguage } from '@/services/chat'
 import { parseReviewFindings, getFindingKey } from '../review-finding-utils'
 import { findPlanFilePath, resolvePlanContent } from '../tool-call-utils'
 import { navigateToApprovedWorktree } from '../worktree-approval-navigation'
-import { getCodexPermissionApprovalMode } from '../permission-approval-utils'
+import {
+  getCodexPermissionApprovalMode,
+  isLivePermissionRequest,
+} from '../permission-approval-utils'
 import { isCodexDevUserInputRequest } from '../codex-dev-flows'
 import { generateId } from '@/lib/uuid'
 import { preferencesQueryKeys } from '@/services/preferences'
@@ -304,6 +307,35 @@ function asSessionBackend(
  *
  * PERFORMANCE: Uses refs for session/worktree IDs to keep callbacks stable across session switches.
  */
+/**
+ * Answer live Claude permission requests (Supervised): the run waits on Jean
+ * MCP for this answer and continues in place. Returns false when none exist.
+ */
+function respondLiveClaudePermissions(
+  sessionId: string,
+  approved: boolean
+): boolean {
+  const { getPendingDenials, setPendingDenials } = useChatStore.getState()
+  const denials = getPendingDenials(sessionId)
+  const live = denials.filter(isLivePermissionRequest)
+  if (live.length === 0) return false
+
+  setPendingDenials(
+    sessionId,
+    denials.filter(d => !isLivePermissionRequest(d))
+  )
+  for (const denial of live) {
+    invoke('respond_claude_permission', {
+      rpcId: denial.rpc_id,
+      approved,
+    }).catch(err => {
+      console.error('[useMessageHandlers] Failed to answer permission:', err)
+      toast.error(`Failed to answer permission request: ${err}`)
+    })
+  }
+  return true
+}
+
 export function useMessageHandlers({
   activeSessionIdRef,
   activeWorktreeIdRef,
@@ -2464,6 +2496,9 @@ export function useMessageHandlers({
         addApprovedTool(sessionId, pattern)
       }
 
+      // Live request: the run continues; approved patterns apply to later turns
+      if (respondLiveClaudePermissions(sessionId, true)) return
+
       const allApprovedTools = getApprovedTools(sessionId)
 
       const context = getDeniedMessageContext(sessionId)
@@ -2662,6 +2697,28 @@ export function useMessageHandlers({
         addApprovedTool(sessionId, pattern)
       }
 
+      // Live request: approve it and use YOLO for later turns
+      if (respondLiveClaudePermissions(sessionId, true)) {
+        setMode(sessionId, 'yolo')
+        invoke('broadcast_session_setting', {
+          sessionId,
+          key: 'executionMode',
+          value: 'yolo',
+        }).catch(err => {
+          console.error(
+            '[useMessageHandlers] Claude broadcast executionMode=yolo failed:',
+            err
+          )
+        })
+        invoke('update_session_state', {
+          worktreeId,
+          worktreePath,
+          sessionId,
+          selectedExecutionMode: 'yolo',
+        }).catch(() => undefined)
+        return
+      }
+
       const context = getDeniedMessageContext(sessionId)
       if (!context) {
         console.error(
@@ -2791,6 +2848,9 @@ export function useMessageHandlers({
       setWaitingForInput(sessionId, false)
       return
     }
+
+    // Live request: Claude gets the denial and continues the turn
+    if (respondLiveClaudePermissions(sessionId, false)) return
 
     clearPendingDenials(sessionId)
     clearDeniedMessageContext(sessionId)

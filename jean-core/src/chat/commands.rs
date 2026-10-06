@@ -9443,6 +9443,11 @@ fn send_codex_response(rpc_id: u64, payload: serde_json::Value) -> Result<(), St
     super::codex_server::send_response(rpc_id, payload)
 }
 
+/// Answer a live Claude permission request (Supervised mode).
+pub fn respond_claude_permission(rpc_id: u64, approved: bool) -> Result<(), String> {
+    super::claude_permissions::respond(rpc_id, approved)
+}
+
 /// Backward-compatible wrapper for legacy frontend callers.
 pub fn approve_codex_command(
     session_id: String,

@@ -271,7 +271,10 @@ import { usePlanState } from './hooks/usePlanState'
 import { useActiveTodosAndAgents } from './hooks/useActiveTodosAndAgents'
 import { usePendingAttachments } from './hooks/usePendingAttachments'
 import { shouldHideInFlightAssistantMessage } from './in-flight-message-dedupe'
-import { shouldShowPermissionApproval } from './permission-approval-utils'
+import {
+  isLivePermissionRequest,
+  shouldShowPermissionApproval,
+} from './permission-approval-utils'
 import { navigateToForkedSession } from './fork-session-navigation'
 
 // PERFORMANCE: Stable empty array references to prevent infinite render loops
@@ -1232,6 +1235,7 @@ const ChatWindowContent = memo(function ChatWindowContent({
     isSending,
     executionMode,
     isCodexBackend,
+    hasLiveRequest: pendingDenials.some(isLivePermissionRequest),
   })
   const activeCodexCommandApprovalRequest =
     pendingCodexCommandApprovalRequests[0]

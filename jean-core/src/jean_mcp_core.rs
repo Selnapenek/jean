@@ -23,7 +23,7 @@ pub const JEAN_MCP_SOCKET_ENV: &str = "JEAN_MCP_SOCKET";
 pub const JEAN_MCP_TOKEN_ENV: &str = "JEAN_MCP_TOKEN";
 pub const JEAN_MCP_SESSION_ENV: &str = "JEAN_MCP_SESSION";
 pub const JEAN_MCP_DEPTH_ENV: &str = "JEAN_MCP_DEPTH";
-/// Tool Claude CLI calls via `--permission-prompt-tool` (YOLO + Chrome runs).
+/// Tool Claude CLI calls via `--permission-prompt-tool` (Supervised and YOLO + Chrome runs).
 pub const CLAUDE_PERMISSION_PROMPT_TOOL: &str = "claude_permission_prompt";
 
 const RATE_LIMIT_WINDOW: Duration = Duration::from_secs(60);
@@ -247,25 +247,61 @@ fn tool_registry_core() -> Value {
     ])
 }
 
-/// Decision for Claude CLI `--permission-prompt-tool` requests. Jean only
-/// passes that flag for YOLO runs with Chrome enabled: Claude in Chrome asks
-/// for per-site approval even in bypassPermissions mode, and headless runs
-/// turn every ask into a denial. YOLO approves everything, except the
-/// blocking tools Jean answers through its own UI (it stops the run when
-/// they appear), so those keep the default headless denial.
-fn claude_permission_decision(args: &Value) -> Value {
+/// Answer a Claude CLI `--permission-prompt-tool` request. Jean passes that
+/// flag for Supervised runs (ask the user live, see `claude_permissions`) and
+/// for YOLO runs with Chrome enabled (Claude in Chrome asks for per-site
+/// approval even in bypassPermissions mode, so YOLO approves everything).
+/// The blocking tools Jean answers through its own UI (it stops the run when
+/// they appear) always keep the default headless denial.
+async fn claude_permission_prompt(app: &AppHandle, source: &str, args: &Value) -> Value {
     let tool_name = args
         .get("tool_name")
         .and_then(Value::as_str)
         .unwrap_or_default();
-    if matches!(tool_name, "AskUserQuestion" | "ExitPlanMode") {
+    if is_blocking_permission_tool(tool_name) {
+        return claude_permission_decision(args, false);
+    }
+    let approved = match crate::chat::claude_permissions::active_run(app, source) {
+        Some((mode, worktree_id)) if mode.as_deref() == Some("supervised") => {
+            let tool_use_id = args
+                .get("tool_use_id")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let input = args.get("input").cloned().unwrap_or_else(|| json!({}));
+            crate::chat::claude_permissions::ask_user(
+                app,
+                source,
+                &worktree_id,
+                tool_name,
+                tool_use_id,
+                input,
+            )
+            .await
+        }
+        Some(_) => true,
+        None => false,
+    };
+    claude_permission_decision(args, approved)
+}
+
+fn is_blocking_permission_tool(tool_name: &str) -> bool {
+    matches!(tool_name, "AskUserQuestion" | "ExitPlanMode")
+}
+
+/// Permission prompt response: https://docs.anthropic.com/en/docs/claude-code/sdk
+fn claude_permission_decision(args: &Value, approved: bool) -> Value {
+    let tool_name = args
+        .get("tool_name")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if approved && !is_blocking_permission_tool(tool_name) {
+        let input = args.get("input").cloned().unwrap_or_else(|| json!({}));
+        json!({ "behavior": "allow", "updatedInput": input })
+    } else {
         json!({
             "behavior": "deny",
             "message": format!("Permission to use {tool_name} was not granted."),
         })
-    } else {
-        let input = args.get("input").cloned().unwrap_or_else(|| json!({}));
-        json!({ "behavior": "allow", "updatedInput": input })
     }
 }
 
@@ -1836,7 +1872,7 @@ async fn run_tool(
                 json!({ "sessionId": source, "worktreeId": worktree_id, "worktreePath": worktree_path, "projectId": project_id, "projectName": project_name, "projectPath": project_path }),
             )
         }
-        CLAUDE_PERMISSION_PROMPT_TOOL => Ok(claude_permission_decision(&args)),
+        CLAUDE_PERMISSION_PROMPT_TOOL => Ok(claude_permission_prompt(app, source, &args).await),
         other => Err(ToolError::invalid_params(format!("Unknown tool: {other}"))),
     }
 }
@@ -3169,23 +3205,27 @@ mod tests {
     }
 
     #[test]
-    fn claude_permission_prompt_allows_all_but_blocking_tools() {
+    fn claude_permission_decision_follows_answer_but_keeps_blocking_tools_denied() {
         find_tool(&tool_registry(), CLAUDE_PERMISSION_PROMPT_TOOL);
 
-        let allow = claude_permission_decision(&json!({
-            "tool_name": "mcp__claude-in-chrome__navigate",
-            "input": { "url": "https://example.com", "tabId": 1 },
-        }));
+        let allow = claude_permission_decision(
+            &json!({
+                "tool_name": "mcp__claude-in-chrome__navigate",
+                "input": { "url": "https://example.com", "tabId": 1 },
+            }),
+            true,
+        );
         assert_eq!(allow["behavior"], "allow");
         assert_eq!(allow["updatedInput"]["url"], "https://example.com");
 
         for tool_name in ["WebSearch", "WebFetch", "Bash"] {
-            let allow = claude_permission_decision(&json!({ "tool_name": tool_name }));
-            assert_eq!(allow["behavior"], "allow", "{tool_name} must be allowed");
+            let args = json!({ "tool_name": tool_name });
+            assert_eq!(claude_permission_decision(&args, true)["behavior"], "allow");
+            assert_eq!(claude_permission_decision(&args, false)["behavior"], "deny");
         }
 
         for tool_name in ["AskUserQuestion", "ExitPlanMode"] {
-            let deny = claude_permission_decision(&json!({ "tool_name": tool_name }));
+            let deny = claude_permission_decision(&json!({ "tool_name": tool_name }), true);
             assert_eq!(deny["behavior"], "deny", "{tool_name} must stay denied");
         }
     }

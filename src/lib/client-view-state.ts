@@ -18,7 +18,7 @@ export interface ClientViewState {
   project_access_timestamps: Record<string, number>
   dashboard_worktree_collapse_overrides: Record<string, boolean>
   sidebar_server_filter: string | null
-  sidebar_active_tab: 'projects' | 'recent'
+  sidebar_active_tab: 'projects' | 'servers' | 'recent'
   pinned_recent_session_ids: string[]
   left_sidebar_visible: boolean
   left_sidebar_size: number
@@ -188,6 +188,7 @@ function parseClientViewState(value: unknown): ClientViewState {
     assign('sidebar_server_filter', value.sidebar_server_filter)
   if (
     value.sidebar_active_tab === 'projects' ||
+    value.sidebar_active_tab === 'servers' ||
     value.sidebar_active_tab === 'recent'
   )
     assign('sidebar_active_tab', value.sidebar_active_tab)

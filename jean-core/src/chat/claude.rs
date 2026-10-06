@@ -919,14 +919,18 @@ fn build_claude_args(
     if let Ok(prefs_path) = crate::get_preferences_path(app) {
         if let Ok(contents) = std::fs::read_to_string(&prefs_path) {
             if let Ok(prefs) = serde_json::from_str::<crate::AppPreferences>(&contents) {
-                let prompt = prefs
-                    .magic_prompts
-                    .global_system_prompt
-                    .as_deref()
-                    .map(|s| s.trim())
-                    .filter(|s| !s.is_empty())
-                    .unwrap_or(DEFAULT_GLOBAL_SYSTEM_PROMPT);
-                system_prompt_parts.push(prompt.to_string());
+                let prompt = crate::projects::server_system_prompt(app, worktree_id)
+                    .unwrap_or_else(|| {
+                        prefs
+                            .magic_prompts
+                            .global_system_prompt
+                            .as_deref()
+                            .map(|s| s.trim())
+                            .filter(|s| !s.is_empty())
+                            .unwrap_or(DEFAULT_GLOBAL_SYSTEM_PROMPT)
+                            .to_string()
+                    });
+                system_prompt_parts.push(prompt);
             }
         }
     }

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   GitBranchPlus,
   FolderPlus,
@@ -28,12 +29,22 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { useCreateFolder, useProjects } from '@/services/projects'
+import {
+  invalidateProjectLists,
+  saveServerProject,
+  useCreateFolder,
+  useProjects,
+} from '@/services/projects'
+import { useRemoteConnections } from '@/lib/remote-connections'
+import { logger } from '@/lib/logger'
+import { isServerProject, type Project } from '@/types/projects'
 import { useProjectsStore } from '@/store/projects-store'
 import { useUIStore } from '@/store/ui-store'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { ProjectTree } from './ProjectTree'
 import { RecentWorktreesList } from './RecentWorktreesList'
+import { ServersList } from './servers/ServersList'
+import { jeanConnectionServerUpdates } from './servers/jean-connection-servers'
 import { useInstalledBackends } from '@/hooks/useInstalledBackends'
 import { scheduleIdleWork } from '@/lib/idle'
 import { isNativeApp } from '@/lib/environment'
@@ -46,6 +57,8 @@ import {
   projectServerId,
 } from './server-filter'
 
+const EMPTY_PROJECTS: Project[] = []
+
 /** Close the mobile projects drawer when leaving into a dialog/modal. */
 function closeMobileSidebarIfNeeded(isMobile: boolean) {
   if (isMobile) {
@@ -53,14 +66,47 @@ function closeMobileSidebarIfNeeded(isMobile: boolean) {
   }
 }
 
+/**
+ * Native only: keep a local server project for every Jean remote connection,
+ * so jean-server hosts also show in the Servers tab.
+ */
+function useMirrorJeanConnectionsAsServers(
+  projects: Project[],
+  ready: boolean
+) {
+  const queryClient = useQueryClient()
+  const connections = useRemoteConnections()
+  const synced = useRef(new Set<string>())
+
+  useEffect(() => {
+    if (!ready || !isNativeApp()) return
+    const updates = jeanConnectionServerUpdates(connections, projects).filter(
+      update => {
+        const key = JSON.stringify(update)
+        if (synced.current.has(key)) return false
+        synced.current.add(key)
+        return true
+      }
+    )
+    if (updates.length === 0) return
+    void Promise.all(updates.map(saveServerProject))
+      .then(() => invalidateProjectLists(queryClient))
+      .catch(error =>
+        logger.warn('Failed to mirror remote connections as servers', { error })
+      )
+  }, [connections, projects, ready, queryClient])
+}
+
 export function ProjectsSidebar() {
   const {
-    data: projects = [],
+    data: projects = EMPTY_PROJECTS,
     isLoading,
+    isSuccess,
     isError,
     error,
     refetch,
   } = useProjects()
+  useMirrorJeanConnectionsAsServers(projects, isSuccess)
   const setAddProjectDialogOpen = useProjectsStore(
     state => state.setAddProjectDialogOpen
   )
@@ -93,6 +139,14 @@ export function ProjectsSidebar() {
   const visibleProjects = showServerFilter
     ? filterProjectsByServer(projects, serverFilter)
     : projects
+  const treeProjects = useMemo(
+    () => visibleProjects.filter(project => !isServerProject(project)),
+    [visibleProjects]
+  )
+  const serverProjects = useMemo(
+    () => visibleProjects.filter(isServerProject),
+    [visibleProjects]
+  )
   useEffect(() => {
     if (serverFilter !== ALL_SERVERS && !serverIds.includes(serverFilter)) {
       setServerFilter(ALL_SERVERS)
@@ -146,11 +200,11 @@ export function ProjectsSidebar() {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="flex items-center border-b border-border/40 px-2 pt-1">
           <div
-            className="grid flex-1 grid-cols-2"
+            className="grid flex-1 grid-cols-3"
             role="tablist"
             aria-label="Sidebar view"
           >
-            {(['projects', 'recent'] as const).map(tab => (
+            {(['projects', 'servers', 'recent'] as const).map(tab => (
               <button
                 key={tab}
                 type="button"
@@ -346,7 +400,7 @@ export function ProjectsSidebar() {
                   </span>
                 )}
               </div>
-            ) : projects.length === 0 ? (
+            ) : !projects.some(project => !isServerProject(project)) ? (
               <div className="flex h-full items-center justify-center px-2">
                 <span className="truncate text-sm text-muted-foreground/50">
                   No projects found
@@ -354,12 +408,14 @@ export function ProjectsSidebar() {
               </div>
             ) : (
               <ProjectTree
-                projects={visibleProjects}
+                projects={treeProjects}
                 groupByServer={showServerFilter && serverFilter === ALL_SERVERS}
                 searchQuery={searchQuery}
               />
             )}
           </div>
+        ) : activeTab === 'servers' ? (
+          <ServersList servers={serverProjects} />
         ) : (
           <RecentWorktreesList
             projects={visibleProjects}

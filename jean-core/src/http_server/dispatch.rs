@@ -2057,6 +2057,57 @@ pub async fn dispatch_command(
         }
 
         // =====================================================================
+        // Server Projects
+        // =====================================================================
+        "save_server_project" => {
+            let project_id: Option<String> = field_opt(&args, "projectId", "project_id")?;
+            let name: String = from_field(&args, "name")?;
+            let server: crate::projects::types::ProjectServer = from_field(&args, "server")?;
+            let parent_id: Option<String> = field_opt(&args, "parentId", "parent_id")?;
+            let result = crate::projects::save_server_project(
+                app.clone(),
+                project_id,
+                name,
+                server,
+                parent_id,
+            )
+            .await?;
+            emit_cache_invalidation(app, &["projects"]);
+            to_value(result)
+        }
+        "list_ssh_public_keys" => to_value(crate::projects::list_ssh_public_keys().await?),
+        "server_user_setup_script" => {
+            let user: String = from_field(&args, "user")?;
+            let public_key: String = field(&args, "publicKey", "public_key")?;
+            let access: crate::projects::ServerUserAccess = from_field(&args, "access")?;
+            to_value(crate::projects::server_user_setup_script(user, public_key, access).await?)
+        }
+        "setup_server_user" => {
+            let project_id: String = field(&args, "projectId", "project_id")?;
+            let root_user: String = field(&args, "rootUser", "root_user")?;
+            let user: String = from_field(&args, "user")?;
+            let public_key: String = field(&args, "publicKey", "public_key")?;
+            let access: crate::projects::ServerUserAccess = from_field(&args, "access")?;
+            let result = crate::projects::setup_server_user(
+                app.clone(),
+                project_id,
+                root_user,
+                user,
+                public_key,
+                access,
+            )
+            .await?;
+            emit_cache_invalidation(app, &["projects"]);
+            to_value(result)
+        }
+        "remove_server_project" => {
+            let project_id: String = field(&args, "projectId", "project_id")?;
+            crate::projects::remove_server_project(app.clone(), project_id).await?;
+            emit_cache_invalidation(app, &["projects"]);
+            Ok(Value::Null)
+        }
+
+        // =====================================================================
         // Folder Management
         // =====================================================================
         "create_folder" => {

@@ -9,7 +9,7 @@ export interface ProjectCanvasSettings {
   labels?: LabelData[]
 }
 
-export type SidebarTab = 'projects' | 'recent'
+export type SidebarTab = 'projects' | 'servers' | 'recent'
 
 interface ProjectsUIState {
   // Selection state

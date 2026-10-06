@@ -74,6 +74,8 @@ export interface MagicPrompts {
   parallel_execution: string | null
   /** Global system prompt appended to every chat session (like ~/.claude/CLAUDE.md) */
   global_system_prompt: string | null
+  /** Replaces the global system prompt for sessions of server projects */
+  server_system_prompt: string | null
   /** Hidden prompt prepended when switching providers within a Jean session */
   provider_switch_handoff: string | null
   /** Prompt for investigating Dependabot vulnerability alerts */
@@ -731,6 +733,14 @@ export const DEFAULT_GLOBAL_SYSTEM_PROMPT = `Always use ASD-STE100 Simplified Te
 
 - After each finished task, please write a few bullet points on how to test the changes.`
 
+/** Default server system prompt (must match default_server_system_prompt in jean-core) */
+export const DEFAULT_SERVER_SYSTEM_PROMPT = `You help the user inspect and manage the remote server "{server_name}" over SSH.
+Run every server command through SSH from this machine: \`{ssh_command} '<command>'\`. The local working directory is only a scratch folder.
+Default to read-only work: status, logs, configs, processes, disk, network, containers.
+Do not change the server (write files, restart services, install or remove packages, delete data) unless the user asks for it. Before a change, show the exact command and its impact.
+Keep commands non-interactive and bounded (for example \`--no-pager\`, \`tail -n 200\`). Do not print secrets.
+If a command needs root, try \`sudo -n <command>\`. If sudo denies it, tell the user what access is missing; do not work around it.`
+
 export const DEFAULT_PROVIDER_SWITCH_HANDOFF_PROMPT = `You are continuing a Jean chat session after the user switched AI backends.
 
 Jean-local history is the source of truth because provider-owned server history may be incomplete after backend switches. Treat the history below as the conversation you already had with the user — do not claim you lack prior context.
@@ -887,6 +897,7 @@ export const DEFAULT_MAGIC_PROMPTS: MagicPrompts = {
   session_naming: null,
   parallel_execution: null,
   global_system_prompt: null,
+  server_system_prompt: null,
   provider_switch_handoff: null,
   investigate_security_alert: null,
   investigate_advisory: null,

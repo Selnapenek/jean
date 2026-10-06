@@ -80,6 +80,7 @@ import {
   DEFAULT_SESSION_NAMING_PROMPT,
   DEFAULT_PARALLEL_EXECUTION_PROMPT,
   DEFAULT_GLOBAL_SYSTEM_PROMPT,
+  DEFAULT_SERVER_SYSTEM_PROMPT,
   DEFAULT_PROVIDER_SWITCH_HANDOFF_PROMPT,
   DEFAULT_MAGIC_PROMPTS,
   DEFAULT_MAGIC_PROMPT_MODELS,
@@ -556,6 +557,20 @@ const PROMPT_SECTIONS: PromptSection[] = [
           'Global system prompt appended to every chat session (like ~/.claude/CLAUDE.md).',
         variables: [],
         defaultValue: DEFAULT_GLOBAL_SYSTEM_PROMPT,
+      },
+      {
+        key: 'server_system_prompt',
+        label: 'Server System Prompt',
+        description:
+          'Replaces the global system prompt in sessions of servers (Servers tab). Server sessions start in Supervised mode.',
+        variables: [
+          { name: '{server_name}', description: 'Server display name' },
+          {
+            name: '{ssh_command}',
+            description: 'Non-interactive SSH command prefix for the server',
+          },
+        ],
+        defaultValue: DEFAULT_SERVER_SYSTEM_PROMPT,
       },
       {
         key: 'provider_switch_handoff',

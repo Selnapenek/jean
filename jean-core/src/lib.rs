@@ -1420,6 +1420,9 @@ pub struct MagicPrompts {
     pub parallel_execution: Option<String>,
     #[serde(default)]
     pub global_system_prompt: Option<String>,
+    /// Replaces the global system prompt for sessions of server projects
+    #[serde(default)]
+    pub server_system_prompt: Option<String>,
     #[serde(default)]
     pub provider_switch_handoff: Option<String>,
     #[serde(default)]
@@ -2601,7 +2604,7 @@ impl MagicPrompts {
     /// This ensures users who never customized a prompt get auto-updated defaults.
     fn migrate_defaults(&mut self) {
         type DefaultEntry<'a> = (fn() -> String, &'a mut Option<String>);
-        let defaults: [DefaultEntry; 18] = [
+        let defaults: [DefaultEntry; 19] = [
             (
                 default_investigate_issue_prompt,
                 &mut self.investigate_issue,
@@ -2626,6 +2629,10 @@ impl MagicPrompts {
                 &mut self.parallel_execution,
             ),
             (default_global_system_prompt, &mut self.global_system_prompt),
+            (
+                crate::projects::default_server_system_prompt,
+                &mut self.server_system_prompt,
+            ),
             (
                 default_provider_switch_handoff_prompt,
                 &mut self.provider_switch_handoff,
@@ -3525,6 +3532,7 @@ pub async fn get_server_capabilities() -> Result<ServerCapabilitiesEnvelope, Str
         ("session_naming", "Session naming", default_session_naming_prompt()),
         ("parallel_execution", "Parallel execution", default_parallel_execution_prompt()),
         ("global_system_prompt", "Global system prompt", default_global_system_prompt()),
+        ("server_system_prompt", "Server system prompt", crate::projects::default_server_system_prompt()),
         ("provider_switch_handoff", "Provider switch handoff", default_provider_switch_handoff_prompt()),
         ("investigate_security_alert", "Investigate security alert", default_investigate_security_alert_prompt()),
         ("investigate_advisory", "Investigate advisory", default_investigate_advisory_prompt()),

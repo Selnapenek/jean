@@ -25,6 +25,7 @@ import type {
   AutoFixStatus,
   AutoFixIssuePreview,
   Project,
+  ProjectServer,
   Worktree,
   DetectPrResponse,
   LinkWorktreePrResponse,
@@ -580,6 +581,15 @@ async function openBaseSessionForProject(
   } catch (error) {
     logger.error('Failed to auto-open base session', { error })
   }
+}
+
+/** Select a server project and open its chat (base session). */
+export function openServerProject(
+  projectId: string,
+  queryClient: ReturnType<typeof useQueryClient>
+) {
+  useProjectsStore.getState().selectProject(projectId)
+  void openBaseSessionForProject(projectId, queryClient)
 }
 
 /**
@@ -3579,6 +3589,133 @@ export function useCreateFolder() {
             : 'Unknown error occurred'
       logger.error('Failed to create folder', { error })
       toast.error('Failed to create folder', { description: message })
+    },
+  })
+}
+
+export interface SaveServerProjectInput {
+  /** Existing server project (undefined = create) */
+  projectId?: string
+  name: string
+  server: ProjectServer
+  /** Owning Jean server for a new server project (undefined = local) */
+  serverId?: string
+}
+
+export function saveServerProject({
+  projectId,
+  name,
+  server,
+  serverId,
+}: SaveServerProjectInput): Promise<Project> {
+  const args = { projectId, name, server }
+  return projectId || !serverId
+    ? invoke<Project>('save_server_project', args)
+    : invokeForServer<Project>(serverId, 'save_server_project', args)
+}
+
+/**
+ * Hook to create or update a server project (SSH target)
+ */
+export function useSaveServerProject() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: saveServerProject,
+    onSuccess: (project, { projectId }) => {
+      invalidateProjectLists(queryClient)
+      if (projectId) {
+        toast.success(`Updated server: ${project.name}`)
+        return
+      }
+      toast.success(`Added server: ${project.name}`)
+      openServerProject(project.id, queryClient)
+    },
+    onError: error => {
+      logger.error('Failed to save server', { error })
+      toast.error('Failed to save server', {
+        description: error instanceof Error ? error.message : String(error),
+      })
+    },
+  })
+}
+
+export interface SshPublicKey {
+  path: string
+  keyType: string
+  comment: string
+  content: string
+}
+
+export type ServerUserAccess = 'readonly' | 'none' | 'full'
+
+/** Public keys (`~/.ssh/*.pub`) of the Jean server that runs this server's ssh. */
+export function useSshPublicKeys(serverId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['ssh-public-keys', serverId],
+    queryFn: () =>
+      invokeForServer<SshPublicKey[]>(serverId, 'list_ssh_public_keys'),
+    enabled,
+  })
+}
+
+export function fetchServerUserSetupScript(
+  serverId: string,
+  args: { user: string; publicKey: string; access: ServerUserAccess }
+): Promise<string> {
+  return invokeForServer<string>(serverId, 'server_user_setup_script', args)
+}
+
+/**
+ * Hook to create a restricted user on a server (connects once as root)
+ */
+export function useSetupServerUser() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (args: {
+      projectId: string
+      rootUser: string
+      user: string
+      publicKey: string
+      access: ServerUserAccess
+    }) => invoke<Project>('setup_server_user', args),
+    onSuccess: project => {
+      invalidateProjectLists(queryClient)
+      toast.success(
+        `${project.name} now uses user ${project.server?.user ?? ''}`
+      )
+    },
+    onError: error => {
+      logger.error('Failed to set up server user', { error })
+      toast.error('Failed to set up server user', {
+        description: error instanceof Error ? error.message : String(error),
+      })
+    },
+  })
+}
+
+/**
+ * Hook to remove a server project with its sessions
+ */
+export function useRemoveServerProject() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (projectId: string): Promise<void> => {
+      await invoke('remove_server_project', { projectId })
+    },
+    onSuccess: (_data, projectId) => {
+      invalidateProjectLists(queryClient)
+      const { selectedProjectId, selectProject } = useProjectsStore.getState()
+      if (selectedProjectId === projectId) selectProject(null)
+      toast.success('Server removed')
+    },
+    onError: error => {
+      logger.error('Failed to remove server', { error })
+      toast.error('Failed to remove server', {
+        description: error instanceof Error ? error.message : String(error),
+      })
     },
   })
 }

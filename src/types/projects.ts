@@ -89,6 +89,15 @@ export function isBaseSession(worktree: Worktree): boolean {
 /**
  * A git project that has been added to Jean, or a folder for organizing projects
  */
+/** SSH target of a server project (a project with `server` set is a server). */
+export interface ProjectServer {
+  host: string
+  user?: string | null
+  port?: number | null
+  /** Jean remote connection this server mirrors (undefined = added by hand) */
+  jean_connection_id?: string | null
+}
+
 export interface Project {
   /** Client-only owning server for native multi-server views. */
   serverId?: string
@@ -150,6 +159,22 @@ export interface Project {
   worktree_count?: number
   /** Whether an active base-branch session exists */
   has_base_session?: boolean
+  /** SSH target when this project is a managed server */
+  server?: ProjectServer | null
+}
+
+export function isServerProject(project: Project): boolean {
+  return !!project.server
+}
+
+/** `user@host` (or `host`), with `:port` when not 22 — for display. */
+export function formatServerTarget(server: ProjectServer): string {
+  const destination = server.user
+    ? `${server.user}@${server.host}`
+    : server.host
+  return server.port && server.port !== 22
+    ? `${destination}:${server.port}`
+    : destination
 }
 
 export interface DirEntry {

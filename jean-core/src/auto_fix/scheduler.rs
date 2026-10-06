@@ -1396,6 +1396,7 @@ fn project_from_pending_auto_yolo(entry: &PendingAutoYolo) -> Project {
         sentry_base_url: None,
         linked_project_ids: Vec::new(),
         auto_fix_settings: None,
+        server: None,
     }
 }
 
@@ -1710,6 +1711,7 @@ mod tests {
             sentry_base_url: None,
             linked_project_ids: Vec::new(),
             auto_fix_settings,
+            server: None,
         }
     }
 

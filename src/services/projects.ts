@@ -3600,6 +3600,8 @@ export interface SaveServerProjectInput {
   server: ProjectServer
   /** Jean that stores a new server and runs its sessions (undefined = this one) */
   serverId?: string
+  /** Server-scoped system prompt (empty = none; undefined = unchanged) */
+  systemPrompt?: string
 }
 
 export function saveServerProject({

@@ -124,8 +124,8 @@ export function ServersList({ servers }: ServersListProps) {
                     )}
                   </span>
                 </button>
-                {!project.server?.local && (
-                  <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                  {!project.server?.local && (
                     <button
                       type="button"
                       className={iconButtonClass}
@@ -135,14 +135,17 @@ export function ServersList({ servers }: ServersListProps) {
                     >
                       <Shield className="size-3" />
                     </button>
-                    <button
-                      type="button"
-                      className={iconButtonClass}
-                      onClick={() => openServerDialog(project)}
-                      aria-label={`Edit ${project.name}`}
-                    >
-                      <Pencil className="size-3" />
-                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className={iconButtonClass}
+                    onClick={() => openServerDialog(project)}
+                    aria-label={`Edit ${project.name}`}
+                  >
+                    <Pencil className="size-3" />
+                  </button>
+                  {/* The built-in local entry cannot be removed. */}
+                  {!project.server?.local && (
                     <button
                       type="button"
                       className={iconButtonClass}
@@ -151,8 +154,8 @@ export function ServersList({ servers }: ServersListProps) {
                     >
                       <Trash2 className="size-3" />
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </li>
             )
           })}

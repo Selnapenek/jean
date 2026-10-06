@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { isNativeApp } from '@/lib/environment'
@@ -79,7 +80,10 @@ function ServerForm({
     host: project?.server?.host ?? '',
     port: project?.server?.port ? String(project.server.port) : '',
     runFrom: LOCAL_SERVER_ID as string,
+    systemPrompt: project?.custom_system_prompt ?? '',
   })
+  // The built-in local entry has no SSH settings: only name and prompt.
+  const isLocal = !!project?.server?.local
   const [error, setError] = useState<string | null>(null)
 
   const update = (key: keyof typeof form) => (value: string) =>
@@ -98,12 +102,15 @@ function ServerForm({
       {
         projectId: project?.id,
         name: form.name,
-        server: {
-          host: form.host.trim(),
-          user: form.user.trim() || null,
-          port: port ?? null,
-        },
+        server: project?.server?.local
+          ? project.server
+          : {
+              host: form.host.trim(),
+              user: form.user.trim() || null,
+              port: port ?? null,
+            },
         serverId: form.runFrom,
+        systemPrompt: form.systemPrompt,
       },
       { onSuccess: onDone }
     )
@@ -114,16 +121,17 @@ function ServerForm({
       <DialogHeader>
         <DialogTitle>{project ? 'Edit server' : 'Add server'}</DialogTitle>
         <DialogDescription>
-          The AI connects with <code>ssh</code> from the machine that runs Jean.
-          Use SSH key auth (no password prompt). Sessions start in Supervised
-          mode, so you approve each command.
+          {isLocal ? (
+            'The machine that runs this Jean. Commands run directly, without SSH. Sessions start in Supervised mode, so you approve each command.'
+          ) : (
+            <>
+              The AI connects with <code>ssh</code> from the machine that runs
+              Jean. Use SSH key auth (no password prompt). Sessions start in
+              Supervised mode, so you approve each command.
+            </>
+          )}
         </DialogDescription>
       </DialogHeader>
-      <p className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-        Recommended: give Jean its own user with restricted sudo, not root.
-        After you add the server, use the shield button in the Servers list.
-        Jean connects once as root, creates the user, and adds your public key.
-      </p>
       <div className="space-y-1.5">
         <Label htmlFor="server-name">Name</Label>
         <Input
@@ -133,76 +141,104 @@ function ServerForm({
           placeholder="Production"
         />
       </div>
-      <div className="grid grid-cols-[1fr_1.5fr] gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="server-user">SSH user</Label>
-          <Input
-            id="server-user"
-            value={form.user}
-            onChange={event => update('user')(event.target.value)}
-            placeholder="root"
-            autoComplete="username"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="server-host">Host / IP</Label>
-          <Input
-            id="server-host"
-            value={form.host}
-            onChange={event => update('host')(event.target.value)}
-            placeholder="192.168.1.50"
-            required
-          />
-        </div>
-      </div>
-      <div className="grid grid-cols-[1fr_1.5fr] gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="server-port">SSH port</Label>
-          <Input
-            id="server-port"
-            type="number"
-            min={1}
-            max={65535}
-            value={form.port}
-            onChange={event => update('port')(event.target.value)}
-            placeholder="22"
-          />
-        </div>
-        {showRunFrom && (
-          <div className="space-y-1.5">
-            <Label htmlFor="server-run-from">Run from</Label>
-            <NativeSelect
-              id="server-run-from"
-              className="w-full"
-              value={form.runFrom}
-              onChange={event => update('runFrom')(event.target.value)}
-            >
-              {jeans.map(snapshot => (
-                <NativeSelectOption
-                  key={snapshot.serverId}
-                  value={snapshot.serverId}
-                >
-                  {snapshot.serverId === LOCAL_SERVER_ID
-                    ? 'This computer'
-                    : snapshot.name}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
+      {!isLocal && (
+        <>
+          <p className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            Recommended: give Jean its own user with restricted sudo, not root.
+            After you add the server, use the shield button in the Servers list.
+            Jean connects once as root, creates the user, and adds your public
+            key.
+          </p>
+          <div className="grid grid-cols-[1fr_1.5fr] gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="server-user">SSH user</Label>
+              <Input
+                id="server-user"
+                value={form.user}
+                onChange={event => update('user')(event.target.value)}
+                placeholder="root"
+                autoComplete="username"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="server-host">Host / IP</Label>
+              <Input
+                id="server-host"
+                value={form.host}
+                onChange={event => update('host')(event.target.value)}
+                placeholder="192.168.1.50"
+                required
+              />
+            </div>
           </div>
-        )}
-      </div>
-      {showRunFrom && (
-        <p className="text-xs text-muted-foreground">
-          The Jean you pick stores the server, connects with its own SSH keys,
-          and runs the chat with its own AI backends.
-        </p>
+          <div className="grid grid-cols-[1fr_1.5fr] gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="server-port">SSH port</Label>
+              <Input
+                id="server-port"
+                type="number"
+                min={1}
+                max={65535}
+                value={form.port}
+                onChange={event => update('port')(event.target.value)}
+                placeholder="22"
+              />
+            </div>
+            {showRunFrom && (
+              <div className="space-y-1.5">
+                <Label htmlFor="server-run-from">Run from</Label>
+                <NativeSelect
+                  id="server-run-from"
+                  className="w-full"
+                  value={form.runFrom}
+                  onChange={event => update('runFrom')(event.target.value)}
+                >
+                  {jeans.map(snapshot => (
+                    <NativeSelectOption
+                      key={snapshot.serverId}
+                      value={snapshot.serverId}
+                    >
+                      {snapshot.serverId === LOCAL_SERVER_ID
+                        ? 'This computer'
+                        : snapshot.name}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+              </div>
+            )}
+          </div>
+          {showRunFrom && (
+            <p className="text-xs text-muted-foreground">
+              The Jean you pick stores the server, connects with its own SSH
+              keys, and runs the chat with its own AI backends.
+            </p>
+          )}
+        </>
       )}
+      <div className="space-y-1.5">
+        <Label htmlFor="server-system-prompt">
+          System prompt for this server
+        </Label>
+        <Textarea
+          id="server-system-prompt"
+          value={form.systemPrompt}
+          onChange={event => update('systemPrompt')(event.target.value)}
+          placeholder="e.g. This host runs Coolify. Apps live in /data/coolify. Never restart the proxy."
+          rows={4}
+        />
+        <p className="text-xs text-muted-foreground">
+          Added after the Server System Prompt in every session of this server.
+        </p>
+      </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onDone}>
           Cancel
         </Button>
-        <Button type="submit" disabled={saveServer.isPending || !form.host}>
+        <Button
+          type="submit"
+          disabled={saveServer.isPending || (!isLocal && !form.host)}
+        >
           {project ? 'Save' : 'Add server'}
         </Button>
       </DialogFooter>

@@ -2064,12 +2064,14 @@ pub async fn dispatch_command(
             let name: String = from_field(&args, "name")?;
             let server: crate::projects::types::ProjectServer = from_field(&args, "server")?;
             let parent_id: Option<String> = field_opt(&args, "parentId", "parent_id")?;
+            let system_prompt: Option<String> = field_opt(&args, "systemPrompt", "system_prompt")?;
             let result = crate::projects::save_server_project(
                 app.clone(),
                 project_id,
                 name,
                 server,
                 parent_id,
+                system_prompt,
             )
             .await?;
             emit_cache_invalidation(app, &["projects"]);

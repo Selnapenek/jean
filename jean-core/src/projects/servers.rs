@@ -92,16 +92,10 @@ pub async fn save_server_project(
     name: String,
     server: ProjectServer,
     parent_id: Option<String>,
+    system_prompt: Option<String>,
 ) -> Result<Project, String> {
-    if server.local {
-        return Err("The local server is built in and cannot be changed.".to_string());
-    }
-    let server = normalize_server(server)?;
-    let name = match name.trim() {
-        "" => server.host.clone(),
-        name => name.to_string(),
-    };
-
+    // Server-scoped system prompt (project custom prompt). None = unchanged.
+    let system_prompt = system_prompt.map(|prompt| prompt.trim().to_string());
     let mut data = load_projects_data(&app)?;
     let existing_id = project_id.filter(|id| data.find_project(id).is_some());
 
@@ -109,21 +103,37 @@ pub async fn save_server_project(
         let project = data
             .find_project_mut(&id)
             .ok_or_else(|| format!("Project not found: {id}"))?;
-        match project.server.as_ref() {
-            None => return Err("Project is not a server.".to_string()),
-            Some(existing) if existing.local => {
-                return Err("The local server is built in and cannot be changed.".to_string())
-            }
-            Some(_) => {}
+        let Some(existing) = project.server.clone() else {
+            return Err("Project is not a server.".to_string());
+        };
+        // The built-in local entry keeps its connection; only name and prompt change.
+        let server = if existing.local {
+            existing
+        } else {
+            normalize_server(server)?
+        };
+        if let Some(name) = Some(name.trim()).filter(|name| !name.is_empty()) {
+            project.name = name.to_string();
         }
-        project.name = name;
         project.server = Some(server);
+        if let Some(prompt) = system_prompt {
+            project.custom_system_prompt = Some(prompt).filter(|p| !p.is_empty());
+        }
         let project = project.clone();
         save_projects_data(&app, &data)?;
         return Ok(project);
     }
 
-    create_server_project(app, data, name, server, parent_id).await
+    if server.local {
+        return Err("The local server is built in and cannot be created.".to_string());
+    }
+    let server = normalize_server(server)?;
+    let name = match name.trim() {
+        "" => server.host.clone(),
+        name => name.to_string(),
+    };
+    let system_prompt = system_prompt.filter(|prompt| !prompt.is_empty());
+    create_server_project(app, data, name, server, parent_id, system_prompt).await
 }
 
 /// Make sure the built-in "Local" server exists (the machine Jean runs on).
@@ -141,7 +151,7 @@ pub async fn ensure_local_server_project(app: AppHandle) -> Result<Project, Stri
         ..Default::default()
     };
     let name = machine_hostname().unwrap_or_else(|| "Local".to_string());
-    create_server_project(app, data, name, server, None).await
+    create_server_project(app, data, name, server, None, None).await
 }
 
 /// Hostname of the machine Jean runs on (jean-server host in Web Access).
@@ -157,6 +167,7 @@ async fn create_server_project(
     name: String,
     server: ProjectServer,
     parent_id: Option<String>,
+    system_prompt: Option<String>,
 ) -> Result<Project, String> {
     let id = Uuid::new_v4().to_string();
     let path = server_scratch_dir(&app, &id)?.to_string_lossy().to_string();
@@ -176,7 +187,7 @@ async fn create_server_project(
         default_avatar_path: None,
         enabled_mcp_servers: None,
         known_mcp_servers: Vec::new(),
-        custom_system_prompt: None,
+        custom_system_prompt: system_prompt,
         default_provider: None,
         default_backend: None,
         worktrees_dir: None,

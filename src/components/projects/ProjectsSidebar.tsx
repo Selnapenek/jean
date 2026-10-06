@@ -12,6 +12,7 @@ import {
   Settings2,
   X,
 } from '@/components/icons/reicon'
+import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { useSidebarWidth } from '@/components/layout/SidebarWidthContext'
 import {
@@ -30,6 +31,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import {
+  ensureLocalServerProject,
   invalidateProjectLists,
   saveServerProject,
   useCreateFolder,
@@ -38,13 +40,17 @@ import {
 import { useRemoteConnections } from '@/lib/remote-connections'
 import { logger } from '@/lib/logger'
 import { isServerProject, type Project } from '@/types/projects'
+import { LOCAL_SERVER_ID } from '@/types/server-resource'
 import { useProjectsStore } from '@/store/projects-store'
 import { useUIStore } from '@/store/ui-store'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { ProjectTree } from './ProjectTree'
 import { RecentWorktreesList } from './RecentWorktreesList'
 import { ServersList } from './servers/ServersList'
-import { jeanConnectionServerUpdates } from './servers/jean-connection-servers'
+import {
+  jeanConnectionServerUpdates,
+  ownServerProjects,
+} from './servers/jean-connection-servers'
 import { useInstalledBackends } from '@/hooks/useInstalledBackends'
 import { scheduleIdleWork } from '@/lib/idle'
 import { isNativeApp } from '@/lib/environment'
@@ -97,6 +103,30 @@ function useMirrorJeanConnectionsAsServers(
   }, [connections, projects, ready, queryClient])
 }
 
+/**
+ * The machine this Jean runs on (native app, or the serving origin in Web
+ * Access) is always in the Servers list as "Local".
+ */
+function useEnsureLocalServer(projects: Project[], ready: boolean) {
+  const queryClient = useQueryClient()
+  const requested = useRef(false)
+  const hasLocal = projects.some(
+    project =>
+      (project.serverId ?? LOCAL_SERVER_ID) === LOCAL_SERVER_ID &&
+      !!project.server?.local
+  )
+
+  useEffect(() => {
+    if (!ready || hasLocal || requested.current) return
+    requested.current = true
+    ensureLocalServerProject()
+      .then(() => invalidateProjectLists(queryClient))
+      .catch(error =>
+        logger.warn('Failed to create the local server', { error })
+      )
+  }, [hasLocal, ready, queryClient])
+}
+
 export function ProjectsSidebar() {
   const {
     data: projects = EMPTY_PROJECTS,
@@ -107,6 +137,7 @@ export function ProjectsSidebar() {
     refetch,
   } = useProjects()
   useMirrorJeanConnectionsAsServers(projects, isSuccess)
+  useEnsureLocalServer(projects, isSuccess)
   const setAddProjectDialogOpen = useProjectsStore(
     state => state.setAddProjectDialogOpen
   )
@@ -143,10 +174,7 @@ export function ProjectsSidebar() {
     () => visibleProjects.filter(project => !isServerProject(project)),
     [visibleProjects]
   )
-  const serverProjects = useMemo(
-    () => visibleProjects.filter(isServerProject),
-    [visibleProjects]
-  )
+  const serverProjects = useMemo(() => ownServerProjects(projects), [projects])
   useEffect(() => {
     if (serverFilter !== ALL_SERVERS && !serverIds.includes(serverFilter)) {
       setServerFilter(ALL_SERVERS)
@@ -204,7 +232,7 @@ export function ProjectsSidebar() {
             role="tablist"
             aria-label="Sidebar view"
           >
-            {(['projects', 'servers', 'recent'] as const).map(tab => (
+            {(['projects', 'recent', 'servers'] as const).map(tab => (
               <button
                 key={tab}
                 type="button"
@@ -217,7 +245,17 @@ export function ProjectsSidebar() {
                 }`}
                 onClick={() => setActiveTab(tab)}
               >
-                {tab}
+                <span className="inline-flex items-center justify-center gap-1">
+                  {tab}
+                  {tab === 'servers' && (
+                    <Badge
+                      variant="outline"
+                      className="rounded-sm border-warning/40 bg-warning/10 px-1 py-0 text-[9px] leading-3.5 tracking-wide text-warning uppercase"
+                    >
+                      Beta
+                    </Badge>
+                  )}
+                </span>
               </button>
             ))}
           </div>

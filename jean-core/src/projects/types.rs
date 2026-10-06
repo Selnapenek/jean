@@ -33,6 +33,9 @@ pub struct ProjectServer {
     /// Jean remote connection this server mirrors (None = added by hand)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub jean_connection_id: Option<String>,
+    /// The machine Jean runs on: commands run directly, without SSH
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub local: bool,
 }
 
 impl ProjectServer {

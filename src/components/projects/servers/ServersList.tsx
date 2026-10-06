@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Pencil, Plus, Server, Shield, Trash2 } from '@/components/icons/reicon'
 import {
@@ -18,17 +18,23 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { isNativeApp } from '@/lib/environment'
 import { cn } from '@/lib/utils'
 import { openServerProject, useRemoveServerProject } from '@/services/projects'
 import { useProjectsStore } from '@/store/projects-store'
 import { useUIStore } from '@/store/ui-store'
 import { formatServerTarget, type Project } from '@/types/projects'
-import { LOCAL_SERVER_ID } from '@/types/server-resource'
 import { ServerDialog } from './ServerDialog'
 import { ServerUserSetupDialog } from './ServerUserSetupDialog'
 
+/** The built-in local server: this computer (native) or the Jean server host (Web Access). */
+function localServerLabel(): string {
+  return isNativeApp() ? 'This computer' : 'Jean server'
+}
+
 /** No user means the ssh default, often root. */
 function usesAdminUser(project: Project): boolean {
+  if (project.server?.local) return false
   const user = project.server?.user
   return !user || user === 'root'
 }
@@ -49,6 +55,14 @@ export function ServersList({ servers }: ServersListProps) {
   const [dialog, setDialog] = useState<{ project?: Project } | null>(null)
   const [removing, setRemoving] = useState<Project | null>(null)
   const [settingUp, setSettingUp] = useState<Project | null>(null)
+  // Local first; it is built in (no SSH), so it has no row actions.
+  const sortedServers = useMemo(
+    () =>
+      [...servers].sort(
+        (a, b) => Number(!!b.server?.local) - Number(!!a.server?.local)
+      ),
+    [servers]
+  )
 
   const handleOpen = useCallback(
     (project: Project) => {
@@ -88,11 +102,7 @@ export function ServersList({ servers }: ServersListProps) {
         </div>
       ) : (
         <ul className="flex flex-col gap-px px-1.5 pb-2">
-          {servers.map(project => {
-            const remoteOwner =
-              (project.serverId ?? LOCAL_SERVER_ID) !== LOCAL_SERVER_ID
-                ? project.serverName
-                : undefined
+          {sortedServers.map(project => {
             return (
               <li key={project.id} className="group relative">
                 <button
@@ -107,9 +117,10 @@ export function ServersList({ servers }: ServersListProps) {
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate text-sm">{project.name}</span>
                     <span className="truncate text-[0.6875rem] text-muted-foreground">
-                      {project.server && formatServerTarget(project.server)}
+                      {project.server?.local
+                        ? `${localServerLabel()} · no SSH`
+                        : project.server && formatServerTarget(project.server)}
                       {project.server?.jean_connection_id && ' · Jean'}
-                      {remoteOwner && ` · via ${remoteOwner}`}
                     </span>
                     {usesAdminUser(project) && (
                       <span className="truncate text-[0.6875rem] text-amber-600 dark:text-amber-500">
@@ -118,33 +129,35 @@ export function ServersList({ servers }: ServersListProps) {
                     )}
                   </span>
                 </button>
-                <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-                  <button
-                    type="button"
-                    className={iconButtonClass}
-                    onClick={() => setSettingUp(project)}
-                    aria-label={`Set up restricted user on ${project.name}`}
-                    title="Set up restricted user"
-                  >
-                    <Shield className="size-3" />
-                  </button>
-                  <button
-                    type="button"
-                    className={iconButtonClass}
-                    onClick={() => setDialog({ project })}
-                    aria-label={`Edit ${project.name}`}
-                  >
-                    <Pencil className="size-3" />
-                  </button>
-                  <button
-                    type="button"
-                    className={iconButtonClass}
-                    onClick={() => setRemoving(project)}
-                    aria-label={`Remove ${project.name}`}
-                  >
-                    <Trash2 className="size-3" />
-                  </button>
-                </div>
+                {!project.server?.local && (
+                  <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                    <button
+                      type="button"
+                      className={iconButtonClass}
+                      onClick={() => setSettingUp(project)}
+                      aria-label={`Set up restricted user on ${project.name}`}
+                      title="Set up restricted user"
+                    >
+                      <Shield className="size-3" />
+                    </button>
+                    <button
+                      type="button"
+                      className={iconButtonClass}
+                      onClick={() => setDialog({ project })}
+                      aria-label={`Edit ${project.name}`}
+                    >
+                      <Pencil className="size-3" />
+                    </button>
+                    <button
+                      type="button"
+                      className={iconButtonClass}
+                      onClick={() => setRemoving(project)}
+                      aria-label={`Remove ${project.name}`}
+                    >
+                      <Trash2 className="size-3" />
+                    </button>
+                  </div>
+                )}
               </li>
             )
           })}

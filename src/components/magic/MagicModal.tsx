@@ -378,6 +378,13 @@ export function MagicModal() {
   const project = worktree
     ? projects?.find(p => p.id === worktree.project_id)
     : null
+  const isServerProject = !!project?.server
+  // Magic commands (git, GitHub, review) do not apply to servers (Servers tab).
+  useEffect(() => {
+    if (!magicModalOpen || !isServerProject) return
+    setMagicModalOpen(false)
+    toast.info('Magic commands are not available for servers')
+  }, [isServerProject, magicModalOpen, setMagicModalOpen])
   const opencodeModelOptions = useMemo(() => {
     const models = availableOpencodeModels?.length
       ? availableOpencodeModels

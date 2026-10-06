@@ -3598,20 +3598,13 @@ export interface SaveServerProjectInput {
   projectId?: string
   name: string
   server: ProjectServer
-  /** Owning Jean server for a new server project (undefined = local) */
-  serverId?: string
 }
 
-export function saveServerProject({
-  projectId,
-  name,
-  server,
-  serverId,
-}: SaveServerProjectInput): Promise<Project> {
-  const args = { projectId, name, server }
-  return projectId || !serverId
-    ? invoke<Project>('save_server_project', args)
-    : invokeForServer<Project>(serverId, 'save_server_project', args)
+/** Saved on the Jean you are on (native core, or the Web Access origin). */
+export function saveServerProject(
+  input: SaveServerProjectInput
+): Promise<Project> {
+  return invoke<Project>('save_server_project', { ...input })
 }
 
 /**
@@ -3638,6 +3631,11 @@ export function useSaveServerProject() {
       })
     },
   })
+}
+
+/** Create the built-in "Local" server on this Jean (no-op when it exists). */
+export function ensureLocalServerProject(): Promise<Project> {
+  return invoke<Project>('ensure_local_server_project')
 }
 
 export interface SshPublicKey {

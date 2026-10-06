@@ -15,10 +15,11 @@ use super::types::{Project, ProjectServer};
 
 const SERVER_PROMPT_COMMAND: &str = "{ssh_command}";
 const SERVER_PROMPT_NAME: &str = "{server_name}";
+const SERVER_PROMPT_CONNECTION: &str = "{connection}";
 
 pub(crate) fn default_server_system_prompt() -> String {
-    r#"You help the user inspect and manage the remote server "{server_name}" over SSH.
-Run every server command through SSH from this machine: `{ssh_command} '<command>'`. The local working directory is only a scratch folder.
+    r#"You help the user inspect and manage the server "{server_name}".
+{connection}
 Default to read-only work: status, logs, configs, processes, disk, network, containers.
 Do not change the server (write files, restart services, install or remove packages, delete data) unless the user asks for it. Before a change, show the exact command and its impact.
 Keep commands non-interactive and bounded (for example `--no-pager`, `tail -n 200`). Do not print secrets.
@@ -41,6 +42,12 @@ fn validate_ssh_token(label: &str, value: &str) -> Result<(), String> {
 }
 
 fn normalize_server(mut server: ProjectServer) -> Result<ProjectServer, String> {
+    if server.local {
+        return Ok(ProjectServer {
+            local: true,
+            ..Default::default()
+        });
+    }
     server.host = server.host.trim().to_string();
     validate_ssh_token("Host", &server.host)?;
     server.user = server
@@ -82,6 +89,9 @@ pub async fn save_server_project(
     server: ProjectServer,
     parent_id: Option<String>,
 ) -> Result<Project, String> {
+    if server.local {
+        return Err("The local server is built in and cannot be changed.".to_string());
+    }
     let server = normalize_server(server)?;
     let name = match name.trim() {
         "" => server.host.clone(),
@@ -108,8 +118,12 @@ pub async fn save_server_project(
         let project = data
             .find_project_mut(&id)
             .ok_or_else(|| format!("Project not found: {id}"))?;
-        if project.server.is_none() {
-            return Err("Project is not a server.".to_string());
+        match project.server.as_ref() {
+            None => return Err("Project is not a server.".to_string()),
+            Some(existing) if existing.local => {
+                return Err("The local server is built in and cannot be changed.".to_string())
+            }
+            Some(_) => {}
         }
         project.name = name;
         project.server = Some(server);
@@ -118,6 +132,41 @@ pub async fn save_server_project(
         return Ok(project);
     }
 
+    create_server_project(app, data, name, server, parent_id).await
+}
+
+/// Make sure the built-in "Local" server exists (the machine Jean runs on).
+pub async fn ensure_local_server_project(app: AppHandle) -> Result<Project, String> {
+    let data = load_projects_data(&app)?;
+    if let Some(project) = data
+        .projects
+        .iter()
+        .find(|p| p.server.as_ref().is_some_and(|s| s.local))
+    {
+        return Ok(project.clone());
+    }
+    let server = ProjectServer {
+        local: true,
+        ..Default::default()
+    };
+    let name = machine_hostname().unwrap_or_else(|| "Local".to_string());
+    create_server_project(app, data, name, server, None).await
+}
+
+/// Hostname of the machine Jean runs on (jean-server host in Web Access).
+fn machine_hostname() -> Option<String> {
+    let output = crate::platform::silent_command("hostname").output().ok()?;
+    let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    (output.status.success() && !name.is_empty()).then_some(name)
+}
+
+async fn create_server_project(
+    app: AppHandle,
+    mut data: super::types::ProjectsData,
+    name: String,
+    server: ProjectServer,
+    parent_id: Option<String>,
+) -> Result<Project, String> {
     let id = Uuid::new_v4().to_string();
     let path = server_scratch_dir(&app, &id)?.to_string_lossy().to_string();
     let project = Project {
@@ -179,8 +228,12 @@ pub async fn remove_server_project(app: AppHandle, project_id: String) -> Result
         .find_project(&project_id)
         .ok_or_else(|| format!("Project not found: {project_id}"))?
         .clone();
-    if project.server.is_none() {
-        return Err("Project is not a server.".to_string());
+    match project.server.as_ref() {
+        None => return Err("Project is not a server.".to_string()),
+        Some(server) if server.local => {
+            return Err("The local server is built in and cannot be removed.".to_string())
+        }
+        Some(_) => {}
     }
     let worktree_ids: Vec<String> = data
         .worktrees_for_project(&project_id)
@@ -381,6 +434,9 @@ pub async fn setup_server_user(
         .find_project(&project_id)
         .and_then(|p| p.server.clone())
         .ok_or_else(|| "Server not found.".to_string())?;
+    if server.local {
+        return Err("The local server does not use SSH.".to_string());
+    }
 
     let target = ProjectServer {
         user: Some(root_user),
@@ -447,8 +503,21 @@ fn render_server_system_prompt(
     project: &Project,
     server: &ProjectServer,
 ) -> String {
+    let (ssh_command, connection) = if server.local {
+        (
+            String::new(),
+            "This is the machine Jean runs on (for Web Access, the Jean server host). Run commands directly in the local shell, without SSH. The working directory is only a scratch folder.".to_string(),
+        )
+    } else {
+        let ssh_command = server.ssh_command();
+        let connection = format!(
+            "Run every server command through SSH from this machine: `{ssh_command} '<command>'`. The local working directory is only a scratch folder."
+        );
+        (ssh_command, connection)
+    };
     template
-        .replace(SERVER_PROMPT_COMMAND, &server.ssh_command())
+        .replace(SERVER_PROMPT_CONNECTION, &connection)
+        .replace(SERVER_PROMPT_COMMAND, &ssh_command)
         .replace(SERVER_PROMPT_NAME, &project.name)
 }
 
@@ -500,6 +569,7 @@ mod tests {
             user: user.map(str::to_string),
             port,
             jean_connection_id: None,
+            local: false,
         }
     }
 
@@ -536,6 +606,7 @@ mod tests {
             user: Some("  ".to_string()),
             port: None,
             jean_connection_id: Some(" ".to_string()),
+            local: false,
         })
         .unwrap();
         assert_eq!(ok.host, "example.com");
@@ -597,5 +668,30 @@ mod tests {
         assert!(prompt.contains("\"prod-1\""));
         assert!(prompt.contains("`ssh -o BatchMode=yes -p 2200 root@10.0.0.5 '<command>'`"));
         assert!(!prompt.contains('{'));
+    }
+
+    #[test]
+    fn render_local_server_has_no_ssh() {
+        let local = ProjectServer {
+            local: true,
+            ..Default::default()
+        };
+        let project: Project = serde_json::from_value(serde_json::json!({
+            "id": "p", "name": "Local", "path": "", "default_branch": "", "added_at": 0
+        }))
+        .unwrap();
+        let prompt = render_server_system_prompt(&default_server_system_prompt(), &project, &local);
+        assert!(prompt.contains("directly in the local shell"));
+        assert!(!prompt.contains("ssh -o"));
+        assert!(!prompt.contains('{'));
+        assert_eq!(
+            normalize_server(ProjectServer {
+                host: "x".into(),
+                ..local
+            })
+            .unwrap()
+            .host,
+            ""
+        );
     }
 }

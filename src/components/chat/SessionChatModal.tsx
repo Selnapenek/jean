@@ -1115,6 +1115,7 @@ export const SessionChatModal = memo(function SessionChatModal({
                       }
                       packageScripts={packageScripts}
                       onRunPackageScript={handlePackageScript}
+                      isServer={!!project.server}
                     />
                   )}
                 </div>

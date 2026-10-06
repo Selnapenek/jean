@@ -566,8 +566,13 @@ const PROMPT_SECTIONS: PromptSection[] = [
         variables: [
           { name: '{server_name}', description: 'Server display name' },
           {
+            name: '{connection}',
+            description:
+              'How to run commands: the SSH line for remote servers, or "run directly" for Local',
+          },
+          {
             name: '{ssh_command}',
-            description: 'Non-interactive SSH command prefix for the server',
+            description: 'Non-interactive SSH command prefix (empty for Local)',
           },
         ],
         defaultValue: DEFAULT_SERVER_SYSTEM_PROMPT,

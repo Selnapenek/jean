@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { RemoteConnection } from '@/lib/remote-connections'
 import type { Project } from '@/types/projects'
-import { jeanConnectionServerUpdates } from './jean-connection-servers'
+import {
+  jeanConnectionServerUpdates,
+  ownServerProjects,
+} from './jean-connection-servers'
 
 const connection = (overrides: Partial<RemoteConnection> = {}) =>
   ({
@@ -112,5 +115,24 @@ describe('jeanConnectionServerUpdates', () => {
     expect(
       jeanConnectionServerUpdates([connection({ url: 'not a url' })], [])
     ).toEqual([])
+  })
+})
+
+describe('ownServerProjects', () => {
+  it('lists only servers stored by this Jean', () => {
+    const local = mirror({ id: 'local', server: { host: '', local: true } })
+    const ssh = mirror({ id: 'ssh' })
+    const remoteLocal = mirror({
+      id: 'r1',
+      serverId: 'conn-1',
+      server: { host: '', local: true },
+    })
+    const remoteSsh = mirror({ id: 'r2', serverId: 'conn-1' })
+    const repo = mirror({ id: 'repo', server: null })
+    expect(
+      ownServerProjects([local, ssh, remoteLocal, remoteSsh, repo]).map(
+        project => project.id
+      )
+    ).toEqual(['local', 'ssh'])
   })
 })

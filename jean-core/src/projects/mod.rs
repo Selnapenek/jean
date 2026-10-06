@@ -33,6 +33,6 @@ pub(crate) use servers::{
     default_server_system_prompt, is_server_worktree, server_system_prompt, server_worktree_ids,
 };
 pub use servers::{
-    list_ssh_public_keys, remove_server_project, save_server_project, server_user_setup_script,
-    setup_server_user, ServerUserAccess,
+    ensure_local_server_project, list_ssh_public_keys, remove_server_project, save_server_project,
+    server_user_setup_script, setup_server_user, ServerUserAccess,
 };

@@ -3497,7 +3497,11 @@ const ChatWindowContent = memo(function ChatWindowContent({
                                       attachedSavedContexts ??
                                       EMPTY_SAVED_CONTEXTS
                                     }
-                                    onOpenMagicModal={handleOpenMagicModal}
+                                    onOpenMagicModal={
+                                      project?.server
+                                        ? undefined
+                                        : handleOpenMagicModal
+                                    }
                                     onSaveContext={handleSaveContext}
                                     onLoadContext={handleLoadContext}
                                     onCommit={handleCommit}

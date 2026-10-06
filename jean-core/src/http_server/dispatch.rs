@@ -2075,6 +2075,11 @@ pub async fn dispatch_command(
             emit_cache_invalidation(app, &["projects"]);
             to_value(result)
         }
+        "ensure_local_server_project" => {
+            let result = crate::projects::ensure_local_server_project(app.clone()).await?;
+            emit_cache_invalidation(app, &["projects"]);
+            to_value(result)
+        }
         "list_ssh_public_keys" => to_value(crate::projects::list_ssh_public_keys().await?),
         "server_user_setup_script" => {
             let user: String = from_field(&args, "user")?;

@@ -61,3 +61,17 @@ export function jeanConnectionServerUpdates(
     ]
   })
 }
+
+/**
+ * Servers stored by the Jean you are on: its own machine (no SSH) plus the
+ * servers it reaches over SSH, including copies of Jean remote connections.
+ * The native app does not list a remote Jean's own servers: that Jean shows
+ * them in its Web Access.
+ */
+export function ownServerProjects(projects: Project[]): Project[] {
+  return projects.filter(
+    project =>
+      !!project.server &&
+      (project.serverId ?? LOCAL_SERVER_ID) === LOCAL_SERVER_ID
+  )
+}

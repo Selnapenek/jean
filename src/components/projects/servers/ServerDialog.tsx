@@ -10,13 +10,9 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { parseOptionalSshPort } from '@/lib/remote-connections'
-import { useServerConnectionSnapshots } from '@/lib/server-connections'
-import { isNativeApp } from '@/lib/environment'
 import { useSaveServerProject } from '@/services/projects'
 import type { Project } from '@/types/projects'
-import { LOCAL_SERVER_ID } from '@/types/server-resource'
 
 interface ServerDialogProps {
   open: boolean
@@ -49,19 +45,13 @@ function ServerForm({
   onDone: () => void
 }) {
   const saveServer = useSaveServerProject()
-  const snapshots = useServerConnectionSnapshots()
-  const jeanServers = [...snapshots.values()].filter(
-    snapshot => snapshot.status === 'local' || snapshot.status === 'online'
-  )
   const [form, setForm] = useState({
     name: project?.name ?? '',
     user: project?.server?.user ?? '',
     host: project?.server?.host ?? '',
     port: project?.server?.port ? String(project.server.port) : '',
-    runOn: LOCAL_SERVER_ID as string,
   })
   const [error, setError] = useState<string | null>(null)
-  const showRunOn = !project && isNativeApp() && jeanServers.length > 1
 
   const update = (key: keyof typeof form) => (value: string) =>
     setForm(current => ({ ...current, [key]: value }))
@@ -85,7 +75,6 @@ function ServerForm({
           port: port ?? null,
           jean_connection_id: project?.server?.jean_connection_id ?? null,
         },
-        serverId: form.runOn === LOCAL_SERVER_ID ? undefined : form.runOn,
       },
       { onSuccess: onDone }
     )
@@ -150,26 +139,6 @@ function ServerForm({
             placeholder="22"
           />
         </div>
-        {showRunOn && (
-          <div className="space-y-1.5">
-            <Label htmlFor="server-run-on">Run from Jean server</Label>
-            <NativeSelect
-              id="server-run-on"
-              className="w-full"
-              value={form.runOn}
-              onChange={event => update('runOn')(event.target.value)}
-            >
-              {jeanServers.map(snapshot => (
-                <NativeSelectOption
-                  key={snapshot.serverId}
-                  value={snapshot.serverId}
-                >
-                  {snapshot.name}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </div>
-        )}
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <DialogFooter>

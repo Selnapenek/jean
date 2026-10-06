@@ -81,6 +81,8 @@ interface WorktreeDropdownMenuProps {
   onToggleBrowser?: () => void
   packageScripts?: PackageScript[]
   onRunPackageScript?: (script: PackageScript) => void
+  /** Server project (Servers tab): no git, GitHub, browser or project settings */
+  isServer?: boolean
 }
 
 const BADGE_STALE_TIME = 5 * 60 * 1000
@@ -99,6 +101,7 @@ export function WorktreeDropdownMenu({
   onToggleBrowser,
   packageScripts = [],
   onRunPackageScript,
+  isServer = false,
 }: WorktreeDropdownMenuProps) {
   const queryClient = useQueryClient()
   const {
@@ -147,25 +150,25 @@ export function WorktreeDropdownMenu({
   const authData = queryClient.getQueryData<GhAuthStatus>(ghCliQueryKeys.auth())
   const isGitHubAuthenticated = authData?.authenticated ?? false
   const { data: issueResult } = useGitHubIssues(projectPath, 'open', {
-    enabled: isGitHubAuthenticated || projectId.includes(':'),
+    enabled: !isServer && (isGitHubAuthenticated || projectId.includes(':')),
     staleTime: BADGE_STALE_TIME,
     ownerId: projectId,
   })
   const { data: prs } = useGitHubPRs(projectPath, 'open', {
-    enabled: isGitHubAuthenticated || projectId.includes(':'),
+    enabled: !isServer && (isGitHubAuthenticated || projectId.includes(':')),
     staleTime: BADGE_STALE_TIME,
     ownerId: projectId,
   })
   const { data: alerts } = useDependabotAlerts(projectPath, 'open', {
-    enabled: isGitHubAuthenticated,
+    enabled: !isServer && isGitHubAuthenticated,
     staleTime: BADGE_STALE_TIME,
   })
   const { data: advisories } = useRepositoryAdvisories(projectPath, undefined, {
-    enabled: isGitHubAuthenticated,
+    enabled: !isServer && isGitHubAuthenticated,
     staleTime: BADGE_STALE_TIME,
   })
   const { data: workflowRuns } = useWorkflowRuns(projectPath, undefined, {
-    enabled: isGitHubAuthenticated,
+    enabled: !isServer && isGitHubAuthenticated,
     staleTime: BADGE_STALE_TIME,
   })
   const seenFailedWorkflowRunIds = useUIStore(
@@ -191,7 +194,8 @@ export function WorktreeDropdownMenu({
   const showMobileGitHubItems = isMobile
   // Header diff badges hide when the tree is clean, so keep a menu entry to
   // the Git changes view on mobile/web access.
-  const showGitItem = !!onUncommittedDiffClick && (isMobile || !isNativeApp())
+  const showGitItem =
+    !isServer && !!onUncommittedDiffClick && (isMobile || !isNativeApp())
 
   const handleOpenIssues = useCallback(() => {
     useProjectsStore.getState().selectProject(projectId)
@@ -278,14 +282,15 @@ export function WorktreeDropdownMenu({
             </DropdownMenuItem>
           )}
 
-          {onToggleBrowser && (
+          {!isServer && onToggleBrowser && (
             <DropdownMenuItem onClick={onToggleBrowser}>
               <Globe className="mr-2 h-4 w-4" />
               Browser
             </DropdownMenuItem>
           )}
 
-          {showPackageScripts &&
+          {!isServer &&
+            showPackageScripts &&
             packageScripts.length > 0 &&
             onRunPackageScript && (
               <DropdownMenuSub>
@@ -335,72 +340,78 @@ export function WorktreeDropdownMenu({
               </DropdownMenuSub>
             )}
 
-          <DropdownMenuItem
-            onClick={() =>
-              useProjectsStore.getState().openProjectSettings(projectId)
-            }
-          >
-            <Settings className="mr-2 h-4 w-4" />
-            Project Settings
-          </DropdownMenuItem>
+          {!isServer && (
+            <>
+              <DropdownMenuItem
+                onClick={() =>
+                  useProjectsStore.getState().openProjectSettings(projectId)
+                }
+              >
+                <Settings className="mr-2 h-4 w-4" />
+                Project Settings
+              </DropdownMenuItem>
 
-          <DropdownMenuSeparator />
+              <DropdownMenuSeparator />
 
-          {showGitItem && (
-            <DropdownMenuItem onClick={onUncommittedDiffClick}>
-              <GitBranch className="mr-2 h-4 w-4" />
-              <span>Git</span>
-              {hasDiff && (
-                <span className="ml-auto text-xs">
-                  <span className="text-success">+{uncommittedAdded}</span>{' '}
-                  <span className="text-destructive">
-                    -{uncommittedRemoved}
-                  </span>
-                </span>
+              {showGitItem && (
+                <DropdownMenuItem onClick={onUncommittedDiffClick}>
+                  <GitBranch className="mr-2 h-4 w-4" />
+                  <span>Git</span>
+                  {hasDiff && (
+                    <span className="ml-auto text-xs">
+                      <span className="text-success">+{uncommittedAdded}</span>{' '}
+                      <span className="text-destructive">
+                        -{uncommittedRemoved}
+                      </span>
+                    </span>
+                  )}
+                </DropdownMenuItem>
               )}
-            </DropdownMenuItem>
-          )}
 
-          {isMobile && hasBranchDiff && (
-            <DropdownMenuItem onClick={onBranchDiffClick}>
-              <GitBranch className="mr-2 h-4 w-4" />
-              <span>Branch diff</span>
-              <span className="ml-auto text-xs">
-                <span className="text-success">+{branchDiffAdded}</span>
-                {' / '}
-                <span className="text-destructive">-{branchDiffRemoved}</span>
-              </span>
-            </DropdownMenuItem>
-          )}
+              {isMobile && hasBranchDiff && (
+                <DropdownMenuItem onClick={onBranchDiffClick}>
+                  <GitBranch className="mr-2 h-4 w-4" />
+                  <span>Branch diff</span>
+                  <span className="ml-auto text-xs">
+                    <span className="text-success">+{branchDiffAdded}</span>
+                    {' / '}
+                    <span className="text-destructive">
+                      -{branchDiffRemoved}
+                    </span>
+                  </span>
+                </DropdownMenuItem>
+              )}
 
-          <DropdownMenuItem onClick={handleOpenIssues}>
-            <CircleDot className="mr-2 h-4 w-4 text-success" />
-            {issueCount > 0 ? `${issueCount} Issues` : 'Issues'}
-          </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleOpenIssues}>
+                <CircleDot className="mr-2 h-4 w-4 text-success" />
+                {issueCount > 0 ? `${issueCount} Issues` : 'Issues'}
+              </DropdownMenuItem>
 
-          <DropdownMenuItem onClick={handleOpenPRs}>
-            <GitPullRequestArrow className="mr-2 h-4 w-4 text-info" />
-            {prCount > 0 ? `${prCount} Pull Requests` : 'Pull Requests'}
-          </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleOpenPRs}>
+                <GitPullRequestArrow className="mr-2 h-4 w-4 text-info" />
+                {prCount > 0 ? `${prCount} Pull Requests` : 'Pull Requests'}
+              </DropdownMenuItem>
 
-          <DropdownMenuItem onClick={handleOpenWorkflowRuns}>
-            {failedWorkflowCount > 0 ? (
-              <AlertCircle className="mr-2 h-4 w-4 text-destructive" />
-            ) : (
-              <Activity className="mr-2 h-4 w-4" />
-            )}
-            {failedWorkflowCount > 0
-              ? `${failedWorkflowCount} Failed Workflows`
-              : workflowRunCount > 0
-                ? `${workflowRunCount} Workflows`
-                : 'Workflows'}
-          </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleOpenWorkflowRuns}>
+                {failedWorkflowCount > 0 ? (
+                  <AlertCircle className="mr-2 h-4 w-4 text-destructive" />
+                ) : (
+                  <Activity className="mr-2 h-4 w-4" />
+                )}
+                {failedWorkflowCount > 0
+                  ? `${failedWorkflowCount} Failed Workflows`
+                  : workflowRunCount > 0
+                    ? `${workflowRunCount} Workflows`
+                    : 'Workflows'}
+              </DropdownMenuItem>
 
-          {(showMobileGitHubItems || securityCount > 0) && (
-            <DropdownMenuItem onClick={handleOpenSecurity}>
-              <ShieldAlert className="mr-2 h-4 w-4 text-warning" />
-              {securityCount > 0 ? `${securityCount} Security` : 'Security'}
-            </DropdownMenuItem>
+              {(showMobileGitHubItems || securityCount > 0) && (
+                <DropdownMenuItem onClick={handleOpenSecurity}>
+                  <ShieldAlert className="mr-2 h-4 w-4 text-warning" />
+                  {securityCount > 0 ? `${securityCount} Security` : 'Security'}
+                </DropdownMenuItem>
+              )}
+            </>
           )}
 
           {(canOpenInEditor() ||

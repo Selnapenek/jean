@@ -780,6 +780,7 @@ pub async fn add_project(
         sentry_base_url: None,
         linked_project_ids: Vec::new(),
         auto_fix_settings: None,
+        server: None,
     };
 
     data.add_project(project.clone());
@@ -941,6 +942,7 @@ pub async fn init_project(
         sentry_base_url: None,
         linked_project_ids: Vec::new(),
         auto_fix_settings: None,
+        server: None,
     };
 
     data.add_project(project.clone());
@@ -1000,6 +1002,7 @@ pub async fn clone_project(
         sentry_base_url: None,
         linked_project_ids: Vec::new(),
         auto_fix_settings: None,
+        server: None,
     };
 
     data.add_project(project.clone());
@@ -10869,6 +10872,7 @@ async fn update_review_session_state(
         None,
         None,
         None,
+        None, // hidden_table_checklists
         None, // pinned_tables
         None, // selected_permission_mode
     )
@@ -12932,6 +12936,7 @@ pub async fn create_folder(
         sentry_base_url: None,
         linked_project_ids: Vec::new(),
         auto_fix_settings: None,
+        server: None,
     };
 
     data.add_project(folder.clone());
@@ -15464,6 +15469,7 @@ mod tests {
             sentry_base_url: None,
             linked_project_ids: Vec::new(),
             auto_fix_settings: None,
+            server: None,
         };
 
         attach_default_avatar(&mut project);
@@ -15604,6 +15610,7 @@ mod tests {
             sentry_project_slug: None,
             linked_project_ids: Vec::new(),
             auto_fix_settings: None,
+            server: None,
         };
         save_projects_data(
             &app,

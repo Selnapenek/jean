@@ -83,7 +83,7 @@ const CODEX_DEFAULT_PLAN_MODE_PROMPT: &str = "\
 - If questions block the plan, prefer Codex `request_user_input`; after the user answers, emit a revised complete `<proposed_plan>` block with the **full revised plan**, not only short step titles.
 - Do not call implementation tools or make file changes until the user approves the plan.
 
-### Plan quality (required for YOLO/Build handoff)
+### Plan quality (required for Full access/Build handoff)
 
 Jean may hand this plan to a zero-context agent in a new worktree. Status lines like \"Plan created and ready for approval.\" are not a plan.
 
@@ -168,8 +168,8 @@ fn codex_execution_mode_instruction(execution_mode: Option<&str>) -> Option<&'st
              request_user_input instead of switching back to plan mode.",
         ),
         "yolo" => Some(
-            "You are in YOLO EXECUTION MODE. Start implementing immediately. \
-             This current YOLO EXECUTION MODE instruction supersedes any earlier plan-mode \
+            "You are in FULL ACCESS MODE. Start implementing immediately. \
+             This current FULL ACCESS MODE instruction supersedes any earlier plan-mode \
              instructions remembered from conversation history; treat the approved plan \
              as authorization to implement now. \
              Do NOT emit <proposed_plan> blocks or wait for plan approval unless the user \
@@ -417,6 +417,30 @@ fn resolve_global_system_prompt(preferences_prompt: Option<&str>) -> String {
         .unwrap_or_else(crate::default_global_system_prompt)
 }
 
+/// Default policy for sessions without a selection. Server projects start in
+/// Supervised (approve each command), so the agent reads before it changes the host.
+fn default_execution_mode_for_worktree(
+    app: &AppHandle,
+    worktree_id: &str,
+    preferences_default: Option<String>,
+) -> Option<String> {
+    if crate::projects::is_server_worktree(app, worktree_id) {
+        Some("supervised".to_string())
+    } else {
+        preferences_default
+    }
+}
+
+/// Global system prompt for a session: server projects use the server prompt instead.
+fn resolve_session_global_system_prompt(
+    app: &AppHandle,
+    worktree_id: &str,
+    preferences_prompt: Option<&str>,
+) -> String {
+    crate::projects::server_system_prompt(app, worktree_id)
+        .unwrap_or_else(|| resolve_global_system_prompt(preferences_prompt))
+}
+
 /// Resolve the model used for a send.
 ///
 /// Precedence:
@@ -483,9 +507,13 @@ fn build_kimi_system_prompt(
         parts.push(format!("Respond to the user in {language}."));
     }
     let preferences = crate::load_preferences_sync(app).ok();
-    parts.push(resolve_global_system_prompt(preferences.as_ref().and_then(
-        |prefs| prefs.magic_prompts.global_system_prompt.as_deref(),
-    )));
+    parts.push(resolve_session_global_system_prompt(
+        app,
+        worktree_id,
+        preferences
+            .as_ref()
+            .and_then(|prefs| prefs.magic_prompts.global_system_prompt.as_deref()),
+    ));
     if let Some(prompt) = parallel_prompt
         .map(str::trim)
         .filter(|value| !value.is_empty())
@@ -1099,10 +1127,14 @@ pub async fn create_session(
             sessions.sessions.len() as u32,
             backend_enum.clone(),
         );
-        let default_policy = preferences
-            .as_ref()
-            .map(|prefs| prefs.default_execution_mode.clone())
-            .unwrap_or_else(|| "yolo".to_string());
+        let default_policy = default_execution_mode_for_worktree(
+            &app,
+            &worktree_id,
+            preferences
+                .as_ref()
+                .map(|prefs| prefs.default_execution_mode.clone()),
+        )
+        .unwrap_or_else(|| "yolo".to_string());
         let policy = if validate_execution_policy(&default_policy, &backend_enum).is_ok() {
             default_policy
         } else {
@@ -1775,6 +1807,7 @@ pub async fn update_session_state(
     enabled_mcp_servers: Option<Option<Vec<String>>>,
     selected_execution_mode: Option<Option<String>>,
     table_checked_rows: Option<std::collections::HashMap<String, Vec<u32>>>,
+    hidden_table_checklists: Option<Vec<String>>,
     pinned_tables: Option<Vec<super::types::PinnedTable>>,
     selected_permission_mode: Option<String>,
 ) -> Result<(), String> {
@@ -1896,6 +1929,9 @@ pub async fn update_session_state(
             }
             if let Some(v) = table_checked_rows {
                 session.table_checked_rows = v;
+            }
+            if let Some(v) = hidden_table_checklists {
+                session.hidden_table_checklists = v;
             }
             if let Some(v) = pinned_tables {
                 session.pinned_tables = v;
@@ -3118,7 +3154,11 @@ pub async fn send_chat_message(
     let execution_mode = resolve_send_execution_mode(
         execution_mode,
         session_selected_execution_mode,
-        prefs.as_ref().map(|p| p.default_execution_mode.clone()),
+        default_execution_mode_for_worktree(
+            &app,
+            &worktree_id,
+            prefs.as_ref().map(|p| p.default_execution_mode.clone()),
+        ),
     );
     let thinking_level = thinking_level.or(session_selected_thinking_level);
     let effort_level = effort_level.or(session_selected_effort_level);
@@ -3451,52 +3491,58 @@ pub async fn send_chat_message(
     // Snapshot the worktree before the agent can modify files so the user can
     // review AI changes and restore individual files or the whole tree later.
     // Failures are non-fatal — chat should still proceed.
-    let checkpoint_id = match crate::projects::checkpoints::create_checkpoint(
-        &app,
-        crate::projects::checkpoints::CreateCheckpointArgs {
-            worktree_id: worktree_id.clone(),
-            worktree_path: worktree_path.clone(),
-            session_id: session_id.clone(),
-            run_id: Some(run_id.clone()),
-            user_message_id: Some(user_message_id.clone()),
-            user_message: message.clone(),
-        },
-    ) {
-        Ok(cp) => {
-            let cp_id = cp.id.clone();
-            if let Err(e) = with_metadata_mut(
-                &app,
-                &session_id,
-                &worktree_id,
-                &session_name,
-                session_order,
-                |metadata| {
-                    if let Some(run) = metadata.find_run_mut(&run_id) {
-                        run.checkpoint_id = Some(cp_id.clone());
-                    }
-                    Ok(())
-                },
-            ) {
-                log::warn!("[Checkpoint] failed to attach id to run {run_id}: {e}");
+    // Server projects use a non-git scratch folder; git would walk up to a
+    // parent repo, so they have no checkpoints.
+    let checkpoint_id = if crate::projects::is_server_worktree(&app, &worktree_id) {
+        None
+    } else {
+        match crate::projects::checkpoints::create_checkpoint(
+            &app,
+            crate::projects::checkpoints::CreateCheckpointArgs {
+                worktree_id: worktree_id.clone(),
+                worktree_path: worktree_path.clone(),
+                session_id: session_id.clone(),
+                run_id: Some(run_id.clone()),
+                user_message_id: Some(user_message_id.clone()),
+                user_message: message.clone(),
+            },
+        ) {
+            Ok(cp) => {
+                let cp_id = cp.id.clone();
+                if let Err(e) = with_metadata_mut(
+                    &app,
+                    &session_id,
+                    &worktree_id,
+                    &session_name,
+                    session_order,
+                    |metadata| {
+                        if let Some(run) = metadata.find_run_mut(&run_id) {
+                            run.checkpoint_id = Some(cp_id.clone());
+                        }
+                        Ok(())
+                    },
+                ) {
+                    log::warn!("[Checkpoint] failed to attach id to run {run_id}: {e}");
+                }
+                // Emit so clients can show restore affordances immediately.
+                if let Err(e) = app.emit_all(
+                    "checkpoint:created",
+                    &serde_json::json!({
+                        "worktree_id": worktree_id,
+                        "session_id": session_id,
+                        "run_id": run_id,
+                        "checkpoint_id": cp_id,
+                        "user_message_id": user_message_id,
+                    }),
+                ) {
+                    log::warn!("[Checkpoint] failed to emit checkpoint:created: {e}");
+                }
+                Some(cp_id)
             }
-            // Emit so clients can show restore affordances immediately.
-            if let Err(e) = app.emit_all(
-                "checkpoint:created",
-                &serde_json::json!({
-                    "worktree_id": worktree_id,
-                    "session_id": session_id,
-                    "run_id": run_id,
-                    "checkpoint_id": cp_id,
-                    "user_message_id": user_message_id,
-                }),
-            ) {
-                log::warn!("[Checkpoint] failed to emit checkpoint:created: {e}");
+            Err(e) => {
+                log::warn!("[Checkpoint] create failed session={session_id} run={run_id}: {e}");
+                None
             }
-            Some(cp_id)
-        }
-        Err(e) => {
-            log::warn!("[Checkpoint] create failed session={session_id} run={run_id}: {e}");
-            None
         }
     };
     let _ = checkpoint_id;
@@ -3931,10 +3977,15 @@ pub async fn send_chat_message(
                             serde_json::from_str::<crate::AppPreferences>(&contents).ok()
                         })
                         .and_then(|prefs| prefs.magic_prompts.global_system_prompt);
-                    system_prompt_parts.push(resolve_codex_global_system_prompt(
-                        preferences_global_prompt.as_deref(),
-                        thread_execution_mode.as_deref(),
-                    ));
+                    system_prompt_parts.push(
+                        crate::projects::server_system_prompt(&thread_app, &thread_worktree_id)
+                            .unwrap_or_else(|| {
+                                resolve_codex_global_system_prompt(
+                                    preferences_global_prompt.as_deref(),
+                                    thread_execution_mode.as_deref(),
+                                )
+                            }),
+                    );
 
                     // Parallel execution prompt
                     if let Some(prompt) = &thread_parallel_prompt {
@@ -4319,7 +4370,9 @@ pub async fn send_chat_message(
 
                     // Global system prompt from preferences, with the shared default fallback.
                     let preferences = crate::load_preferences_sync(&thread_app).ok();
-                    system_prompt_parts.push(resolve_global_system_prompt(
+                    system_prompt_parts.push(resolve_session_global_system_prompt(
+                        &thread_app,
+                        &thread_worktree_id,
                         preferences
                             .as_ref()
                             .and_then(|prefs| prefs.magic_prompts.global_system_prompt.as_deref()),
@@ -4651,9 +4704,13 @@ pub async fn send_chat_message(
                     }
 
                     let preferences = crate::load_preferences_sync(&thread_app).ok();
-                    parts.push(resolve_global_system_prompt(preferences.as_ref().and_then(
-                        |prefs| prefs.magic_prompts.global_system_prompt.as_deref(),
-                    )));
+                    parts.push(resolve_session_global_system_prompt(
+                        &thread_app,
+                        &thread_worktree_id,
+                        preferences
+                            .as_ref()
+                            .and_then(|prefs| prefs.magic_prompts.global_system_prompt.as_deref()),
+                    ));
 
                     if let Some(prompt) = &thread_parallel_prompt {
                         let prompt = prompt.trim();
@@ -4816,9 +4873,13 @@ pub async fn send_chat_message(
                     }
 
                     let preferences = crate::load_preferences_sync(&thread_app).ok();
-                    parts.push(resolve_global_system_prompt(preferences.as_ref().and_then(
-                        |prefs| prefs.magic_prompts.global_system_prompt.as_deref(),
-                    )));
+                    parts.push(resolve_session_global_system_prompt(
+                        &thread_app,
+                        &thread_worktree_id,
+                        preferences
+                            .as_ref()
+                            .and_then(|prefs| prefs.magic_prompts.global_system_prompt.as_deref()),
+                    ));
 
                     if let Some(prompt) = &thread_parallel_prompt {
                         let prompt = prompt.trim();
@@ -4946,9 +5007,13 @@ pub async fn send_chat_message(
                     }
 
                     let preferences = crate::load_preferences_sync(&thread_app).ok();
-                    parts.push(resolve_global_system_prompt(preferences.as_ref().and_then(
-                        |prefs| prefs.magic_prompts.global_system_prompt.as_deref(),
-                    )));
+                    parts.push(resolve_session_global_system_prompt(
+                        &thread_app,
+                        &thread_worktree_id,
+                        preferences
+                            .as_ref()
+                            .and_then(|prefs| prefs.magic_prompts.global_system_prompt.as_deref()),
+                    ));
 
                     if let Some(prompt) = &thread_parallel_prompt {
                         let prompt = prompt.trim();
@@ -9378,6 +9443,11 @@ fn send_codex_response(rpc_id: u64, payload: serde_json::Value) -> Result<(), St
     super::codex_server::send_response(rpc_id, payload)
 }
 
+/// Answer a live Claude permission request (Supervised mode).
+pub fn respond_claude_permission(rpc_id: u64, approved: bool) -> Result<(), String> {
+    super::claude_permissions::respond(rpc_id, approved)
+}
+
 /// Backward-compatible wrapper for legacy frontend callers.
 pub fn approve_codex_command(
     session_id: String,
@@ -11385,7 +11455,7 @@ mod tests {
             .rfind("STALE_PLAN_MARKER")
             .expect("stale plan rule is present in custom prompt");
         let mode_override = combined
-            .rfind("YOLO EXECUTION MODE")
+            .rfind("FULL ACCESS MODE")
             .expect("yolo override is present");
 
         assert!(
@@ -11409,7 +11479,7 @@ mod tests {
         assert!(build.contains("approved plan"));
 
         let yolo = codex_execution_mode_instruction(Some("yolo")).unwrap();
-        assert!(yolo.contains("YOLO EXECUTION MODE"));
+        assert!(yolo.contains("FULL ACCESS MODE"));
         assert!(yolo.contains("Start implementing immediately"));
         assert!(yolo.contains("Do NOT emit <proposed_plan>"));
         assert!(yolo.contains("Do not ask for confirmation"));

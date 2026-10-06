@@ -235,7 +235,7 @@ export function usePlanDialogApproval({
       // Build approval message
       const defaultText =
         mode === 'yolo'
-          ? 'Plan approved (yolo mode). Begin implementing all changes immediately without asking for confirmation. Do not re-explain the plan — start writing code.'
+          ? 'Plan approved (Full access mode). Begin implementing all changes immediately without asking for confirmation. Do not re-explain the plan — start writing code.'
           : 'Plan approved. Begin implementing the changes now. Do not re-explain the plan — start writing code.'
       const message = updatedPlan
         ? `I've updated the plan. Please review and execute:\n\n<updated-plan>\n${updatedPlan}\n</updated-plan>`
@@ -289,7 +289,7 @@ export function usePlanDialogApproval({
           : undefined
 
       const model = modelOverride ?? selectedModelRef.current
-      const modeLabel = mode === 'yolo' ? 'Yolo' : 'Build'
+      const modeLabel = mode === 'yolo' ? 'Full access' : 'Build'
       const overrideStr =
         modelOverride || backendOverride
           ? [backendOverride, model].filter(Boolean).join(' / ')

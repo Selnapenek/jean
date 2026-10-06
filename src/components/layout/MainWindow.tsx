@@ -1,4 +1,5 @@
 import {
+  memo,
   useMemo,
   useCallback,
   useRef,
@@ -117,6 +118,11 @@ const AddProjectDialog = lazy(() =>
     default: mod.AddProjectDialog,
   }))
 )
+const GlobalServerDialog = lazy(() =>
+  import('@/components/projects/servers/ServerDialog').then(mod => ({
+    default: mod.GlobalServerDialog,
+  }))
+)
 const GitInitModal = lazy(() =>
   import('@/components/projects/GitInitModal').then(mod => ({
     default: mod.GitInitModal,
@@ -209,14 +215,33 @@ const MAX_FILE_BROWSER_WIDTH = 520
 function useRetainedMount(active: boolean) {
   const [shouldMount, setShouldMount] = useState(active)
 
-  useEffect(() => {
-    if (active) {
-      setShouldMount(true)
-    }
-  }, [active])
+  // Latch during render so the dialog mounts in the same commit it opens.
+  if (active && !shouldMount) {
+    setShouldMount(true)
+  }
 
-  return shouldMount
+  return shouldMount || active
 }
+
+/**
+ * Runs UI-state persistence in a null-rendering leaf so debounced save
+ * mutations and UI-state query updates don't re-render the whole MainWindow
+ * tree. Only the one-time `isInitialized` flip is reported to the parent.
+ */
+const UIStatePersistence = memo(function UIStatePersistence({
+  onInitializedChange,
+}: {
+  onInitializedChange: (isInitialized: boolean) => void
+}) {
+  const { isInitialized } = useUIStatePersistence()
+  useClientViewStatePersistence(isInitialized)
+
+  useEffect(() => {
+    onInitializedChange(isInitialized)
+  }, [isInitialized, onInitializedChange])
+
+  return null
+})
 
 export function MainWindow() {
   useTerminalThemeSync()
@@ -264,6 +289,9 @@ export function MainWindow() {
   const addProjectDialogOpen = useProjectsStore(
     state => state.addProjectDialogOpen
   )
+  const serverDialogOpen = useProjectsStore(
+    state => state.serverDialog !== null
+  )
   const projectSettingsDialogOpen = useProjectsStore(
     state => state.projectSettingsDialogOpen
   )
@@ -283,6 +311,23 @@ export function MainWindow() {
     }, []),
     enabled: canSwipeOpenSidebar,
   })
+  // Stable prop so memoized MainWindowContent only re-renders on swipe changes
+  const sidebarSwipeIndicator = useMemo(
+    () =>
+      canSwipeOpenSidebar
+        ? {
+            isSwiping: swipeOpenSidebar.isSwiping,
+            translateX: swipeOpenSidebar.translateX,
+            progress: swipeOpenSidebar.progress,
+          }
+        : undefined,
+    [
+      canSwipeOpenSidebar,
+      swipeOpenSidebar.isSwiping,
+      swipeOpenSidebar.translateX,
+      swipeOpenSidebar.progress,
+    ]
+  )
   const swipeDown = useSwipeDown({
     onSwipeDown: useCallback(() => {
       useUIStore.getState().setCommandPaletteOpen(true)
@@ -326,8 +371,8 @@ export function MainWindow() {
   useWorktreePolling(pollingInfo)
 
   // Persist UI state (last opened worktree, expanded projects)
-  const { isInitialized } = useUIStatePersistence()
-  useClientViewStatePersistence(isInitialized)
+  // Set by <UIStatePersistence /> once persisted UI state has been restored
+  const [isInitialized, setIsInitialized] = useState(false)
 
   // Persist session-specific state (answered questions, fixed findings, etc.)
   useSessionStatePersistence()
@@ -497,6 +542,7 @@ export function MainWindow() {
   const shouldRenderReleaseNotesDialog = useRetainedMount(releaseNotesModalOpen)
   const shouldRenderNewWorktreeModal = useRetainedMount(newWorktreeModalOpen)
   const shouldRenderAddProjectDialog = useRetainedMount(addProjectDialogOpen)
+  const shouldRenderServerDialog = useRetainedMount(serverDialogOpen)
   const shouldRenderGitInitModal = useRetainedMount(gitInitModalOpen)
   const shouldRenderCloneProjectModal = useRetainedMount(cloneModalOpen)
   const shouldRenderArchivedModal = useRetainedMount(archivedModalOpen)
@@ -519,6 +565,7 @@ export function MainWindow() {
         roundedClass
       )}
     >
+      <UIStatePersistence onInitializedChange={setIsInitialized} />
       {isNativeApp() && isLinux && <WindowResizeHandles />}
 
       {/* Touch swipe-down pull indicator */}
@@ -622,15 +669,7 @@ export function MainWindow() {
               sidebarSwipeContainerRef={
                 canSwipeOpenSidebar ? swipeOpenSidebar.containerRef : undefined
               }
-              sidebarSwipeIndicator={
-                canSwipeOpenSidebar
-                  ? {
-                      isSwiping: swipeOpenSidebar.isSwiping,
-                      translateX: swipeOpenSidebar.translateX,
-                      progress: swipeOpenSidebar.progress,
-                    }
-                  : undefined
-              }
+              sidebarSwipeIndicator={sidebarSwipeIndicator}
             />
           </div>
           {/* Browser bottom panel - native-only, pinned to bottom */}
@@ -789,6 +828,11 @@ export function MainWindow() {
       {shouldRenderAddProjectDialog && (
         <Suspense fallback={null}>
           <AddProjectDialog />
+        </Suspense>
+      )}
+      {shouldRenderServerDialog && (
+        <Suspense fallback={null}>
+          <GlobalServerDialog />
         </Suspense>
       )}
       {shouldRenderGitInitModal && (

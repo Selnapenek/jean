@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   GitBranchPlus,
   FolderPlus,
@@ -11,6 +12,7 @@ import {
   Settings2,
   X,
 } from '@/components/icons/reicon'
+import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { useSidebarWidth } from '@/components/layout/SidebarWidthContext'
 import {
@@ -28,12 +30,27 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { useCreateFolder, useProjects } from '@/services/projects'
+import {
+  ensureLocalServerProject,
+  invalidateProjectLists,
+  useCreateFolder,
+  useProjects,
+} from '@/services/projects'
+import { logger } from '@/lib/logger'
+import { invoke } from '@/lib/transport'
+import { isServerProject, type Project } from '@/types/projects'
+import { LOCAL_SERVER_ID } from '@/types/server-resource'
 import { useProjectsStore } from '@/store/projects-store'
 import { useUIStore } from '@/store/ui-store'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { ProjectTree } from './ProjectTree'
 import { RecentWorktreesList } from './RecentWorktreesList'
+import { ServersList } from './servers/ServersList'
+import {
+  jeansWithoutLocalEntry,
+  legacyConnectionCopies,
+  serverProjectsForView,
+} from './servers/servers-view'
 import { useInstalledBackends } from '@/hooks/useInstalledBackends'
 import { scheduleIdleWork } from '@/lib/idle'
 import { isNativeApp } from '@/lib/environment'
@@ -46,6 +63,8 @@ import {
   projectServerId,
 } from './server-filter'
 
+const EMPTY_PROJECTS: Project[] = []
+
 /** Close the mobile projects drawer when leaving into a dialog/modal. */
 function closeMobileSidebarIfNeeded(isMobile: boolean) {
   if (isMobile) {
@@ -53,15 +72,73 @@ function closeMobileSidebarIfNeeded(isMobile: boolean) {
   }
 }
 
+/**
+ * Each Jean shows its own machine in the Servers tab (no SSH). Create that
+ * entry on this Jean, and in the native app on every connected jean-server.
+ * Also delete old SSH copies of remote connections once: the jean-server's own
+ * entry replaces them.
+ */
+function useServerEntries(projects: Project[], ready: boolean) {
+  const queryClient = useQueryClient()
+  const snapshots = useServerConnectionSnapshots()
+  const requested = useRef(new Set<string>())
+  const jeanIds = useMemo(
+    () =>
+      isNativeApp()
+        ? [...snapshots.values()]
+            .filter(
+              snapshot =>
+                snapshot.status === 'local' || snapshot.status === 'online'
+            )
+            .map(snapshot => snapshot.serverId)
+        : [LOCAL_SERVER_ID],
+    [snapshots]
+  )
+
+  useEffect(() => {
+    if (!ready) return
+    const once = (key: string) => {
+      if (requested.current.has(key)) return false
+      requested.current.add(key)
+      return true
+    }
+    const tasks = [
+      ...jeansWithoutLocalEntry(jeanIds, projects)
+        .filter(jeanId => once(`local:${jeanId}`))
+        .map(jeanId => ensureLocalServerProject(jeanId)),
+      ...legacyConnectionCopies(projects)
+        .filter(project => once(`remove:${project.id}`))
+        .map(project =>
+          invoke('remove_server_project', { projectId: project.id })
+        ),
+    ]
+    if (tasks.length === 0) return
+    void Promise.allSettled(tasks).then(results => {
+      invalidateProjectLists(queryClient)
+      for (const result of results) {
+        if (result.status === 'rejected') {
+          logger.warn('Failed to update server entries', {
+            error: result.reason,
+          })
+        }
+      }
+    })
+  }, [jeanIds, projects, ready, queryClient])
+}
+
 export function ProjectsSidebar() {
   const {
-    data: projects = [],
+    data: projects = EMPTY_PROJECTS,
     isLoading,
+    isSuccess,
     isError,
     error,
     refetch,
   } = useProjects()
-  const { setAddProjectDialogOpen } = useProjectsStore()
+  useServerEntries(projects, isSuccess)
+  const setAddProjectDialogOpen = useProjectsStore(
+    state => state.setAddProjectDialogOpen
+  )
   const createFolder = useCreateFolder()
   const selectedProjectId = useProjectsStore(state => state.selectedProjectId)
   const sidebarWidth = useSidebarWidth()
@@ -91,6 +168,14 @@ export function ProjectsSidebar() {
   const visibleProjects = showServerFilter
     ? filterProjectsByServer(projects, serverFilter)
     : projects
+  const treeProjects = useMemo(
+    () => visibleProjects.filter(project => !isServerProject(project)),
+    [visibleProjects]
+  )
+  const serverProjects = useMemo(
+    () => serverProjectsForView(projects),
+    [projects]
+  )
   useEffect(() => {
     if (serverFilter !== ALL_SERVERS && !serverIds.includes(serverFilter)) {
       setServerFilter(ALL_SERVERS)
@@ -144,11 +229,11 @@ export function ProjectsSidebar() {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="flex items-center border-b border-border/40 px-2 pt-1">
           <div
-            className="grid flex-1 grid-cols-2"
+            className="grid flex-1 grid-cols-3"
             role="tablist"
             aria-label="Sidebar view"
           >
-            {(['projects', 'recent'] as const).map(tab => (
+            {(['projects', 'recent', 'servers'] as const).map(tab => (
               <button
                 key={tab}
                 type="button"
@@ -161,7 +246,17 @@ export function ProjectsSidebar() {
                 }`}
                 onClick={() => setActiveTab(tab)}
               >
-                {tab}
+                <span className="inline-flex items-center justify-center gap-1">
+                  {tab}
+                  {tab === 'servers' && (
+                    <Badge
+                      variant="outline"
+                      className="rounded-sm border-warning/40 bg-warning/10 px-1 py-0 text-[9px] leading-3.5 tracking-wide text-warning uppercase"
+                    >
+                      Beta
+                    </Badge>
+                  )}
+                </span>
               </button>
             ))}
           </div>
@@ -344,7 +439,7 @@ export function ProjectsSidebar() {
                   </span>
                 )}
               </div>
-            ) : projects.length === 0 ? (
+            ) : !projects.some(project => !isServerProject(project)) ? (
               <div className="flex h-full items-center justify-center px-2">
                 <span className="truncate text-sm text-muted-foreground/50">
                   No projects found
@@ -352,12 +447,14 @@ export function ProjectsSidebar() {
               </div>
             ) : (
               <ProjectTree
-                projects={visibleProjects}
+                projects={treeProjects}
                 groupByServer={showServerFilter && serverFilter === ALL_SERVERS}
                 searchQuery={searchQuery}
               />
             )}
           </div>
+        ) : activeTab === 'servers' ? (
+          <ServersList servers={serverProjects} />
         ) : (
           <RecentWorktreesList
             projects={visibleProjects}

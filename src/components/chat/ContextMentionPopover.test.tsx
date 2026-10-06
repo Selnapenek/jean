@@ -231,6 +231,12 @@ describe('ContextMentionPopover', () => {
     expect(
       screen.getByRole('button', { name: 'Refresh context links' })
     ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', {
+        name: `Add ${items[0].label} and start investigating`,
+      })
+    ).not.toHaveTextContent('Investigate')
+    expect(screen.queryByText('Attach')).not.toBeInTheDocument()
 
     platform.native = false
     platform.mobile = false

@@ -4722,7 +4722,7 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
             <AlertDialogAction
               onClick={handleDeleteAllArchives}
               disabled={isDeleting}
-              className="bg-destructive text-white hover:bg-destructive/90"
+              variant="destructive"
             >
               {isDeleting ? 'Deleting...' : 'Delete All'}
             </AlertDialogAction>
@@ -4794,7 +4794,7 @@ export const GeneralPane: React.FC<{ scope?: PreferencesPaneScope }> = ({
             <AlertDialogAction
               onClick={handleConfirmDeleteCli}
               disabled={isDeletingCli}
-              className="bg-destructive text-white hover:bg-destructive/90"
+              variant="destructive"
             >
               {isDeletingCli ? 'Deleting...' : 'Delete'}
             </AlertDialogAction>

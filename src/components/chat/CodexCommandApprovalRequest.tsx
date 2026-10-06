@@ -85,12 +85,12 @@ export function CodexCommandApprovalRequestCard({
           </Button>
         ) : null}
         {/*
-          Always offer Jean-level YOLO promote. Codex may omit acceptForSession
+          Always offer Jean-level Full access promote. Codex may omit acceptForSession
           for unknown commands (issue #626); Jean still switches the session to
-          yolo and auto-accepts residual mid-turn prompts.
+          Full access and auto-accepts residual mid-turn prompts.
         */}
         <Button size="sm" variant="destructive" onClick={onApproveYolo}>
-          Approve (yolo)
+          Approve (Full access)
         </Button>
         {isDecisionAvailable('decline') ? (
           <Button size="sm" variant="secondary" onClick={onDecline}>

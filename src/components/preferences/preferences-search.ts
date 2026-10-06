@@ -981,6 +981,12 @@ const magicPromptDefinitions: {
     keywords: ['global system prompt', 'system prompt'],
   },
   {
+    key: 'server_system_prompt',
+    title: 'Server System Prompt',
+    description: 'System prompt for sessions of SSH servers.',
+    keywords: ['server system prompt', 'ssh prompt', 'servers'],
+  },
+  {
     key: 'provider_switch_handoff',
     title: 'Provider Switch Handoff Prompt',
     description:

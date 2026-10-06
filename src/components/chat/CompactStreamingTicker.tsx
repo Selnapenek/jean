@@ -221,11 +221,19 @@ export const CompactStreamingTicker = memo(function CompactStreamingTicker(
   } = props
   const [isOpen, setIsOpen] = useState(false)
 
+  // Keyed on toolCalls only so these keep a stable identity across
+  // streaming-content flushes (they feed memoized children/memos below).
+  const { activityToolCalls, planToolCalls } = useMemo(
+    () => ({
+      activityToolCalls: toolCalls.filter(tc => !isPlanToolCall(tc)),
+      planToolCalls: toolCalls.filter(isPlanToolCall),
+    }),
+    [toolCalls]
+  )
+
   const {
     activityBlocks,
-    activityToolCalls,
     planBlocks,
-    planToolCalls,
     planStreamingContent,
     steeredTexts,
     orderedActivityBlocks,
@@ -235,7 +243,6 @@ export const CompactStreamingTicker = memo(function CompactStreamingTicker(
       messageContent: streamingContent,
       contentBlocks,
     }).content
-    const plans = toolCalls.filter(isPlanToolCall)
     const ordered = contentBlocks.filter(block => {
       if (isPlanToolBlock(block, toolCalls)) return false
       if (
@@ -249,9 +256,7 @@ export const CompactStreamingTicker = memo(function CompactStreamingTicker(
     })
     return {
       activityBlocks: filterActivityBlocks(ordered, toolCalls, plan),
-      activityToolCalls: toolCalls.filter(tc => !isPlanToolCall(tc)),
       planBlocks: filterPlanToolBlocks(contentBlocks, toolCalls),
-      planToolCalls: plans,
       planStreamingContent: plan ?? '',
       orderedActivityBlocks: ordered,
       // User prompts injected mid-turn (Codex turn/steer) — surfaced as

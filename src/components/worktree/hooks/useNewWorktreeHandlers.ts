@@ -290,13 +290,7 @@ export function useNewWorktreeHandlers(
         setCreatingFromNumber(null)
       }
     },
-    [
-      selectedProjectId,
-      selectedProject,
-      createWorktree,
-      handleOpenChange,
-      investigationOverride,
-    ]
+    [selectedProjectId, selectedProject, createWorktree, handleOpenChange]
   )
 
   const handleSelectIssueAndInvestigate = useCallback(
@@ -362,7 +356,13 @@ export function useNewWorktreeHandlers(
         setCreatingFromNumber(null)
       }
     },
-    [selectedProjectId, selectedProject, createWorktree, handleOpenChange]
+    [
+      selectedProjectId,
+      selectedProject,
+      createWorktree,
+      handleOpenChange,
+      investigationOverride,
+    ]
   )
 
   const handleInvestigateIssueInNewSession = useCallback(
@@ -905,13 +905,7 @@ export function useNewWorktreeHandlers(
         setCreatingFromNumber(null)
       }
     },
-    [
-      selectedProjectId,
-      selectedProject,
-      createWorktree,
-      handleOpenChange,
-      investigationOverride,
-    ]
+    [selectedProjectId, selectedProject, createWorktree, handleOpenChange]
   )
 
   const handleSelectPRAndInvestigate = useCallback(
@@ -997,7 +991,13 @@ export function useNewWorktreeHandlers(
         setCreatingFromNumber(null)
       }
     },
-    [selectedProjectId, selectedProject, createWorktree, handleOpenChange]
+    [
+      selectedProjectId,
+      selectedProject,
+      createWorktree,
+      handleOpenChange,
+      investigationOverride,
+    ]
   )
 
   const handleSelectSecurityAlert = useCallback(

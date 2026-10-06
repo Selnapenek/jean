@@ -24,9 +24,9 @@ Always use ASD-STE100 Simplified Technical English when you talk to me.\n\
 ### 1. Planning Guidance\n\
 - For non-trivial tasks (3+ steps or architectural decisions), prefer planning before implementation when the current execution mode has not already authorized execution.\n\
 - If something goes sideways, STOP and re-plan immediately - don't keep pushing\n\
-- Use plan mode for verification steps when the current execution mode is plan; in build/yolo, verify directly after implementing.\n\
+- Use plan mode for verification steps when the current execution mode is plan; in build/full access, verify directly after implementing.\n\
 - Write detailed specs upfront to reduce ambiguity\n\
-- Keep plans concise but complete enough for zero-context handoff (YOLO/Build in a new worktree must not require re-scanning the repo). Prefer short wording over thin checklists.\n\
+- Keep plans concise but complete enough for zero-context handoff (Full access/Build in a new worktree must not require re-scanning the repo). Prefer short wording over thin checklists.\n\
 - When the current execution mode is plan, use the backend's native plan tool/UI call when available (Claude ExitPlanMode, Codex `<proposed_plan>` / collaboration Plan mode, Cursor/OpenCode equivalent), not plain text only.\n\
 - For unresolved questions while planning, prefer the backend-native interactive question UI instead of plain text when available: Claude AskUserQuestion, Codex request_user_input, OpenCode question. If no such interactive question tool is present in your current tool set (headless/`--print` runs may omit Claude AskUserQuestion), do NOT skip the question and do NOT dead-end on a tool search — instead ask inline as a short numbered list of options (1, 2, 3...) and tell the user to reply with a number.\n\
 - For Codex specifically, when the current execution mode is plan: do not write plan files or code; when the plan is ready wrap it in `<proposed_plan>...</proposed_plan>` so Jean can show the approval UI. Do not use the `update_plan` checklist tool in plan mode.\n\
@@ -123,7 +123,7 @@ fn execution_mode_instruction(execution_mode: Option<&str>) -> Option<&'static s
              numbered list of options and have the user reply with a number.",
         ),
         "yolo" => Some(
-            "You are in YOLO EXECUTION MODE. Start implementing immediately. \
+            "You are in FULL ACCESS MODE. Start implementing immediately. \
              Do NOT enter plan mode and do NOT use ExitPlanMode unless the user explicitly asks \
              for a new plan. Do not ask for confirmation before routine implementation steps. \
              If a required decision is missing, use AskUserQuestion instead of ExitPlanMode; \
@@ -891,16 +891,12 @@ fn build_claude_args(
     // Chrome browser integration (beta)
     if chrome_enabled {
         args.push("--chrome".to_string());
-        // Claude in Chrome asks for per-site approval even in bypassPermissions
-        // mode (allow rules do not skip it), and headless runs deny every ask.
-        // In YOLO, route every ask to Jean MCP, which approves it.
-        if execution_mode == Some("yolo") {
-            if let Some(tool) = jean_permission_prompt_tool(mcp_config) {
-                args.push("--permission-prompt-tool".to_string());
-                args.push(tool);
-            }
-        }
     }
+
+    let (prompt_args, prompt_env) =
+        permission_prompt_args(execution_mode, chrome_enabled, mcp_config);
+    args.extend(prompt_args);
+    env_vars.extend(prompt_env);
 
     // Build combined system prompt parts
     // Claude CLI only uses the LAST --append-system-prompt, so we must combine all prompts
@@ -919,14 +915,18 @@ fn build_claude_args(
     if let Ok(prefs_path) = crate::get_preferences_path(app) {
         if let Ok(contents) = std::fs::read_to_string(&prefs_path) {
             if let Ok(prefs) = serde_json::from_str::<crate::AppPreferences>(&contents) {
-                let prompt = prefs
-                    .magic_prompts
-                    .global_system_prompt
-                    .as_deref()
-                    .map(|s| s.trim())
-                    .filter(|s| !s.is_empty())
-                    .unwrap_or(DEFAULT_GLOBAL_SYSTEM_PROMPT);
-                system_prompt_parts.push(prompt.to_string());
+                let prompt = crate::projects::server_system_prompt(app, worktree_id)
+                    .unwrap_or_else(|| {
+                        prefs
+                            .magic_prompts
+                            .global_system_prompt
+                            .as_deref()
+                            .map(|s| s.trim())
+                            .filter(|s| !s.is_empty())
+                            .unwrap_or(DEFAULT_GLOBAL_SYSTEM_PROMPT)
+                            .to_string()
+                    });
+                system_prompt_parts.push(prompt);
             }
         }
     }
@@ -1454,6 +1454,36 @@ fn jean_permission_prompt_tool(mcp_config: Option<&str>) -> Option<String> {
         "mcp__{server_name}__{}",
         crate::jean_mcp_core::CLAUDE_PERMISSION_PROMPT_TOOL
     ))
+}
+
+/// `--permission-prompt-tool` args and env. Headless runs deny every
+/// permission ask, so route asks to Jean MCP: Supervised shows a live approval
+/// card and waits for the user; YOLO + Chrome approves Claude in Chrome's
+/// per-site asks, which bypassPermissions does not skip. Without Jean MCP,
+/// Supervised falls back to the approval card after the turn (from the
+/// result's `permission_denials`).
+fn permission_prompt_args(
+    execution_mode: Option<&str>,
+    chrome_enabled: bool,
+    mcp_config: Option<&str>,
+) -> (Vec<String>, Vec<(String, String)>) {
+    let live_prompts = execution_mode == Some("supervised");
+    if !live_prompts && !(chrome_enabled && execution_mode == Some("yolo")) {
+        return (Vec::new(), Vec::new());
+    }
+    let Some(tool) = jean_permission_prompt_tool(mcp_config) else {
+        return (Vec::new(), Vec::new());
+    };
+    let mut env_vars = Vec::new();
+    if live_prompts {
+        // The user may take minutes to answer; some CLI versions stop MCP
+        // tool calls after 60s and treat that as a denial.
+        env_vars.push((
+            "MCP_TOOL_TIMEOUT".to_string(),
+            super::claude_permissions::LIVE_PROMPT_MCP_TIMEOUT_MS.to_string(),
+        ));
+    }
+    (vec!["--permission-prompt-tool".to_string(), tool], env_vars)
 }
 
 /// Execute Claude CLI in detached mode.
@@ -2451,6 +2481,12 @@ pub fn tail_claude_output(
                                 .filter_map(|d| {
                                     let tool_name = d.get("tool_name")?.as_str()?;
                                     let tool_input = d.get("tool_input")?;
+                                    let tool_use_id = d.get("tool_use_id")?.as_str()?;
+
+                                    // The user already denied this live
+                                    if super::claude_permissions::take_denied_live(tool_use_id) {
+                                        return None;
+                                    }
 
                                     // Skip plan file cleanup denials (benign Claude housekeeping)
                                     if tool_name == "Bash" {
@@ -2471,7 +2507,7 @@ pub fn tail_claude_output(
 
                                     Some(PermissionDenial {
                                         tool_name: tool_name.to_string(),
-                                        tool_use_id: d.get("tool_use_id")?.as_str()?.to_string(),
+                                        tool_use_id: tool_use_id.to_string(),
                                         tool_input: tool_input.clone(),
                                         rpc_id: None,
                                     })
@@ -3237,6 +3273,41 @@ mod tests {
         assert_eq!(claude_permission_mode(None), "plan");
         assert!(claude_allows_all_bash(Some("yolo")));
         assert!(!claude_allows_all_bash(Some("build")));
+    }
+
+    #[test]
+    fn permission_prompt_tool_routes_supervised_and_yolo_chrome_to_jean_mcp() {
+        let server = crate::jean_mcp_config::current_mode().server_name();
+        let config = format!(r#"{{"mcpServers":{{"{server}":{{}}}}}}"#);
+        let tool = format!("mcp__{server}__claude_permission_prompt");
+
+        let (args, env) = permission_prompt_args(Some("supervised"), false, Some(&config));
+        assert_eq!(
+            args,
+            vec!["--permission-prompt-tool".to_string(), tool.clone()]
+        );
+        assert!(env.iter().any(|(k, _)| k == "MCP_TOOL_TIMEOUT"));
+
+        let (args, env) = permission_prompt_args(Some("yolo"), true, Some(&config));
+        assert_eq!(args, vec!["--permission-prompt-tool".to_string(), tool]);
+        assert!(env.is_empty());
+
+        for (mode, chrome) in [
+            ("yolo", false),
+            ("build", true),
+            ("auto", true),
+            ("plan", true),
+        ] {
+            let (args, _) = permission_prompt_args(Some(mode), chrome, Some(&config));
+            assert!(
+                args.is_empty(),
+                "{mode} chrome={chrome} must not add the tool"
+            );
+        }
+
+        // Without Jean MCP, Supervised keeps the after-turn approval card.
+        let (args, env) = permission_prompt_args(Some("supervised"), false, None);
+        assert!(args.is_empty() && env.is_empty());
     }
 
     #[test]

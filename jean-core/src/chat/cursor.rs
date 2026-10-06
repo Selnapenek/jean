@@ -1,8 +1,10 @@
 //! Cursor Agent execution engine.
 
+use super::coalesce::{ChunkCoalescer, FlushBeforeRead};
 use super::types::{ContentBlock, ToolCall, UsageData};
 use crate::http_server::EmitExt;
 use serde_json::Value;
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
@@ -830,18 +832,41 @@ fn parse_cursor_stream(
     session_id: &str,
     worktree_id: &str,
     run_id: &str,
-    reader: impl BufRead,
+    reader: impl Read,
     initial_chat_id: Option<&str>,
     is_plan_mode: bool,
 ) -> Result<CursorResponse, String> {
-    parse_cursor_stream_inner(
-        reader,
+    // Coalesce token deltas into fewer chat:chunk events. Buffered text is
+    // flushed before tool events, before blocking on more CLI output, and
+    // when the stream ends, so event ordering is preserved.
+    let coalescer = RefCell::new(ChunkCoalescer::new());
+    let flush = || {
+        let batch = coalescer.borrow_mut().flush();
+        if let Some(batch) = batch {
+            emit_chunk(app, session_id, worktree_id, run_id, &batch);
+        }
+    };
+    let result = parse_cursor_stream_inner(
+        BufReader::new(FlushBeforeRead::new(reader, flush)),
         initial_chat_id,
         is_plan_mode,
-        |chunk| emit_chunk(app, session_id, worktree_id, run_id, chunk),
-        |tool_call| emit_tool_use(app, session_id, worktree_id, tool_call),
-        |tool_use_id, output| emit_tool_result(app, session_id, worktree_id, tool_use_id, output),
-    )
+        |chunk| {
+            let batch = coalescer.borrow_mut().push(chunk);
+            if let Some(batch) = batch {
+                emit_chunk(app, session_id, worktree_id, run_id, &batch);
+            }
+        },
+        |tool_call| {
+            flush();
+            emit_tool_use(app, session_id, worktree_id, tool_call);
+        },
+        |tool_use_id, output| {
+            flush();
+            emit_tool_result(app, session_id, worktree_id, tool_use_id, output);
+        },
+    );
+    flush();
+    result
 }
 
 fn parse_cursor_stream_inner<ChunkFn, ToolUseFn, ToolResultFn>(
@@ -1160,7 +1185,7 @@ pub fn execute_cursor(
         session_id,
         worktree_id,
         run_id,
-        BufReader::new(stdout),
+        stdout,
         chat_id.as_deref(),
         effective_mode == "plan",
     );

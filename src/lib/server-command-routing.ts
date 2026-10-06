@@ -319,6 +319,8 @@ export function decorateServerResult<T>(
       'clone_project',
       'init_project',
       'create_folder',
+      'save_server_project',
+      'setup_server_user',
       'rename_folder',
       'move_item',
       'update_project_settings',

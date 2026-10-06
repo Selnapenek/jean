@@ -114,7 +114,13 @@ function openLocalFileLink(href: string | undefined): boolean {
     return false
   }
 
-  return openLocalFile(decodeURIComponent(href))
+  let path = href
+  try {
+    path = decodeURIComponent(href)
+  } catch {
+    // Malformed percent-escape (e.g. a lone `%`) — use the raw href
+  }
+  return openLocalFile(path)
 }
 
 function handleFilePathClick(event: React.MouseEvent<HTMLElement>) {
@@ -469,10 +475,7 @@ export function headingBefore(source: string, offset: number): string | null {
     const match =
       /^#{1,6}\s+(.+?)\s*#*$/.exec(line) ?? /^\*\*(.+)\*\*:?$/.exec(line)
     if (!match?.[1]) continue
-    const text = match[1]
-      .replace(/[*_`]/g, '')
-      .replace(/:$/, '')
-      .trim()
+    const text = match[1].replace(/[*_`]/g, '').replace(/:$/, '').trim()
     if (text) return text
   }
   return null
@@ -512,7 +515,9 @@ function TableBlock({
   })
   const sessionId = ctxSessionId ?? storeSessionId
   const checkedRows = useChatStore(state =>
-    sessionId && tableKey
+    sessionId &&
+    tableKey &&
+    !state.hiddenTableChecklists[sessionId]?.includes(tableKey)
       ? (state.tableCheckedRows[sessionId]?.[tableKey] ?? null)
       : null
   )
@@ -551,7 +556,8 @@ function TableBlock({
   const handleToggleChecklist = useCallback(() => {
     if (!sessionId || !tableKey) return
     const store = useChatStore.getState()
-    if (store.tableCheckedRows[sessionId]?.[tableKey]) {
+    const hidden = store.hiddenTableChecklists[sessionId]?.includes(tableKey)
+    if (store.tableCheckedRows[sessionId]?.[tableKey] && !hidden) {
       store.disableTableChecklist(sessionId, tableKey)
     } else {
       store.enableTableChecklist(sessionId, tableKey)
@@ -580,11 +586,10 @@ function TableBlock({
   const handleSetPromptRow = useCallback(
     (rowIndex: number, note: string | null) => {
       if (!sessionId || !tableKey || !tableRef.current) return
-      // Adding a row to the prompt also checks it in the table checklist.
-      const store = useChatStore.getState()
-      const checked = store.tableCheckedRows[sessionId]?.[tableKey]
-      if (note !== null && checked && !checked.has(rowIndex)) {
-        store.toggleTableRowChecked(sessionId, tableKey, rowIndex)
+      // Adding a row to the prompt also checks it in the table checklist,
+      // even when checklist mode is off (the check shows once it is on).
+      if (note !== null) {
+        useChatStore.getState().checkTableRow(sessionId, tableKey, rowIndex)
       }
       void setTableRowInPrompt(
         sessionId,

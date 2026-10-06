@@ -2057,6 +2057,64 @@ pub async fn dispatch_command(
         }
 
         // =====================================================================
+        // Server Projects
+        // =====================================================================
+        "save_server_project" => {
+            let project_id: Option<String> = field_opt(&args, "projectId", "project_id")?;
+            let name: String = from_field(&args, "name")?;
+            let server: crate::projects::types::ProjectServer = from_field(&args, "server")?;
+            let parent_id: Option<String> = field_opt(&args, "parentId", "parent_id")?;
+            let system_prompt: Option<String> = field_opt(&args, "systemPrompt", "system_prompt")?;
+            let result = crate::projects::save_server_project(
+                app.clone(),
+                project_id,
+                name,
+                server,
+                parent_id,
+                system_prompt,
+            )
+            .await?;
+            emit_cache_invalidation(app, &["projects"]);
+            to_value(result)
+        }
+        "ensure_local_server_project" => {
+            let result = crate::projects::ensure_local_server_project(app.clone()).await?;
+            emit_cache_invalidation(app, &["projects"]);
+            to_value(result)
+        }
+        "list_ssh_public_keys" => to_value(crate::projects::list_ssh_public_keys().await?),
+        "server_user_setup_script" => {
+            let user: String = from_field(&args, "user")?;
+            let public_key: String = field(&args, "publicKey", "public_key")?;
+            let access: crate::projects::ServerUserAccess = from_field(&args, "access")?;
+            to_value(crate::projects::server_user_setup_script(user, public_key, access).await?)
+        }
+        "setup_server_user" => {
+            let project_id: String = field(&args, "projectId", "project_id")?;
+            let root_user: String = field(&args, "rootUser", "root_user")?;
+            let user: String = from_field(&args, "user")?;
+            let public_key: String = field(&args, "publicKey", "public_key")?;
+            let access: crate::projects::ServerUserAccess = from_field(&args, "access")?;
+            let result = crate::projects::setup_server_user(
+                app.clone(),
+                project_id,
+                root_user,
+                user,
+                public_key,
+                access,
+            )
+            .await?;
+            emit_cache_invalidation(app, &["projects"]);
+            to_value(result)
+        }
+        "remove_server_project" => {
+            let project_id: String = field(&args, "projectId", "project_id")?;
+            crate::projects::remove_server_project(app.clone(), project_id).await?;
+            emit_cache_invalidation(app, &["projects"]);
+            Ok(Value::Null)
+        }
+
+        // =====================================================================
         // Folder Management
         // =====================================================================
         "create_folder" => {
@@ -2306,6 +2364,8 @@ pub async fn dispatch_command(
                 field_opt(&args, "selectedExecutionMode", "selected_execution_mode")?;
             let table_checked_rows: Option<std::collections::HashMap<String, Vec<u32>>> =
                 field_opt(&args, "tableCheckedRows", "table_checked_rows")?;
+            let hidden_table_checklists: Option<Vec<String>> =
+                field_opt(&args, "hiddenTableChecklists", "hidden_table_checklists")?;
             let pinned_tables: Option<Vec<crate::chat::types::PinnedTable>> =
                 field_opt(&args, "pinnedTables", "pinned_tables")?;
             crate::chat::update_session_state(
@@ -2336,6 +2396,7 @@ pub async fn dispatch_command(
                 enabled_mcp_servers,
                 selected_execution_mode,
                 table_checked_rows,
+                hidden_table_checklists,
                 pinned_tables,
                 field_opt(&args, "selectedPermissionMode", "selected_permission_mode")?,
             )
@@ -2987,6 +3048,13 @@ pub async fn dispatch_command(
         }
         "uninstall_codex_cli" => {
             crate::codex_cli::uninstall_codex_cli(app.clone()).await?;
+            Ok(Value::Null)
+        }
+
+        "respond_claude_permission" => {
+            let rpc_id: u64 = field(&args, "rpcId", "rpc_id")?;
+            let approved: bool = from_field(&args, "approved")?;
+            crate::chat::respond_claude_permission(rpc_id, approved)?;
             Ok(Value::Null)
         }
 

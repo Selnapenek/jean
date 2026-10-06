@@ -82,6 +82,10 @@ export function ContextMentionPopover({
   const queryClient = useQueryClient()
   const isMobile = useIsMobile()
   const showKeyboardHints = isNativeApp() && !isMobile
+  const actionButtonClass = cn(
+    'flex min-h-8 items-center gap-1 rounded hover:bg-muted',
+    isMobile ? 'min-w-8 justify-center' : 'px-1.5'
+  )
   const [includeClosed, setIncludeClosed] = useState(false)
   const [menuSearch, setMenuSearch] = useState('')
   const [issueLimit, setIssueLimit] = useState(8)
@@ -142,12 +146,18 @@ export function ContextMentionPopover({
     }
   }, [projectId, projectPath, queryClient])
 
-  useEffect(() => {
-    if (!open) return
+  const resetListPosition = useCallback(() => {
     setSelectedIndex(0)
     setIssueLimit(8)
     setPrLimit(8)
-  }, [open, searchQuery, menuSearch, includeClosed, projectPath])
+  }, [])
+
+  // Prop-driven resets. Local filter changes (menuSearch, includeClosed)
+  // reset in their own event handlers to avoid chaining effects.
+  useEffect(() => {
+    if (!open) return
+    resetListPosition()
+  }, [open, searchQuery, projectPath, resetListPosition])
 
   useEffect(() => {
     if (open) setMenuSearch('')
@@ -222,7 +232,10 @@ export function ContextMentionPopover({
             </button>
             <button
               type="button"
-              onClick={() => setIncludeClosed(value => !value)}
+              onClick={() => {
+                setIncludeClosed(value => !value)
+                resetListPosition()
+              }}
               className={cn(
                 'rounded px-2 py-1 text-xs transition-colors',
                 includeClosed
@@ -240,7 +253,10 @@ export function ContextMentionPopover({
           <CommandInput
             placeholder="Search issue title or description..."
             value={menuSearch}
-            onValueChange={setMenuSearch}
+            onValueChange={value => {
+              setMenuSearch(value)
+              resetListPosition()
+            }}
             onKeyDown={event => {
               event.stopPropagation()
               switch (event.key) {
@@ -330,14 +346,14 @@ export function ContextMentionPopover({
                                 <button
                                   type="button"
                                   aria-label={`Add ${item.label} to session context`}
-                                  className="flex min-h-8 items-center gap-1 rounded px-1.5 hover:bg-muted"
+                                  className={actionButtonClass}
                                   onClick={event => {
                                     event.stopPropagation()
                                     handleSelect(item)
                                   }}
                                 >
                                   <Plus className="size-3.5" />
-                                  <span>Attach</span>
+                                  {!isMobile && <span>Attach</span>}
                                 </button>
                               </TooltipTrigger>
                               <TooltipContent className="flex items-center gap-2">
@@ -352,14 +368,14 @@ export function ContextMentionPopover({
                                 <button
                                   type="button"
                                   aria-label={`Add ${item.label} and start investigating`}
-                                  className="flex min-h-8 items-center gap-1 rounded px-1.5 hover:bg-muted"
+                                  className={actionButtonClass}
                                   onClick={event => {
                                     event.stopPropagation()
                                     handleSelect(item, true)
                                   }}
                                 >
                                   <Sparkles className="size-3.5" />
-                                  <span>Investigate</span>
+                                  {!isMobile && <span>Investigate</span>}
                                 </button>
                               </TooltipTrigger>
                               <TooltipContent className="flex items-center gap-2">

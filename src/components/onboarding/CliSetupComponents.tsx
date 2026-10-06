@@ -426,10 +426,13 @@ export function AuthLoginState({
     null
   )
   const completionStartedRef = useRef(false)
-  const [exitStatus, setExitStatus] = useState<{
+  // Keyed by terminalId so a new terminal never shows the previous exit status.
+  const [exitState, setExitState] = useState<{
+    terminalId: string
     exitCode: number | null
     signal: string | null
   } | null>(null)
+  const exitStatus = exitState?.terminalId === terminalId ? exitState : null
 
   const handleCompleteOnce = useCallback(() => {
     if (completionStartedRef.current) return
@@ -477,14 +480,10 @@ export function AuthLoginState({
       }
 
       dbg('AuthLoginState: non-zero exit, showing error')
-      setExitStatus({ exitCode, signal })
+      setExitState({ terminalId, exitCode, signal })
     })
     return () => setOnStopped(terminalId, undefined)
   }, [terminalId, handleCompleteOnce, cliName])
-
-  useEffect(() => {
-    setExitStatus(null)
-  }, [terminalId])
 
   // Cleanup terminal on unmount
   useEffect(() => {
@@ -689,4 +688,4 @@ export function CliPathSelector({
 /** @deprecated Use CliPathSelector instead */
 export const ClaudePathSelector = (
   props: Omit<CliPathSelectorProps, 'cliName'>
-) => CliPathSelector({ ...props, cliName: 'Claude CLI' })
+) => <CliPathSelector {...props} cliName="Claude CLI" />

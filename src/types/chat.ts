@@ -389,6 +389,8 @@ export interface Session {
   enabled_mcp_servers?: string[]
   /** Per-table checklist state: tableKey -> checked row indices */
   table_checked_rows?: Record<string, number[]>
+  /** Table keys with checked rows tracked while checklist mode is off */
+  hidden_table_checklists?: string[]
   /** Tables pinned for quick access, in pin order */
   pinned_tables?: PinnedTable[]
   /** Unix timestamp when session was last opened/viewed by the user */

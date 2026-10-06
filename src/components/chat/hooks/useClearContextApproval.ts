@@ -273,7 +273,7 @@ export function useClearContextApproval({
       // Step 5: Send plan as first message using mode-specific overrides
       // Fallback chain: mode override → original session → global default
       const isYolo = mode === 'yolo'
-      const modeLabel = isYolo ? 'Yolo' : 'Build'
+      const modeLabel = isYolo ? 'Full access' : 'Build'
       const originalBackend = card.session.backend as CliBackend | undefined
       const modeBackendPref = isYolo
         ? preferences?.yolo_backend

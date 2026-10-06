@@ -214,7 +214,7 @@ export const KEYBINDING_DEFINITIONS: KeybindingDefinition[] = [
   {
     action: 'cycle_execution_mode',
     label: 'Cycle execution mode',
-    description: 'Cycle through Plan, Build, and Yolo modes',
+    description: 'Cycle through Plan, Build, and Full access modes',
     default_shortcut: 'shift+tab',
     category: 'chat',
   },
@@ -235,21 +235,24 @@ export const KEYBINDING_DEFINITIONS: KeybindingDefinition[] = [
   {
     action: 'approve_plan_clear_context',
     label: 'Clear context with Full access',
-    description: 'Approve plan, clear context, and start a new session with Full access',
+    description:
+      'Approve plan, clear context, and start a new session with Full access',
     default_shortcut: 'mod+shift+y',
     category: 'chat',
   },
   {
     action: 'approve_plan_clear_context_build',
     label: 'Clear context with selected permissions',
-    description: 'Approve plan, clear context, and start a new session with selected permissions',
+    description:
+      'Approve plan, clear context, and start a new session with selected permissions',
     default_shortcut: 'mod+shift+enter',
     category: 'chat',
   },
   {
     action: 'approve_plan_worktree_build',
     label: 'Worktree approval',
-    description: 'Approve plan and execute in a new worktree (selected permissions)',
+    description:
+      'Approve plan and execute in a new worktree (selected permissions)',
     default_shortcut: 'mod+alt+enter',
     category: 'chat',
   },

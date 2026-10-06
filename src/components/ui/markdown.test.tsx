@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@/test/test-utils'
+import { act, fireEvent, render, screen, waitFor } from '@/test/test-utils'
 import { Markdown, headingBefore } from './markdown'
 import { useChatStore } from '@/store/chat-store'
 import { useUIStore } from '@/store/ui-store'
@@ -91,6 +91,25 @@ describe('Markdown', () => {
     expect(
       useChatStore.getState().tableCheckedRows.s2?.t2 ?? new Set()
     ).toEqual(new Set([1]))
+  })
+
+  it('checks the row in the background when checklist mode is off', () => {
+    mockSetRow.mockReset()
+    useChatStore.setState({ tableCheckedRows: {}, hiddenTableChecklists: {} })
+    render(
+      <Markdown sessionId="s3" tableKey="t3">
+        {'| Name |\n| --- |\n| a |\n| b |'}
+      </Markdown>
+    )
+
+    fireEvent.click(screen.getByText('b'))
+    // No checklist column while checklist mode is off.
+    expect(screen.queryByLabelText(/Toggle row/)).toBeNull()
+
+    act(() => useChatStore.getState().enableTableChecklist('s3', 't3'))
+    expect(
+      (screen.getByLabelText('Toggle row 2') as HTMLElement).dataset.state
+    ).toBe('checked')
   })
 
   it('supports keyboard row navigation, add with note, and removal', () => {

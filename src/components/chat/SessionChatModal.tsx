@@ -1,4 +1,5 @@
 import {
+  memo,
   useCallback,
   useEffect,
   useEffectEvent,
@@ -77,7 +78,7 @@ import { DevToolsDropdown } from './DevToolsDropdown'
 import { DEFAULT_KEYBINDINGS, formatShortcutDisplay } from '@/types/keybindings'
 import {
   buildNativeClientSessionInput,
-  computeSessionCardData,
+  createSessionCardDataCache,
   getResumeCommand,
   isActionableWaitingStatus,
   statusConfig,
@@ -221,7 +222,7 @@ interface SessionChatModalProps {
   onRequestCloseWorktree: () => void
 }
 
-export function SessionChatModal({
+export const SessionChatModal = memo(function SessionChatModal({
   worktreeId,
   worktreePath,
   worktree,
@@ -352,11 +353,14 @@ export function SessionChatModal({
     tabSessions.find(session => session.id === currentSessionId) ?? null
   // Canonical store state shared with canvas for consistent status derivation.
   const storeState = useCanvasStoreState()
+  // Per-session card cache: a store update for one session only recomputes
+  // that session's card instead of rescanning every tab's messages.
+  const sessionCardDataCache = useMemo(() => createSessionCardDataCache(), [])
   // Compute card data once per session — same derivation as ProjectCanvasView,
   // so canvas badges and modal tab badges stay in sync.
   const cards = useMemo(
-    () => tabSessions.map(s => computeSessionCardData(s, storeState)),
-    [storeState, tabSessions]
+    () => tabSessions.map(s => sessionCardDataCache(s, storeState)),
+    [sessionCardDataCache, storeState, tabSessions]
   )
 
   const cardForSession = useCallback(
@@ -1111,6 +1115,7 @@ export function SessionChatModal({
                       }
                       packageScripts={packageScripts}
                       onRunPackageScript={handlePackageScript}
+                      server={project.server}
                     />
                   )}
                 </div>
@@ -1149,7 +1154,7 @@ export function SessionChatModal({
                   )}
                   {!zenMode && (
                     <>
-                      {!isMobile && (
+                      {!isMobile && !project?.server && (
                         <>
                           <HeaderSurfaceToggle
                             label="Terminal"
@@ -1181,6 +1186,7 @@ export function SessionChatModal({
                           worktreePath={worktreePath}
                           serverId={worktree?.serverId}
                           branch={worktree?.branch}
+                          server={project?.server}
                         />
                         <ScriptsButton
                           projectId={worktree?.project_id}
@@ -1528,4 +1534,4 @@ export function SessionChatModal({
       />
     </>
   )
-}
+})

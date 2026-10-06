@@ -1179,6 +1179,7 @@ function App() {
   // Show feature tour after CLI onboarding completes (first launch or manual trigger)
   useEffect(() => {
     let wasOpen = useUIStore.getState().onboardingOpen
+    let tourTimer: ReturnType<typeof setTimeout> | undefined
     const unsub = useUIStore.subscribe(state => {
       const isOpen = state.onboardingOpen
       const prevWasOpen = wasOpen
@@ -1195,14 +1196,18 @@ function App() {
           ])
           if (manuallyTriggered || (prefs && !prefs.has_seen_feature_tour)) {
             store.setOnboardingManuallyTriggered(false)
-            setTimeout(() => {
+            clearTimeout(tourTimer)
+            tourTimer = setTimeout(() => {
               useUIStore.getState().setFeatureTourOpen(true)
             }, 300)
           }
         }
       }
     })
-    return unsub
+    return () => {
+      unsub()
+      clearTimeout(tourTimer)
+    }
   }, [queryClient])
 
   // Kill all terminals on page refresh/close (backup for Rust-side cleanup)
@@ -1537,7 +1542,7 @@ function App() {
       window.removeEventListener('install-pending-update', handleInstallPending)
       window.removeEventListener('update-available', handleUpdateAvailable)
     }
-  }, [webBackend])
+  }, [webBackend, queryClient])
 
   // Web clients request desktop install via apply_server_update → this event.
   // Only the *host* native shell should run Tauri's updater (not a remote client

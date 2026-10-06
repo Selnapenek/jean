@@ -2,14 +2,15 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 describe('ProjectsSidebar server filter', () => {
-  it('offers Projects and Recent as the two top-level views', () => {
+  it('offers Projects, Recent and Servers as the top-level views', () => {
     const source = readFileSync(
       'src/components/projects/ProjectsSidebar.tsx',
       'utf8'
     )
 
     expect(source).toContain('role="tablist"')
-    expect(source).toContain("(['projects', 'recent'] as const)")
+    expect(source).toContain("(['projects', 'recent', 'servers'] as const)")
+    expect(source).toContain('<ServersList')
     expect(source).toContain('<RecentWorktreesList')
     expect(source).toContain('footerActionsContainer={footerActionsEl}')
     expect(source).toContain('ref={setFooterActionsEl}')

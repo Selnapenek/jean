@@ -219,7 +219,7 @@ export function PermissionApproval({
       window.removeEventListener('answer-question', handleAnswerQuestion)
   }, [readOnly, selectedIndices.size, handleApprove])
 
-  // Listen for CMD+Y to approve with yolo mode
+  // Listen for CMD+Y to approve with Full access
   useEffect(() => {
     if (readOnly || !onApproveYolo) return
 
@@ -346,7 +346,7 @@ export function PermissionApproval({
             className="gap-1"
           >
             <Play className="h-3 w-3" />
-            Approve (yolo)
+            Approve (Full access)
             <Kbd className="ml-1.5 h-4 text-[10px] bg-white/20 text-white">
               {formatShortcutDisplay(
                 DEFAULT_KEYBINDINGS.approve_plan_yolo ?? 'mod+y'

@@ -1115,7 +1115,7 @@ export const SessionChatModal = memo(function SessionChatModal({
                       }
                       packageScripts={packageScripts}
                       onRunPackageScript={handlePackageScript}
-                      isServer={!!project.server}
+                      server={project.server}
                     />
                   )}
                 </div>
@@ -1154,7 +1154,7 @@ export const SessionChatModal = memo(function SessionChatModal({
                   )}
                   {!zenMode && (
                     <>
-                      {!isMobile && (
+                      {!isMobile && !project?.server && (
                         <>
                           <HeaderSurfaceToggle
                             label="Terminal"
@@ -1186,6 +1186,7 @@ export const SessionChatModal = memo(function SessionChatModal({
                           worktreePath={worktreePath}
                           serverId={worktree?.serverId}
                           branch={worktree?.branch}
+                          server={project?.server}
                         />
                         <ScriptsButton
                           projectId={worktree?.project_id}

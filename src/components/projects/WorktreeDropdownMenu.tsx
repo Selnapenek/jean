@@ -60,6 +60,12 @@ import {
 import { cn } from '@/lib/utils'
 import { usePatchPreferences } from '@/services/preferences'
 import { useProjectsStore } from '@/store/projects-store'
+import type { ProjectServer } from '@/types/projects'
+import {
+  canOpenServerInFinder,
+  openServerIn,
+  type ServerOpenTarget,
+} from './servers/server-open'
 import { useUIStore } from '@/store/ui-store'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { countUnreadFailedWorkflowRuns } from '@/components/shared/workflow-run-utils'
@@ -82,7 +88,7 @@ interface WorktreeDropdownMenuProps {
   packageScripts?: PackageScript[]
   onRunPackageScript?: (script: PackageScript) => void
   /** Server project (Servers tab): no git, GitHub, browser or project settings */
-  isServer?: boolean
+  server?: ProjectServer | null
 }
 
 const BADGE_STALE_TIME = 5 * 60 * 1000
@@ -101,8 +107,9 @@ export function WorktreeDropdownMenu({
   onToggleBrowser,
   packageScripts = [],
   onRunPackageScript,
-  isServer = false,
+  server,
 }: WorktreeDropdownMenuProps) {
+  const isServer = !!server
   const queryClient = useQueryClient()
   const {
     showDeleteConfirm,
@@ -196,6 +203,16 @@ export function WorktreeDropdownMenu({
   // the Git changes view on mobile/web access.
   const showGitItem =
     !isServer && !!onUncommittedDiffClick && (isMobile || !isNativeApp())
+
+  const openOnServer = (target: ServerOpenTarget) => {
+    if (!server) return
+    void openServerIn(
+      server,
+      target,
+      { editor: preferences?.editor, terminal: preferences?.terminal },
+      worktree.serverId
+    )
+  }
 
   const handleOpenIssues = useCallback(() => {
     useProjectsStore.getState().selectProject(projectId)
@@ -416,24 +433,41 @@ export function WorktreeDropdownMenu({
 
           {(canOpenInEditor() ||
             canOpenInTerminal() ||
-            canOpenInFinder(worktree.serverId)) && <DropdownMenuSeparator />}
+            (canOpenInFinder(worktree.serverId) &&
+              (!server ||
+                canOpenServerInFinder(server, worktree.serverId)))) && (
+            <DropdownMenuSeparator />
+          )}
 
           {canOpenInEditor() && (
-            <DropdownMenuItem onClick={handleOpenInEditor}>
+            <DropdownMenuItem
+              onClick={
+                server ? () => openOnServer('editor') : handleOpenInEditor
+              }
+            >
               <Code className="mr-2 h-4 w-4" />
               Open in {getEditorLabel(preferences?.editor)}
             </DropdownMenuItem>
           )}
 
-          {canOpenInFinder(worktree.serverId) && (
-            <DropdownMenuItem onClick={handleOpenInFinder}>
-              <FolderOpen className="mr-2 h-4 w-4" />
-              Open in Finder
-            </DropdownMenuItem>
-          )}
+          {canOpenInFinder(worktree.serverId) &&
+            (!server || canOpenServerInFinder(server, worktree.serverId)) && (
+              <DropdownMenuItem
+                onClick={
+                  server ? () => openOnServer('finder') : handleOpenInFinder
+                }
+              >
+                <FolderOpen className="mr-2 h-4 w-4" />
+                Open in Finder
+              </DropdownMenuItem>
+            )}
 
           {canOpenInTerminal() && (
-            <DropdownMenuItem onClick={handleOpenInTerminal}>
+            <DropdownMenuItem
+              onClick={
+                server ? () => openOnServer('terminal') : handleOpenInTerminal
+              }
+            >
               <Terminal className="mr-2 h-4 w-4" />
               Open in {getTerminalLabel(preferences?.terminal)}
             </DropdownMenuItem>

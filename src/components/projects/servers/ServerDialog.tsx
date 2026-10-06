@@ -10,9 +10,13 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
+import { isNativeApp } from '@/lib/environment'
 import { parseOptionalSshPort } from '@/lib/remote-connections'
+import { useServerConnectionSnapshots } from '@/lib/server-connections'
 import { useSaveServerProject } from '@/services/projects'
 import type { Project } from '@/types/projects'
+import { LOCAL_SERVER_ID } from '@/types/server-resource'
 
 interface ServerDialogProps {
   open: boolean
@@ -45,11 +49,18 @@ function ServerForm({
   onDone: () => void
 }) {
   const saveServer = useSaveServerProject()
+  const snapshots = useServerConnectionSnapshots()
+  // The Jean that stores a new server runs its sessions with its own backends.
+  const jeans = [...snapshots.values()].filter(
+    snapshot => snapshot.status === 'local' || snapshot.status === 'online'
+  )
+  const showRunFrom = !project && isNativeApp() && jeans.length > 1
   const [form, setForm] = useState({
     name: project?.name ?? '',
     user: project?.server?.user ?? '',
     host: project?.server?.host ?? '',
     port: project?.server?.port ? String(project.server.port) : '',
+    runFrom: LOCAL_SERVER_ID as string,
   })
   const [error, setError] = useState<string | null>(null)
 
@@ -73,8 +84,8 @@ function ServerForm({
           host: form.host.trim(),
           user: form.user.trim() || null,
           port: port ?? null,
-          jean_connection_id: project?.server?.jean_connection_id ?? null,
         },
+        serverId: form.runFrom,
       },
       { onSuccess: onDone }
     )
@@ -139,7 +150,35 @@ function ServerForm({
             placeholder="22"
           />
         </div>
+        {showRunFrom && (
+          <div className="space-y-1.5">
+            <Label htmlFor="server-run-from">Run from</Label>
+            <NativeSelect
+              id="server-run-from"
+              className="w-full"
+              value={form.runFrom}
+              onChange={event => update('runFrom')(event.target.value)}
+            >
+              {jeans.map(snapshot => (
+                <NativeSelectOption
+                  key={snapshot.serverId}
+                  value={snapshot.serverId}
+                >
+                  {snapshot.serverId === LOCAL_SERVER_ID
+                    ? 'This computer'
+                    : snapshot.name}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
+        )}
       </div>
+      {showRunFrom && (
+        <p className="text-xs text-muted-foreground">
+          The Jean you pick stores the server, connects with its own SSH keys,
+          and runs the chat with its own AI backends.
+        </p>
+      )}
       {error && <p className="text-sm text-destructive">{error}</p>}
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onDone}>

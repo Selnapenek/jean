@@ -873,7 +873,7 @@ const WorktreeSectionHeader = memo(function WorktreeSectionHeader({
             )}
             {sessionMetrics.yoloCount > 0 && (
               <span className="rounded bg-destructive/10 px-2 py-0.5 text-destructive">
-                {sessionMetrics.yoloCount} yolo
+                {sessionMetrics.yoloCount} full access
               </span>
             )}
             {sessionMetrics.reviewCount > 0 && (

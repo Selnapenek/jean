@@ -67,21 +67,25 @@ fn normalize_server(mut server: ProjectServer) -> Result<ProjectServer, String> 
     Ok(server)
 }
 
-fn server_scratch_dir(app: &AppHandle, project_id: &str) -> Result<std::path::PathBuf, String> {
-    let dir = app
+/// `<app-data>/servers/<project-id>`: the local working folder of a server.
+fn server_scratch_path(app: &AppHandle, project_id: &str) -> Result<std::path::PathBuf, String> {
+    Ok(app
         .path()
         .app_data_dir()
         .map_err(|e| format!("Failed to get app data dir: {e}"))?
         .join("servers")
-        .join(project_id);
+        .join(project_id))
+}
+
+fn server_scratch_dir(app: &AppHandle, project_id: &str) -> Result<std::path::PathBuf, String> {
+    let dir = server_scratch_path(app, project_id)?;
     std::fs::create_dir_all(&dir).map_err(|e| format!("Failed to create server folder: {e}"))?;
     Ok(dir)
 }
 
 /// Create or update a server project.
 ///
-/// Lookup order: `project_id`, then the mirrored `jean_connection_id`.
-/// A new server also gets its base worktree so it can open a session at once.
+/// Updates the server with `project_id`, or creates a new one. A new server also gets its base worktree so it can open a session at once.
 pub async fn save_server_project(
     app: AppHandle,
     project_id: Option<String>,
@@ -99,20 +103,7 @@ pub async fn save_server_project(
     };
 
     let mut data = load_projects_data(&app)?;
-    let existing_id = project_id
-        .filter(|id| data.find_project(id).is_some())
-        .or_else(|| {
-            let connection_id = server.jean_connection_id.as_deref()?;
-            data.projects
-                .iter()
-                .find(|p| {
-                    p.server
-                        .as_ref()
-                        .and_then(|s| s.jean_connection_id.as_deref())
-                        == Some(connection_id)
-                })
-                .map(|p| p.id.clone())
-        });
+    let existing_id = project_id.filter(|id| data.find_project(id).is_some());
 
     if let Some(id) = existing_id {
         let project = data
@@ -243,9 +234,12 @@ pub async fn remove_server_project(app: AppHandle, project_id: String) -> Result
     for worktree_id in worktree_ids {
         super::close_base_session_clean(app.clone(), worktree_id).await?;
     }
-    super::remove_project(app.clone(), project_id).await?;
-    if !project.path.is_empty() {
-        let _ = std::fs::remove_dir_all(&project.path);
+    super::remove_project(app.clone(), project_id.clone()).await?;
+    // Delete only Jean's own scratch folder, never any other path.
+    if let Ok(scratch) = server_scratch_path(&app, &project_id) {
+        if std::path::Path::new(&project.path) == scratch {
+            let _ = std::fs::remove_dir_all(&scratch);
+        }
     }
     Ok(())
 }

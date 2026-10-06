@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Pencil, Plus, Server, Shield, Trash2 } from '@/components/icons/reicon'
 import {
@@ -24,12 +24,27 @@ import { openServerProject, useRemoveServerProject } from '@/services/projects'
 import { useProjectsStore } from '@/store/projects-store'
 import { useUIStore } from '@/store/ui-store'
 import { formatServerTarget, type Project } from '@/types/projects'
+import { LOCAL_SERVER_ID } from '@/types/server-resource'
+import { projectServerId } from '../server-filter'
 import { ServerDialog } from './ServerDialog'
 import { ServerUserSetupDialog } from './ServerUserSetupDialog'
 
-/** The built-in local server: this computer (native) or the Jean server host (Web Access). */
-function localServerLabel(): string {
-  return isNativeApp() ? 'This computer' : 'Jean server'
+/**
+ * Subtitle of a server row. A Jean's own machine runs without SSH: this
+ * computer in the native app, a Jean server otherwise. SSH servers show their
+ * target and, in the native app, the Jean that runs them.
+ */
+function serverSubtitle(project: Project): string {
+  const owner = projectServerId(project)
+  const remoteOwner =
+    owner !== LOCAL_SERVER_ID ? (project.serverName ?? 'remote Jean') : null
+  if (project.server?.local) {
+    return owner === LOCAL_SERVER_ID && isNativeApp()
+      ? 'This computer · no SSH'
+      : 'Jean server · no SSH'
+  }
+  const target = project.server ? formatServerTarget(project.server) : ''
+  return remoteOwner ? `${target} · via ${remoteOwner}` : target
 }
 
 /** No user means the ssh default, often root. */
@@ -40,7 +55,7 @@ function usesAdminUser(project: Project): boolean {
 }
 
 interface ServersListProps {
-  /** Server projects only */
+  /** Server projects only, already sorted (see serverProjectsForView) */
   servers: Project[]
 }
 
@@ -55,14 +70,6 @@ export function ServersList({ servers }: ServersListProps) {
   const [dialog, setDialog] = useState<{ project?: Project } | null>(null)
   const [removing, setRemoving] = useState<Project | null>(null)
   const [settingUp, setSettingUp] = useState<Project | null>(null)
-  // Local first; it is built in (no SSH), so it has no row actions.
-  const sortedServers = useMemo(
-    () =>
-      [...servers].sort(
-        (a, b) => Number(!!b.server?.local) - Number(!!a.server?.local)
-      ),
-    [servers]
-  )
 
   const handleOpen = useCallback(
     (project: Project) => {
@@ -76,7 +83,7 @@ export function ServersList({ servers }: ServersListProps) {
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
       <div className="flex items-center justify-between px-3 pb-1 pt-2">
         <span className="text-xs text-muted-foreground">
-          SSH servers, managed by chat
+          Jean machines and SSH servers
         </span>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -102,7 +109,7 @@ export function ServersList({ servers }: ServersListProps) {
         </div>
       ) : (
         <ul className="flex flex-col gap-px px-1.5 pb-2">
-          {sortedServers.map(project => {
+          {servers.map(project => {
             return (
               <li key={project.id} className="group relative">
                 <button
@@ -117,10 +124,7 @@ export function ServersList({ servers }: ServersListProps) {
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate text-sm">{project.name}</span>
                     <span className="truncate text-[0.6875rem] text-muted-foreground">
-                      {project.server?.local
-                        ? `${localServerLabel()} · no SSH`
-                        : project.server && formatServerTarget(project.server)}
-                      {project.server?.jean_connection_id && ' · Jean'}
+                      {serverSubtitle(project)}
                     </span>
                     {usesAdminUser(project) && (
                       <span className="truncate text-[0.6875rem] text-amber-600 dark:text-amber-500">
@@ -180,8 +184,9 @@ export function ServersList({ servers }: ServersListProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Remove {removing?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This deletes the server entry and all its chat sessions. Nothing
-              changes on the server itself.
+              This deletes the server entry and its chat sessions only. Your
+              projects, worktrees and other servers stay. Nothing changes on the
+              server itself.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

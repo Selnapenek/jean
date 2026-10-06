@@ -169,7 +169,7 @@ export const statusConfig: Record<
     indicatorStatus: 'running',
   },
   yoloing: {
-    label: 'Yoloing',
+    label: 'Full access',
     indicatorStatus: 'running',
   },
   reviewing: {

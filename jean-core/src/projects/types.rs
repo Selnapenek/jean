@@ -30,7 +30,8 @@ pub struct ProjectServer {
     pub user: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub port: Option<u16>,
-    /// Jean remote connection this server mirrors (None = added by hand)
+    /// Legacy: set on old copies of Jean remote connections, which the app now
+    /// deletes (a jean-server shows its own local entry instead)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub jean_connection_id: Option<String>,
     /// The machine Jean runs on: commands run directly, without SSH

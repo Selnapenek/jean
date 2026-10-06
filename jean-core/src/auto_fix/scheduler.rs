@@ -1350,7 +1350,7 @@ fn spawn_auto_yolo_start(app: AppHandle, entry: PendingAutoYolo) {
                 record_project_error(
                     &entry.project_id,
                     format!(
-                        "Gave up auto-yolo for session {} after {AUTO_FIX_MAX_ATTEMPTS} attempts: {err}",
+                        "Gave up running the plan with Full access for session {} after {AUTO_FIX_MAX_ATTEMPTS} attempts: {err}",
                         entry.session_id
                     ),
                 );

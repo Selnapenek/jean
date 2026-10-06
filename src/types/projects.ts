@@ -94,7 +94,7 @@ export interface ProjectServer {
   host: string
   user?: string | null
   port?: number | null
-  /** Jean remote connection this server mirrors (undefined = added by hand) */
+  /** Legacy: old copy of a Jean remote connection (deleted by the app) */
   jean_connection_id?: string | null
   /** The machine Jean runs on: commands run directly, without SSH */
   local?: boolean

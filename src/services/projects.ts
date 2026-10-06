@@ -3598,13 +3598,18 @@ export interface SaveServerProjectInput {
   projectId?: string
   name: string
   server: ProjectServer
+  /** Jean that stores a new server and runs its sessions (undefined = this one) */
+  serverId?: string
 }
 
-/** Saved on the Jean you are on (native core, or the Web Access origin). */
-export function saveServerProject(
-  input: SaveServerProjectInput
-): Promise<Project> {
-  return invoke<Project>('save_server_project', { ...input })
+export function saveServerProject({
+  serverId,
+  ...input
+}: SaveServerProjectInput): Promise<Project> {
+  // An existing projectId already routes to its owning Jean.
+  return input.projectId || !serverId || serverId === LOCAL_SERVER_ID
+    ? invoke<Project>('save_server_project', { ...input })
+    : invokeForServer<Project>(serverId, 'save_server_project', { ...input })
 }
 
 /**
@@ -3633,9 +3638,13 @@ export function useSaveServerProject() {
   })
 }
 
-/** Create the built-in "Local" server on this Jean (no-op when it exists). */
-export function ensureLocalServerProject(): Promise<Project> {
-  return invoke<Project>('ensure_local_server_project')
+/** Create the built-in local server entry on a Jean (no-op when it exists). */
+export function ensureLocalServerProject(
+  serverId: string = LOCAL_SERVER_ID
+): Promise<Project> {
+  return serverId === LOCAL_SERVER_ID
+    ? invoke<Project>('ensure_local_server_project')
+    : invokeForServer<Project>(serverId, 'ensure_local_server_project')
 }
 
 export interface SshPublicKey {

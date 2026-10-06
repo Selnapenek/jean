@@ -33,12 +33,11 @@ import {
 import {
   ensureLocalServerProject,
   invalidateProjectLists,
-  saveServerProject,
   useCreateFolder,
   useProjects,
 } from '@/services/projects'
-import { useRemoteConnections } from '@/lib/remote-connections'
 import { logger } from '@/lib/logger'
+import { invoke } from '@/lib/transport'
 import { isServerProject, type Project } from '@/types/projects'
 import { LOCAL_SERVER_ID } from '@/types/server-resource'
 import { useProjectsStore } from '@/store/projects-store'
@@ -48,9 +47,10 @@ import { ProjectTree } from './ProjectTree'
 import { RecentWorktreesList } from './RecentWorktreesList'
 import { ServersList } from './servers/ServersList'
 import {
-  jeanConnectionServerUpdates,
-  ownServerProjects,
-} from './servers/jean-connection-servers'
+  jeansWithoutLocalEntry,
+  legacyConnectionCopies,
+  serverProjectsForView,
+} from './servers/servers-view'
 import { useInstalledBackends } from '@/hooks/useInstalledBackends'
 import { scheduleIdleWork } from '@/lib/idle'
 import { isNativeApp } from '@/lib/environment'
@@ -73,58 +73,57 @@ function closeMobileSidebarIfNeeded(isMobile: boolean) {
 }
 
 /**
- * Native only: keep a local server project for every Jean remote connection,
- * so jean-server hosts also show in the Servers tab.
+ * Each Jean shows its own machine in the Servers tab (no SSH). Create that
+ * entry on this Jean, and in the native app on every connected jean-server.
+ * Also delete old SSH copies of remote connections once: the jean-server's own
+ * entry replaces them.
  */
-function useMirrorJeanConnectionsAsServers(
-  projects: Project[],
-  ready: boolean
-) {
+function useServerEntries(projects: Project[], ready: boolean) {
   const queryClient = useQueryClient()
-  const connections = useRemoteConnections()
-  const synced = useRef(new Set<string>())
-
-  useEffect(() => {
-    if (!ready || !isNativeApp()) return
-    const updates = jeanConnectionServerUpdates(connections, projects).filter(
-      update => {
-        const key = JSON.stringify(update)
-        if (synced.current.has(key)) return false
-        synced.current.add(key)
-        return true
-      }
-    )
-    if (updates.length === 0) return
-    void Promise.all(updates.map(saveServerProject))
-      .then(() => invalidateProjectLists(queryClient))
-      .catch(error =>
-        logger.warn('Failed to mirror remote connections as servers', { error })
-      )
-  }, [connections, projects, ready, queryClient])
-}
-
-/**
- * The machine this Jean runs on (native app, or the serving origin in Web
- * Access) is always in the Servers list as "Local".
- */
-function useEnsureLocalServer(projects: Project[], ready: boolean) {
-  const queryClient = useQueryClient()
-  const requested = useRef(false)
-  const hasLocal = projects.some(
-    project =>
-      (project.serverId ?? LOCAL_SERVER_ID) === LOCAL_SERVER_ID &&
-      !!project.server?.local
+  const snapshots = useServerConnectionSnapshots()
+  const requested = useRef(new Set<string>())
+  const jeanIds = useMemo(
+    () =>
+      isNativeApp()
+        ? [...snapshots.values()]
+            .filter(
+              snapshot =>
+                snapshot.status === 'local' || snapshot.status === 'online'
+            )
+            .map(snapshot => snapshot.serverId)
+        : [LOCAL_SERVER_ID],
+    [snapshots]
   )
 
   useEffect(() => {
-    if (!ready || hasLocal || requested.current) return
-    requested.current = true
-    ensureLocalServerProject()
-      .then(() => invalidateProjectLists(queryClient))
-      .catch(error =>
-        logger.warn('Failed to create the local server', { error })
-      )
-  }, [hasLocal, ready, queryClient])
+    if (!ready) return
+    const once = (key: string) => {
+      if (requested.current.has(key)) return false
+      requested.current.add(key)
+      return true
+    }
+    const tasks = [
+      ...jeansWithoutLocalEntry(jeanIds, projects)
+        .filter(jeanId => once(`local:${jeanId}`))
+        .map(jeanId => ensureLocalServerProject(jeanId)),
+      ...legacyConnectionCopies(projects)
+        .filter(project => once(`remove:${project.id}`))
+        .map(project =>
+          invoke('remove_server_project', { projectId: project.id })
+        ),
+    ]
+    if (tasks.length === 0) return
+    void Promise.allSettled(tasks).then(results => {
+      invalidateProjectLists(queryClient)
+      for (const result of results) {
+        if (result.status === 'rejected') {
+          logger.warn('Failed to update server entries', {
+            error: result.reason,
+          })
+        }
+      }
+    })
+  }, [jeanIds, projects, ready, queryClient])
 }
 
 export function ProjectsSidebar() {
@@ -136,8 +135,7 @@ export function ProjectsSidebar() {
     error,
     refetch,
   } = useProjects()
-  useMirrorJeanConnectionsAsServers(projects, isSuccess)
-  useEnsureLocalServer(projects, isSuccess)
+  useServerEntries(projects, isSuccess)
   const setAddProjectDialogOpen = useProjectsStore(
     state => state.setAddProjectDialogOpen
   )
@@ -174,7 +172,10 @@ export function ProjectsSidebar() {
     () => visibleProjects.filter(project => !isServerProject(project)),
     [visibleProjects]
   )
-  const serverProjects = useMemo(() => ownServerProjects(projects), [projects])
+  const serverProjects = useMemo(
+    () => serverProjectsForView(projects),
+    [projects]
+  )
   useEffect(() => {
     if (serverFilter !== ALL_SERVERS && !serverIds.includes(serverFilter)) {
       setServerFilter(ALL_SERVERS)

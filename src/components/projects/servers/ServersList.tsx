@@ -18,34 +18,13 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { isNativeApp } from '@/lib/environment'
 import { cn } from '@/lib/utils'
 import { openServerProject, useRemoveServerProject } from '@/services/projects'
 import { useProjectsStore } from '@/store/projects-store'
 import { useUIStore } from '@/store/ui-store'
-import { formatServerTarget, type Project } from '@/types/projects'
-import { LOCAL_SERVER_ID } from '@/types/server-resource'
-import { projectServerId } from '../server-filter'
-import { ServerDialog } from './ServerDialog'
+import type { Project } from '@/types/projects'
 import { ServerUserSetupDialog } from './ServerUserSetupDialog'
-
-/**
- * Subtitle of a server row. A Jean's own machine runs without SSH: this
- * computer in the native app, a Jean server otherwise. SSH servers show their
- * target and, in the native app, the Jean that runs them.
- */
-function serverSubtitle(project: Project): string {
-  const owner = projectServerId(project)
-  const remoteOwner =
-    owner !== LOCAL_SERVER_ID ? (project.serverName ?? 'remote Jean') : null
-  if (project.server?.local) {
-    return owner === LOCAL_SERVER_ID && isNativeApp()
-      ? 'This computer · no SSH'
-      : 'Jean server · no SSH'
-  }
-  const target = project.server ? formatServerTarget(project.server) : ''
-  return remoteOwner ? `${target} · via ${remoteOwner}` : target
-}
+import { serverSubtitle } from './servers-view'
 
 /** No user means the ssh default, often root. */
 function usesAdminUser(project: Project): boolean {
@@ -67,7 +46,6 @@ export function ServersList({ servers }: ServersListProps) {
   const isMobile = useIsMobile()
   const selectedProjectId = useProjectsStore(state => state.selectedProjectId)
   const removeServer = useRemoveServerProject()
-  const [dialog, setDialog] = useState<{ project?: Project } | null>(null)
   const [removing, setRemoving] = useState<Project | null>(null)
   const [settingUp, setSettingUp] = useState<Project | null>(null)
 
@@ -77,6 +55,15 @@ export function ServersList({ servers }: ServersListProps) {
       if (isMobile) useUIStore.getState().setLeftSidebarVisible(false)
     },
     [isMobile, queryClient]
+  )
+
+  // The dialog lives outside the sidebar, so the mobile drawer can close.
+  const openServerDialog = useCallback(
+    (project?: Project) => {
+      if (isMobile) useUIStore.getState().setLeftSidebarVisible(false)
+      useProjectsStore.getState().setServerDialog({ project })
+    },
+    [isMobile]
   )
 
   return (
@@ -90,7 +77,7 @@ export function ServersList({ servers }: ServersListProps) {
             <button
               type="button"
               className={cn(iconButtonClass, 'size-8 rounded-md')}
-              onClick={() => setDialog({})}
+              onClick={() => openServerDialog()}
               aria-label="Add server"
             >
               <Plus className="size-3.5" />
@@ -103,7 +90,11 @@ export function ServersList({ servers }: ServersListProps) {
         <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
           <Server className="size-5 text-muted-foreground/60" />
           <span className="text-sm text-muted-foreground">No servers yet</span>
-          <Button size="sm" variant="outline" onClick={() => setDialog({})}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => openServerDialog()}
+          >
             Add server
           </Button>
         </div>
@@ -147,7 +138,7 @@ export function ServersList({ servers }: ServersListProps) {
                     <button
                       type="button"
                       className={iconButtonClass}
-                      onClick={() => setDialog({ project })}
+                      onClick={() => openServerDialog(project)}
                       aria-label={`Edit ${project.name}`}
                     >
                       <Pencil className="size-3" />
@@ -167,11 +158,6 @@ export function ServersList({ servers }: ServersListProps) {
           })}
         </ul>
       )}
-      <ServerDialog
-        open={dialog !== null}
-        onOpenChange={open => !open && setDialog(null)}
-        project={dialog?.project}
-      />
       <ServerUserSetupDialog
         project={settingUp}
         onOpenChange={open => !open && setSettingUp(null)}

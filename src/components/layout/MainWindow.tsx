@@ -118,6 +118,11 @@ const AddProjectDialog = lazy(() =>
     default: mod.AddProjectDialog,
   }))
 )
+const GlobalServerDialog = lazy(() =>
+  import('@/components/projects/servers/ServerDialog').then(mod => ({
+    default: mod.GlobalServerDialog,
+  }))
+)
 const GitInitModal = lazy(() =>
   import('@/components/projects/GitInitModal').then(mod => ({
     default: mod.GitInitModal,
@@ -283,6 +288,9 @@ export function MainWindow() {
   const selectedWorktreeId = useProjectsStore(state => state.selectedWorktreeId)
   const addProjectDialogOpen = useProjectsStore(
     state => state.addProjectDialogOpen
+  )
+  const serverDialogOpen = useProjectsStore(
+    state => state.serverDialog !== null
   )
   const projectSettingsDialogOpen = useProjectsStore(
     state => state.projectSettingsDialogOpen
@@ -534,6 +542,7 @@ export function MainWindow() {
   const shouldRenderReleaseNotesDialog = useRetainedMount(releaseNotesModalOpen)
   const shouldRenderNewWorktreeModal = useRetainedMount(newWorktreeModalOpen)
   const shouldRenderAddProjectDialog = useRetainedMount(addProjectDialogOpen)
+  const shouldRenderServerDialog = useRetainedMount(serverDialogOpen)
   const shouldRenderGitInitModal = useRetainedMount(gitInitModalOpen)
   const shouldRenderCloneProjectModal = useRetainedMount(cloneModalOpen)
   const shouldRenderArchivedModal = useRetainedMount(archivedModalOpen)
@@ -819,6 +828,11 @@ export function MainWindow() {
       {shouldRenderAddProjectDialog && (
         <Suspense fallback={null}>
           <AddProjectDialog />
+        </Suspense>
+      )}
+      {shouldRenderServerDialog && (
+        <Suspense fallback={null}>
+          <GlobalServerDialog />
         </Suspense>
       )}
       {shouldRenderGitInitModal && (

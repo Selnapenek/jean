@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   BellDot,
   Plus,
+  Server,
   Thumbtack,
 } from '@/components/icons/reicon'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -183,6 +184,13 @@ export function RecentWorktreesList({
         }).tone === 'working'
     )
   }, [pinned, rows, showSnoozed, sendingSessionIds, waitingForInputSessionIds])
+  const serverProjectIds = useMemo(
+    () =>
+      new Set(
+        projects.filter(project => !!project.server).map(project => project.id)
+      ),
+    [projects]
+  )
   const recentProjectKey = useMemo(
     () => [...new Set(rows.map(row => row.projectId))].sort().join('\0'),
     [rows]
@@ -389,6 +397,7 @@ export function RecentWorktreesList({
             const isWorking = status.tone === 'working'
             const isUnread = isUnreadSession(row.session)
             const isPinned = pinned.has(row.session.id)
+            const isServer = serverProjectIds.has(row.projectId)
             const showPinnedSeparator =
               !isPinned &&
               index > 0 &&
@@ -444,7 +453,7 @@ export function RecentWorktreesList({
                     }}
                     type="button"
                     aria-current={isCurrent ? 'page' : undefined}
-                    aria-label={`${row.session.name}, ${row.projectName}, ${row.worktree.name}, ${status.label}${isUnread ? ', unread' : ''}, ${activityLabel}`}
+                    aria-label={`${row.session.name}, ${isServer ? 'server ' : ''}${row.projectName}, ${row.worktree.name}, ${status.label}${isUnread ? ', unread' : ''}, ${activityLabel}`}
                     className="flex w-full flex-col gap-y-1 text-left focus-visible:outline-none"
                   >
                     <span className="flex items-center gap-2">
@@ -472,8 +481,19 @@ export function RecentWorktreesList({
                       </span>
                     </span>
                     <span className="flex items-center gap-2">
-                      <span className="min-w-0 flex-1 truncate text-[11px]">
-                        {row.projectName} · {row.worktree.name}
+                      <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[11px]">
+                        {isServer && (
+                          <span
+                            aria-hidden="true"
+                            className="flex shrink-0 items-center gap-0.5 rounded bg-muted px-1 py-px text-[10px] font-medium text-muted-foreground"
+                          >
+                            <Server className="size-2.5" />
+                            Server
+                          </span>
+                        )}
+                        <span className="min-w-0 truncate">
+                          {row.projectName} · {row.worktree.name}
+                        </span>
                       </span>
                       <span className="flex shrink-0 items-center justify-end gap-2 text-[10px] tabular-nums">
                         {(row.added > 0 || row.removed > 0) && (

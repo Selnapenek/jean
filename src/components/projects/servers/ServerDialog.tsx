@@ -15,6 +15,7 @@ import { isNativeApp } from '@/lib/environment'
 import { parseOptionalSshPort } from '@/lib/remote-connections'
 import { useServerConnectionSnapshots } from '@/lib/server-connections'
 import { useSaveServerProject } from '@/services/projects'
+import { useProjectsStore } from '@/store/projects-store'
 import type { Project } from '@/types/projects'
 import { LOCAL_SERVER_ID } from '@/types/server-resource'
 
@@ -38,6 +39,23 @@ export function ServerDialog({
         )}
       </DialogContent>
     </Dialog>
+  )
+}
+
+/**
+ * Add/edit server dialog driven by the projects store. Mounted in MainWindow,
+ * outside the sidebar, so it stays open when the mobile drawer closes.
+ */
+export function GlobalServerDialog() {
+  const serverDialog = useProjectsStore(state => state.serverDialog)
+  return (
+    <ServerDialog
+      open={serverDialog !== null}
+      onOpenChange={open =>
+        !open && useProjectsStore.getState().setServerDialog(null)
+      }
+      project={serverDialog?.project}
+    />
   )
 }
 

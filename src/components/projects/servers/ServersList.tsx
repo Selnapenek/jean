@@ -1,6 +1,13 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Pencil, Plus, Server, Shield, Trash2 } from '@/components/icons/reicon'
+import {
+  ChevronDown,
+  ChevronUp,
+  Pencil,
+  Server,
+  Shield,
+  Trash2,
+} from '@/components/icons/reicon'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,12 +18,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { openServerProject, useRemoveServerProject } from '@/services/projects'
@@ -25,6 +26,11 @@ import { useUIStore } from '@/store/ui-store'
 import type { Project } from '@/types/projects'
 import { ServerUserSetupDialog } from './ServerUserSetupDialog'
 import { serverSubtitle } from './servers-view'
+import {
+  SECTION_HEADER_CLASS,
+  SECTION_LABEL_CLASS,
+  SECTION_TOGGLE_CLASS,
+} from '../section-header'
 
 /** No user means the ssh default, often root. */
 function usesAdminUser(project: Project): boolean {
@@ -36,18 +42,32 @@ function usesAdminUser(project: Project): boolean {
 interface ServersListProps {
   /** Server projects only, already sorted (see serverProjectsForView) */
   servers: Project[]
+  /** Shared search text of the Projects view */
+  searchQuery: string
 }
 
 const iconButtonClass =
   'flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
 
-export function ServersList({ servers }: ServersListProps) {
+/** Servers section at the top of the Projects view. */
+export function ServersList({ servers, searchQuery }: ServersListProps) {
   const queryClient = useQueryClient()
   const isMobile = useIsMobile()
   const selectedProjectId = useProjectsStore(state => state.selectedProjectId)
   const removeServer = useRemoveServerProject()
   const [removing, setRemoving] = useState<Project | null>(null)
   const [settingUp, setSettingUp] = useState<Project | null>(null)
+  const [collapsed, setCollapsed] = useState(false)
+
+  const filteredServers = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    if (!query) return servers
+    return servers.filter(
+      project =>
+        project.name.toLowerCase().includes(query) ||
+        serverSubtitle(project).toLowerCase().includes(query)
+    )
+  }, [servers, searchQuery])
 
   const handleOpen = useCallback(
     (project: Project) => {
@@ -66,100 +86,100 @@ export function ServersList({ servers }: ServersListProps) {
     [isMobile]
   )
 
+  const showServers = collapsed === false || Boolean(searchQuery)
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
-      <div className="flex items-center justify-between px-3 pb-1 pt-2">
-        <span className="text-xs text-muted-foreground">
-          Jean machines and SSH servers
-        </span>
-        <Tooltip>
-          <TooltipTrigger asChild>
+    <>
+      {/* Nothing to show: the Add server action is in the Projects "+" menu */}
+      {filteredServers.length > 0 && (
+        <div className="py-1">
+          <div className={SECTION_HEADER_CLASS}>
+            <span className={SECTION_LABEL_CLASS}>Servers</span>
             <button
               type="button"
-              className={cn(iconButtonClass, 'size-8 rounded-md')}
-              onClick={() => openServerDialog()}
-              aria-label="Add server"
+              className={SECTION_TOGGLE_CLASS}
+              onClick={() => setCollapsed(value => !value)}
+              aria-label={showServers ? 'Hide servers' : 'Show servers'}
+              aria-expanded={showServers}
+              disabled={Boolean(searchQuery)}
             >
-              <Plus className="size-3.5" />
+              {showServers ? (
+                <ChevronUp className="size-3.5" />
+              ) : (
+                <ChevronDown className="size-3.5" />
+              )}
             </button>
-          </TooltipTrigger>
-          <TooltipContent>Add server</TooltipContent>
-        </Tooltip>
-      </div>
-      {servers.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
-          <Server className="size-5 text-muted-foreground/60" />
-          <span className="text-sm text-muted-foreground">No servers yet</span>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => openServerDialog()}
-          >
-            Add server
-          </Button>
-        </div>
-      ) : (
-        <ul className="flex flex-col gap-px px-1.5 pb-2">
-          {servers.map(project => {
-            return (
-              <li key={project.id} className="group relative">
-                <button
-                  type="button"
-                  onClick={() => handleOpen(project)}
-                  className={cn(
-                    'flex w-full items-center gap-2 rounded-md px-2 py-1.5 pr-20 text-left transition-colors hover:bg-muted/50',
-                    selectedProjectId === project.id && 'bg-muted'
-                  )}
-                >
-                  <Server className="size-3.5 shrink-0 text-muted-foreground" />
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-sm">{project.name}</span>
-                    <span className="truncate text-[0.6875rem] text-muted-foreground">
-                      {serverSubtitle(project)}
-                    </span>
-                    {usesAdminUser(project) && (
-                      <span className="truncate text-[0.6875rem] text-amber-600 dark:text-amber-500">
-                        Uses root · set up a restricted user
+          </div>
+          {showServers && (
+            <ul className="flex flex-col gap-px px-1.5 pb-1">
+              {filteredServers.map(project => {
+                return (
+                  <li key={project.id} className="group relative">
+                    <button
+                      type="button"
+                      onClick={() => handleOpen(project)}
+                      className={cn(
+                        'flex w-full items-center gap-2 rounded-md px-2 py-1.5 pr-20 text-left transition-colors hover:bg-muted/50',
+                        selectedProjectId === project.id && 'bg-muted'
+                      )}
+                    >
+                      <Server className="size-3.5 shrink-0 text-muted-foreground" />
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-sm">{project.name}</span>
+                        <span className="truncate text-[0.6875rem] text-muted-foreground">
+                          {serverSubtitle(project)}
+                        </span>
+                        {usesAdminUser(project) && (
+                          <span className="truncate text-[0.6875rem] text-amber-600 dark:text-amber-500">
+                            Uses root · set up a restricted user
+                          </span>
+                        )}
                       </span>
-                    )}
-                  </span>
-                </button>
-                <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-                  {!project.server?.local && (
-                    <button
-                      type="button"
-                      className={iconButtonClass}
-                      onClick={() => setSettingUp(project)}
-                      aria-label={`Set up restricted user on ${project.name}`}
-                      title="Set up restricted user"
-                    >
-                      <Shield className="size-3" />
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    className={iconButtonClass}
-                    onClick={() => openServerDialog(project)}
-                    aria-label={`Edit ${project.name}`}
-                  >
-                    <Pencil className="size-3" />
-                  </button>
-                  {/* The built-in local entry cannot be removed. */}
-                  {!project.server?.local && (
-                    <button
-                      type="button"
-                      className={iconButtonClass}
-                      onClick={() => setRemoving(project)}
-                      aria-label={`Remove ${project.name}`}
+                    {/* Touch devices cannot hover, so keep actions visible there. */}
+                    <div
+                      className={cn(
+                        'absolute right-1.5 top-1/2 flex -translate-y-1/2 gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100',
+                        isMobile && 'opacity-100'
+                      )}
                     >
-                      <Trash2 className="size-3" />
-                    </button>
-                  )}
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+                      {!project.server?.local && (
+                        <button
+                          type="button"
+                          className={iconButtonClass}
+                          onClick={() => setSettingUp(project)}
+                          aria-label={`Set up restricted user on ${project.name}`}
+                          title="Set up restricted user"
+                        >
+                          <Shield className="size-3" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className={iconButtonClass}
+                        onClick={() => openServerDialog(project)}
+                        aria-label={`Edit ${project.name}`}
+                      >
+                        <Pencil className="size-3" />
+                      </button>
+                      {/* The built-in local entry cannot be removed. */}
+                      {!project.server?.local && (
+                        <button
+                          type="button"
+                          className={iconButtonClass}
+                          onClick={() => setRemoving(project)}
+                          aria-label={`Remove ${project.name}`}
+                        >
+                          <Trash2 className="size-3" />
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
       )}
       <ServerUserSetupDialog
         project={settingUp}
@@ -189,6 +209,6 @@ export function ServersList({ servers }: ServersListProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   )
 }

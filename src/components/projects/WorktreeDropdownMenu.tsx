@@ -41,7 +41,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
-import type { Worktree } from '@/types/projects'
+import type { Project, Worktree } from '@/types/projects'
 import { getEditorLabel, getTerminalLabel } from '@/types/preferences'
 import { ghCliQueryKeys, useGhCliAuth } from '@/services/gh-cli'
 import {
@@ -60,7 +60,6 @@ import {
 import { cn } from '@/lib/utils'
 import { usePatchPreferences } from '@/services/preferences'
 import { useProjectsStore } from '@/store/projects-store'
-import type { ProjectServer } from '@/types/projects'
 import {
   canOpenServerInFinder,
   openServerIn,
@@ -88,7 +87,7 @@ interface WorktreeDropdownMenuProps {
   packageScripts?: PackageScript[]
   onRunPackageScript?: (script: PackageScript) => void
   /** Server project (Servers tab): no git, GitHub, browser or project settings */
-  server?: ProjectServer | null
+  serverProject?: Project | null
 }
 
 const BADGE_STALE_TIME = 5 * 60 * 1000
@@ -107,8 +106,9 @@ export function WorktreeDropdownMenu({
   onToggleBrowser,
   packageScripts = [],
   onRunPackageScript,
-  server,
+  serverProject,
 }: WorktreeDropdownMenuProps) {
+  const server = serverProject?.server
   const isServer = !!server
   const queryClient = useQueryClient()
   const {
@@ -154,7 +154,10 @@ export function WorktreeDropdownMenu({
   // On native desktop the auth query runs in App.tsx; on web/mobile access it doesn't.
   // Trigger it here on mobile so counts populate without depending on cache.
   useGhCliAuth({ enabled: isMobile })
-  const authData = queryClient.getQueryData<GhAuthStatus>(ghCliQueryKeys.auth())
+  const authData = queryClient.getQueryData<GhAuthStatus>([
+    ...ghCliQueryKeys.auth(),
+    'local',
+  ])
   const isGitHubAuthenticated = authData?.authenticated ?? false
   const { data: issueResult } = useGitHubIssues(projectPath, 'open', {
     enabled: !isServer && (isGitHubAuthenticated || projectId.includes(':')),
@@ -214,6 +217,11 @@ export function WorktreeDropdownMenu({
     )
   }
 
+  const handleNewWorktree = useCallback(() => {
+    useProjectsStore.getState().selectProject(projectId)
+    useUIStore.getState().setNewWorktreeModalOpen(true)
+  }, [projectId])
+
   const handleOpenIssues = useCallback(() => {
     useProjectsStore.getState().selectProject(projectId)
     const { setNewWorktreeModalDefaultTab, setNewWorktreeModalOpen } =
@@ -264,6 +272,11 @@ export function WorktreeDropdownMenu({
           >
             <Plus className="mr-2 h-4 w-4" />
             New Session
+          </DropdownMenuItem>
+
+          <DropdownMenuItem onClick={handleNewWorktree}>
+            <GitBranch className="mr-2 h-4 w-4" />
+            New Worktree
           </DropdownMenuItem>
 
           {!isMobile && runScripts.length === 1 && (
@@ -356,6 +369,19 @@ export function WorktreeDropdownMenu({
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
             )}
+
+          {serverProject && (
+            <DropdownMenuItem
+              onClick={() =>
+                useProjectsStore
+                  .getState()
+                  .setServerDialog({ project: serverProject })
+              }
+            >
+              <Settings className="mr-2 h-4 w-4" />
+              Server Settings
+            </DropdownMenuItem>
+          )}
 
           {!isServer && (
             <>

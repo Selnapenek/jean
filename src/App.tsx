@@ -27,6 +27,9 @@ import { QuitConfirmationDialog } from '@/components/layout/QuitConfirmationDial
 import { setServerPlatform } from '@/lib/platform'
 import { projectsQueryKeys } from '@/services/projects'
 import { chatQueryKeys } from '@/services/chat'
+import { reconcileSessionsAfterReconnect } from '@/services/session-reconcile'
+import { serverConnectionManager } from '@/lib/server-connections'
+import { parseServerResourceKey } from '@/lib/server-resource'
 import { invalidateMcpServers } from '@/services/mcp'
 import { mergeWorktreesPreservingOptimistic } from '@/lib/worktree-list-cache'
 import type { Session, WorktreeSessions } from '@/types/chat'
@@ -103,6 +106,7 @@ import { peekWebReloadState, saveWebReloadState } from './lib/web-reload-state'
 import {
   clearConnectionSwitch,
   getActiveRemoteConnection,
+  getRemoteConnections,
   isConnectionSwitchPending,
 } from './lib/remote-connections'
 import { RemoteConnectionRecovery } from './components/remote/RemoteConnectionRecovery'
@@ -948,7 +952,23 @@ function App() {
       )
       queryClient.invalidateQueries()
     }
+
+    // Native desktop keeps its shell across remote socket drops, so a run
+    // that finished during the gap would stay "sending" (no reload resync).
+    if (isNativeApp()) void reconcileSessionsAfterReconnect(queryClient)
   }, [wsConnected, queryClient, webBackend])
+
+  // Same resync for every enabled remote server in native multi-server mode.
+  useEffect(
+    () =>
+      serverConnectionManager.onRemoteReconnect(serverId => {
+        void reconcileSessionsAfterReconnect(
+          queryClient,
+          sessionId => parseServerResourceKey(sessionId)?.serverId === serverId
+        )
+      }),
+    [queryClient]
+  )
 
   // Add native-app class to body for desktop-only CSS (cursor, user-select, etc.)
   useEffect(() => {
@@ -1088,6 +1108,7 @@ function App() {
       onboardingDismissed: onboarding.onboardingDismissed,
       onboardingManuallyTriggered: onboarding.onboardingManuallyTriggered,
       requiresWslChoice,
+      hasRemoteServer: getRemoteConnections().length > 0,
     })
 
     if (action === 'wait' || action === 'none') return

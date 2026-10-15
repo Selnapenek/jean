@@ -1007,6 +1007,25 @@ export const SessionChatModal = memo(function SessionChatModal({
 
   if (!isOpen || !worktreeId) return null
 
+  const worktreeMenu = !zenMode && worktree && project && (
+    <WorktreeDropdownMenu
+      worktree={worktree}
+      projectId={project.id}
+      projectPath={project.path}
+      uncommittedAdded={uncommittedAdded}
+      uncommittedRemoved={uncommittedRemoved}
+      branchDiffAdded={isBase ? 0 : branchDiffAdded}
+      branchDiffRemoved={isBase ? 0 : branchDiffRemoved}
+      onUncommittedDiffClick={handleUncommittedDiffClick}
+      onBranchDiffClick={handleBranchDiffClick}
+      onToggleTerminal={handleToggleModalTerminal}
+      onToggleBrowser={isNativeApp() ? handleToggleModalBrowser : undefined}
+      packageScripts={packageScripts}
+      onRunPackageScript={handlePackageScript}
+      serverProject={project.server ? project : null}
+    />
+  )
+
   return (
     <>
       <div
@@ -1053,25 +1072,43 @@ export const SessionChatModal = memo(function SessionChatModal({
                 )}
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  <h2 className="text-sm font-medium min-w-0 flex-1 truncate">
-                    {project && !isMobile && (
-                      <span className="text-muted-foreground font-normal">
-                        <button
-                          type="button"
-                          className="hover:text-foreground transition-colors cursor-pointer text-foreground text-lg font-semibold"
-                          onClick={handleClose}
-                        >
-                          {project.name}
-                        </button>
-                        <span className="mx-1.5 text-muted-foreground/50">
-                          ›
-                        </span>
-                      </span>
+                  {/* Mobile: menu sits right after the title; the title truncates so git badges stay visible */}
+                  <div
+                    className={cn(
+                      isMobile ? 'flex min-w-0 items-center gap-2' : 'contents'
                     )}
-                    {isBase ? 'Base Session' : (worktree?.name ?? 'Worktree')}
-                  </h2>
+                  >
+                    <h2
+                      className={cn(
+                        'text-sm font-medium min-w-0 truncate',
+                        !isMobile && 'flex-1'
+                      )}
+                    >
+                      {project && !isMobile && (
+                        <span className="text-muted-foreground font-normal">
+                          <button
+                            type="button"
+                            className="hover:text-foreground transition-colors cursor-pointer text-foreground text-lg font-semibold"
+                            onClick={handleClose}
+                          >
+                            {project.name}
+                          </button>
+                          <span className="mx-1.5 text-muted-foreground/50">
+                            ›
+                          </span>
+                        </span>
+                      )}
+                      {isBase ? 'Base Session' : (worktree?.name ?? 'Worktree')}
+                    </h2>
+                    {isMobile && worktreeMenu}
+                  </div>
                   {!zenMode && stackedBaseBranch && (
-                    <span className="inline-flex shrink min-w-0 items-center gap-1 rounded border border-border/50 px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">
+                    <span
+                      className={cn(
+                        'inline-flex min-w-0 items-center gap-1 rounded border border-border/50 px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground',
+                        isMobile ? 'shrink-0' : 'shrink'
+                      )}
+                    >
                       <GitBranchPlus className="h-2.5 w-2.5" />
                       <span className="max-w-16 sm:max-w-40 truncate">
                         {stackedBaseBranch}
@@ -1098,26 +1135,7 @@ export const SessionChatModal = memo(function SessionChatModal({
                       onBranchDiffClick={handleBranchDiffClick}
                     />
                   )}
-                  {!zenMode && worktree && project && (
-                    <WorktreeDropdownMenu
-                      worktree={worktree}
-                      projectId={project.id}
-                      projectPath={project.path}
-                      uncommittedAdded={uncommittedAdded}
-                      uncommittedRemoved={uncommittedRemoved}
-                      branchDiffAdded={isBase ? 0 : branchDiffAdded}
-                      branchDiffRemoved={isBase ? 0 : branchDiffRemoved}
-                      onUncommittedDiffClick={handleUncommittedDiffClick}
-                      onBranchDiffClick={handleBranchDiffClick}
-                      onToggleTerminal={handleToggleModalTerminal}
-                      onToggleBrowser={
-                        isNativeApp() ? handleToggleModalBrowser : undefined
-                      }
-                      packageScripts={packageScripts}
-                      onRunPackageScript={handlePackageScript}
-                      server={project.server}
-                    />
-                  )}
+                  {!isMobile && worktreeMenu}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   {isMobile && (

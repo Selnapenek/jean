@@ -15,10 +15,11 @@ import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { isNativeApp } from '@/lib/environment'
 import { parseOptionalSshPort } from '@/lib/remote-connections'
 import { useServerConnectionSnapshots } from '@/lib/server-connections'
-import { useSaveServerProject } from '@/services/projects'
+import { useSaveServerProject, useSshPublicKeys } from '@/services/projects'
 import { useProjectsStore } from '@/store/projects-store'
 import type { Project } from '@/types/projects'
 import { LOCAL_SERVER_ID } from '@/types/server-resource'
+import { projectServerId } from '../server-filter'
 
 interface ServerDialogProps {
   open: boolean
@@ -34,7 +35,7 @@ export function ServerDialog({
 }: ServerDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-xl">
         {open && (
           <ServerForm project={project} onDone={() => onOpenChange(false)} />
         )}
@@ -79,11 +80,33 @@ function ServerForm({
     user: project?.server?.user ?? '',
     host: project?.server?.host ?? '',
     port: project?.server?.port ? String(project.server.port) : '',
+    identityFile: project?.server?.identity_file ?? '',
     runFrom: LOCAL_SERVER_ID as string,
     systemPrompt: project?.custom_system_prompt ?? '',
   })
   // The built-in local entry has no SSH settings: only name and prompt.
   const isLocal = !!project?.server?.local
+  // Keys of the Jean that runs ssh for this server.
+  const keys = useSshPublicKeys(
+    project ? projectServerId(project) : form.runFrom,
+    !isLocal
+  )
+  const keyOptions = (keys.data ?? []).map(key => ({
+    path: key.path.replace(/\.pub$/, ''),
+    label: `${key.path
+      .split('/')
+      .pop()
+      ?.replace(/\.pub$/, '')} · ${key.keyType}${
+      key.comment ? ` · ${key.comment}` : ''
+    }`,
+  }))
+  // Keep a saved key that is not in the list (for example, no .pub file).
+  if (
+    form.identityFile &&
+    !keyOptions.some(option => option.path === form.identityFile)
+  ) {
+    keyOptions.push({ path: form.identityFile, label: form.identityFile })
+  }
   const [error, setError] = useState<string | null>(null)
 
   const update = (key: keyof typeof form) => (value: string) =>
@@ -108,6 +131,7 @@ function ServerForm({
               host: form.host.trim(),
               user: form.user.trim() || null,
               port: port ?? null,
+              identity_file: form.identityFile || null,
             },
         serverId: form.runFrom,
         systemPrompt: form.systemPrompt,
@@ -122,13 +146,9 @@ function ServerForm({
         <DialogTitle>{project ? 'Edit server' : 'Add server'}</DialogTitle>
         <DialogDescription>
           {isLocal ? (
-            'The machine that runs this Jean. Commands run directly, without SSH. Sessions start in Supervised mode, so you approve each command.'
+            'This machine. No SSH. You approve each command.'
           ) : (
-            <>
-              The AI connects with <code>ssh</code> from the machine that runs
-              Jean. Use SSH key auth (no password prompt). Sessions start in
-              Supervised mode, so you approve each command.
-            </>
+            <>Connects with SSH key auth. You approve each command.</>
           )}
         </DialogDescription>
       </DialogHeader>
@@ -144,10 +164,8 @@ function ServerForm({
       {!isLocal && (
         <>
           <p className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-            Recommended: give Jean its own user with restricted sudo, not root.
-            After you add the server, use the shield button in the Servers list.
-            Jean connects once as root, creates the user, and adds your public
-            key.
+            Tip: use a non-root user. After you add the server, click the shield
+            button to create one.
           </p>
           <div className="grid grid-cols-[1fr_1.5fr] gap-3">
             <div className="space-y-1.5">
@@ -209,16 +227,43 @@ function ServerForm({
           </div>
           {showRunFrom && (
             <p className="text-xs text-muted-foreground">
-              The Jean you pick stores the server, connects with its own SSH
-              keys, and runs the chat with its own AI backends.
+              This Jean uses its own SSH keys and AI backends.
             </p>
           )}
+          <div className="space-y-1.5">
+            <Label htmlFor="server-identity-file">SSH key</Label>
+            <NativeSelect
+              id="server-identity-file"
+              className="w-full"
+              value={form.identityFile}
+              onChange={event => update('identityFile')(event.target.value)}
+            >
+              <NativeSelectOption value="">
+                Default (SSH config / agent)
+              </NativeSelectOption>
+              {keyOptions.map(option => (
+                <NativeSelectOption key={option.path} value={option.path}>
+                  {option.label}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+            <p className="text-xs text-muted-foreground">
+              {keys.isLoading ? (
+                'Loading keys…'
+              ) : keys.isError ? (
+                'Could not load keys.'
+              ) : (
+                <>
+                  Keys from <code>~/.ssh</code> on the machine that runs{' '}
+                  <code>ssh</code>.
+                </>
+              )}
+            </p>
+          </div>
         </>
       )}
       <div className="space-y-1.5">
-        <Label htmlFor="server-system-prompt">
-          System prompt for this server
-        </Label>
+        <Label htmlFor="server-system-prompt">System prompt</Label>
         <Textarea
           id="server-system-prompt"
           value={form.systemPrompt}
@@ -227,7 +272,7 @@ function ServerForm({
           rows={4}
         />
         <p className="text-xs text-muted-foreground">
-          Added after the Server System Prompt in every session of this server.
+          Added to every session on this server.
         </p>
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}

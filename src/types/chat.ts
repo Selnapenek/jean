@@ -91,9 +91,6 @@ export interface SendMessageArgs {
   includeRecap?: boolean
 }
 
-/** Cycle order for execution modes (used by Shift+Tab cycling) */
-export const EXECUTION_MODE_CYCLE: ExecutionMode[] = ['plan', 'build', 'yolo']
-
 export function getSupportedPermissionModes(
   backend: Backend | undefined
 ): PermissionMode[] {

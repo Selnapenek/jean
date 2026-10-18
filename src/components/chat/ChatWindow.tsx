@@ -209,8 +209,7 @@ import {
 import { copyToClipboard, copyHtmlToClipboard } from '@/lib/clipboard'
 import { useClaudeCliStatus, useClaudeUsage } from '@/services/claude-cli'
 import { useCodexUsage } from '@/services/codex-cli'
-import { isUsageLimitError } from '@/lib/usage-limit'
-import { toEpochMs } from '@/lib/usage-format'
+import { getLimitResetAtMs, isUsageLimitError } from '@/lib/usage-limit'
 import {
   getCatalogModelReasoning,
   useModelCatalog,
@@ -1154,16 +1153,14 @@ const ChatWindowContent = memo(function ChatWindowContent({
   const { data: codexUsage } = useCodexUsage({
     enabled: supportsAutoResume && resolvedBackend === 'codex',
   })
-  const limitResetAtMs = (() => {
-    if (!supportsAutoResume) return null
-    const resetsAt =
-      resolvedBackend === 'claude'
-        ? claudeUsage?.session?.resetsAt
-        : codexUsage?.session?.resetsAt
-    return resetsAt != null ? toEpochMs(resetsAt) : null
-  })()
-  const isAutoResumeArmed = useChatStore(state =>
-    deferredSessionId ? state.autoResume[deferredSessionId] != null : false
+  const limitResetAtMs = supportsAutoResume
+    ? getLimitResetAtMs(resolvedBackend === 'claude' ? claudeUsage : codexUsage)
+    : null
+  // Without a known reset time, arming would resend straight into the limit.
+  const canAutoResume =
+    supportsAutoResume && limitResetAtMs != null && deferredSessionId != null
+  const autoResumeAtMs = useChatStore(state =>
+    deferredSessionId ? (state.autoResume[deferredSessionId] ?? null) : null
   )
 
   // Per-worktree setup script result (stays at worktree level)
@@ -3174,11 +3171,14 @@ const ChatWindowContent = memo(function ChatWindowContent({
                         <div className="pointer-events-auto bg-background">
                           <ErrorBanner
                             error={currentError}
-                            onDismiss={() =>
-                              activeSessionId && setError(activeSessionId, null)
-                            }
+                            onDismiss={() => {
+                              if (!activeSessionId) return
+                              // The banner is the only cancel control.
+                              disarmAutoResume(activeSessionId)
+                              setError(activeSessionId, null)
+                            }}
                             onAutoContinue={
-                              supportsAutoResume && deferredSessionId
+                              canAutoResume
                                 ? () =>
                                     armAutoResume(
                                       deferredSessionId,
@@ -3187,12 +3187,12 @@ const ChatWindowContent = memo(function ChatWindowContent({
                                 : undefined
                             }
                             onCancelAutoContinue={
-                              supportsAutoResume && deferredSessionId
+                              deferredSessionId
                                 ? () => disarmAutoResume(deferredSessionId)
                                 : undefined
                             }
-                            isAutoResumeArmed={isAutoResumeArmed}
-                            limitResetAtMs={limitResetAtMs}
+                            isAutoResumeArmed={autoResumeAtMs != null}
+                            limitResetAtMs={autoResumeAtMs ?? limitResetAtMs}
                           />
                         </div>
                       )}

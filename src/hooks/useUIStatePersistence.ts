@@ -981,11 +981,12 @@ export function useUIStatePersistence() {
     // their replayable send args. The watcher (useAutoResume) fires them.
     const persistedAutoResume = uiState.auto_resume ?? []
     if (persistedAutoResume.length > 0) {
-      const autoResume: Record<string, number | null> = {}
+      const autoResume: Record<string, number> = {}
       const lastSentArgs: Record<string, SendMessageArgs> = {}
       for (const entry of persistedAutoResume) {
         if (!entry?.session_id || !entry.send_args) continue
-        autoResume[entry.session_id] = entry.resume_at_ms ?? null
+        if (typeof entry.resume_at_ms !== 'number') continue
+        autoResume[entry.session_id] = entry.resume_at_ms
         lastSentArgs[entry.session_id] = entry.send_args
       }
       if (Object.keys(autoResume).length > 0) {

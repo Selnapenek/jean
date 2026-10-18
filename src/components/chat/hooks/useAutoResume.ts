@@ -3,7 +3,7 @@ import { useChatStore } from '@/store/chat-store'
 import { useSendMessage } from '@/services/chat'
 import { logger } from '@/lib/logger'
 
-const TICK_MS = 30_000
+const TICK_MS = 5_000
 
 /**
  * Watches sessions armed for "auto-continue when limit resets" and re-sends the
@@ -17,33 +17,57 @@ const TICK_MS = 30_000
  * Mount once at app level (App.tsx) so it survives ChatWindow unmounts.
  */
 export function useAutoResume() {
-  const sendMessage = useSendMessage()
+  const { mutate: sendMessage } = useSendMessage()
 
   useEffect(() => {
     const fireDue = () => {
-      const { autoResume, lastSentArgs, disarmAutoResume, setError, setInputDraft, isSending } =
-        useChatStore.getState()
-
+      const store = useChatStore.getState()
       const now = Date.now()
-      for (const [sessionId, resumeAtMs] of Object.entries(autoResume)) {
-        if (resumeAtMs != null && now < resumeAtMs) continue
-        if (isSending(sessionId)) continue
+      for (const [sessionId, resumeAtMs] of Object.entries(store.autoResume)) {
+        if (now < resumeAtMs) continue
+        if (store.isSending(sessionId)) continue
 
-        const args = lastSentArgs[sessionId]
+        const args = store.lastSentArgs[sessionId]
         // Single-shot: disarm before sending so a repeat limit error does not
         // immediately re-fire. Missing args (e.g. cleared) → just disarm.
-        disarmAutoResume(sessionId)
+        store.disarmAutoResume(sessionId)
         if (!args) {
-          logger.warn('Auto-continue skipped: no saved send args', { sessionId })
+          logger.warn('Auto-continue skipped: no saved send args', {
+            sessionId,
+          })
           continue
         }
 
-        // Clear the restored error + input draft so the resend replaces them.
-        setError(sessionId, null)
-        setInputDraft(sessionId, '')
+        // The failed send restored its prompt and attachments into the input.
+        // The replayed message already carries them, so clear the input like a
+        // manual send, and track them so a repeat failure restores them again.
+        const images = store.pendingImages[sessionId] ?? []
+        const files = store.pendingFiles[sessionId] ?? []
+        const textFiles = store.pendingTextFiles[sessionId] ?? []
+        const skills = store.pendingSkills[sessionId] ?? []
+        if (
+          images.length ||
+          files.length ||
+          textFiles.length ||
+          skills.length
+        ) {
+          store.setLastSentAttachments(sessionId, {
+            images,
+            files,
+            textFiles,
+            skills,
+          })
+        }
+        store.clearPendingImages(sessionId)
+        store.clearPendingFiles(sessionId)
+        store.clearPendingTextFiles(sessionId)
+        store.clearPendingSkills(sessionId)
+        store.setInputDraft(sessionId, '')
+        store.setLastSentMessage(sessionId, args.message)
+        store.setError(sessionId, null)
 
         logger.info('Auto-continuing session after limit reset', { sessionId })
-        sendMessage.mutate(args, {
+        sendMessage(args, {
           onError: err => {
             logger.warn('Auto-continue resend failed', {
               sessionId,

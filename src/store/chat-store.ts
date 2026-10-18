@@ -205,9 +205,8 @@ interface ChatUIState {
   // auto-continue can replay the exact send after a usage limit resets.
   lastSentArgs: Record<string, SendMessageArgs>
 
-  // Sessions armed for auto-continue → reset epoch (ms) to wait for, or null
-  // when the reset time is unknown (fire on the next watcher tick).
-  autoResume: Record<string, number | null>
+  // Sessions armed for auto-continue → reset epoch (ms) to wait for
+  autoResume: Record<string, number>
 
   // Last sent attachments per session (for restoring on cancellation)
   lastSentAttachments: Record<
@@ -567,7 +566,7 @@ interface ChatUIState {
   setLastSentMessage: (sessionId: string, message: string) => void
   clearLastSentMessage: (sessionId: string) => void
   setLastSentArgs: (sessionId: string, args: SendMessageArgs) => void
-  armAutoResume: (sessionId: string, resumeAtMs: number | null) => void
+  armAutoResume: (sessionId: string, resumeAtMs: number) => void
   disarmAutoResume: (sessionId: string) => void
   setLastSentAttachments: (
     sessionId: string,
@@ -2995,12 +2994,7 @@ export const useChatStore = create<ChatUIState>()(
       armAutoResume: (sessionId, resumeAtMs) =>
         set(
           state => {
-            if (
-              sessionId in state.autoResume &&
-              state.autoResume[sessionId] === resumeAtMs
-            ) {
-              return state // No-op guard
-            }
+            if (state.autoResume[sessionId] === resumeAtMs) return state
             return {
               autoResume: { ...state.autoResume, [sessionId]: resumeAtMs },
             }

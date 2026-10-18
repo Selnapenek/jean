@@ -15,8 +15,8 @@ import type { LabelData, SendMessageArgs } from '@/types/chat'
 /** A session armed for auto-continue after a usage limit resets. */
 export interface AutoResumeEntry {
   session_id: string
-  /** Reset epoch (ms) to wait for; null fires on the next watcher tick. */
-  resume_at_ms: number | null
+  /** Reset epoch (ms) to wait for. */
+  resume_at_ms: number
   /** Exact send args to replay. */
   send_args: SendMessageArgs
 }

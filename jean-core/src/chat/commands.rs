@@ -6735,7 +6735,7 @@ use super::types::{ReadTextResponse, SaveTextResponse};
 
 /// Maximum text file size in bytes (10MB)
 const MAX_TEXT_SIZE: usize = 10 * 1024 * 1024;
-const MAX_FILE_SIZE: usize = 50 * 1024 * 1024;
+pub const MAX_FILE_SIZE: usize = 50 * 1024 * 1024;
 
 /// Save an arbitrary uploaded file and return a path that agents can read.
 pub async fn save_pasted_file(
@@ -6746,6 +6746,16 @@ pub async fn save_pasted_file(
     let bytes = STANDARD
         .decode(&data)
         .map_err(|error| format!("Invalid base64 data: {error}"))?;
+    save_pasted_file_bytes(&app, &bytes, &filename)
+}
+
+/// Save raw uploaded file bytes. Web access uploads use this through
+/// `POST /api/pasted-files` so large files skip base64 and the WebSocket.
+pub fn save_pasted_file_bytes(
+    app: &AppHandle,
+    bytes: &[u8],
+    filename: &str,
+) -> Result<SaveTextResponse, String> {
     if bytes.len() > MAX_FILE_SIZE {
         return Err(format!(
             "File too large: {} bytes. Maximum size: {MAX_FILE_SIZE} bytes (50MB)",
@@ -6753,7 +6763,7 @@ pub async fn save_pasted_file(
         ));
     }
 
-    let original = std::path::Path::new(&filename)
+    let original = std::path::Path::new(filename)
         .file_name()
         .and_then(|name| name.to_str())
         .filter(|name| !name.is_empty())
@@ -6770,8 +6780,8 @@ pub async fn save_pasted_file(
         .take(160)
         .collect();
     let stored_name = format!("{}-{safe_name}", &Uuid::new_v4().to_string()[..8]);
-    let file_path = get_pastes_dir(&app)?.join(&stored_name);
-    crate::platform::write_file_atomically(&file_path, &bytes)?;
+    let file_path = get_pastes_dir(app)?.join(&stored_name);
+    crate::platform::write_file_atomically(&file_path, bytes)?;
 
     Ok(SaveTextResponse {
         id: Uuid::new_v4().to_string(),

@@ -35,8 +35,11 @@ import {
 import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { BOTTOM_UP_LIST_CLASS } from './mention-list'
+import { isLinearAuthError } from '@/services/linear'
 import { IssuePreviewModal } from '@/components/worktree/IssuePreviewModal'
 import { ContextLinkBadge } from '@/components/worktree/ContextLinkBadge'
+import { BulkInvestigateBar } from '@/components/worktree/BulkInvestigateBar'
+import { ItemSelectCheckbox } from '@/components/worktree/ItemSelectCheckbox'
 import {
   contextLinkMatchLabel,
   openContextLinkMatch,
@@ -65,6 +68,17 @@ const linearContextQueries = new Set([
   'issue-search',
   'issue-by-number',
 ])
+
+const DEFAULT_LIST_LIMIT = 8
+/**
+ * "Load more" limits per project, filter, and search. Kept at module level so
+ * they survive closing the menu; cleared only by refresh or an app restart.
+ */
+const loadedLimits = new Map<string, number>()
+
+function limitKeyPrefix(projectPath: string | null, projectId: string | null) {
+  return `${projectPath ?? ''}\0${projectId ?? ''}\0`
+}
 
 interface PreviewTarget {
   type: 'issue' | 'pr' | 'security' | 'advisory'
@@ -107,6 +121,14 @@ interface ContextMentionPopoverProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSelectContext: (item: ContextMentionItem, investigate?: boolean) => void
+  /**
+   * Enables multi-select of issues/PRs. `separate` starts one new session per
+   * item; otherwise one new session investigates all of them.
+   */
+  onInvestigateInNewSession?: (
+    items: ContextMentionItem[],
+    separate: boolean
+  ) => void
   searchQuery: string
   anchorPosition: { top: number; left: number } | null
   containerWidth?: number
@@ -120,6 +142,7 @@ export function ContextMentionPopover({
   open,
   onOpenChange,
   onSelectContext,
+  onInvestigateInNewSession,
   searchQuery,
   anchorPosition,
   containerWidth,
@@ -134,20 +157,34 @@ export function ContextMentionPopover({
   )
   const [includeClosed, setIncludeClosed] = useState(false)
   const [menuSearch, setMenuSearch] = useState('')
-  const [issueLimit, setIssueLimit] = useState(8)
-  const [prLimit, setPrLimit] = useState(8)
+  const [, setLimitsVersion] = useState(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [previewTarget, setPreviewTarget] = useState<PreviewTarget | null>(null)
+  // Keyed by item id; kept across searches so items from several searches
+  // can be investigated together
+  const [checkedItems, setCheckedItems] = useState<
+    Map<string, ContextMentionItem>
+  >(() => new Map())
+  const query = menuSearch || searchQuery
+  const limitKey = (group: 'issue' | 'pr') =>
+    `${limitKeyPrefix(projectPath, projectId)}${includeClosed}\0${group}\0${query}`
+  const issueLimit = loadedLimits.get(limitKey('issue')) ?? DEFAULT_LIST_LIMIT
+  const prLimit = loadedLimits.get(limitKey('pr')) ?? DEFAULT_LIST_LIMIT
+  const loadMore = (group: 'issue' | 'pr') => {
+    const limit = group === 'issue' ? issueLimit : prLimit
+    loadedLimits.set(limitKey(group), limit + DEFAULT_LIST_LIMIT)
+    setLimitsVersion(version => version + 1)
+  }
   const { groups, isFetching } = useContextMentionData({
     open,
     projectPath,
     projectId,
-    query: menuSearch || searchQuery,
+    query,
     includeClosed,
     issueLimit,
     prLimit,
   })
-  const { getMatches } = useContextLinkUsage({
+  const { getMatches, currentWorktreeId } = useContextLinkUsage({
     enabled: open,
     projectId,
     projectPath,
@@ -175,45 +212,57 @@ export function ContextMentionPopover({
       if (existing) {
         openContextLinkMatch(existing)
         toast.info(
-          `${item.label} is already in ${contextLinkMatchLabel(existing)} — opened it`
+          `${item.label} is already in ${contextLinkMatchLabel(existing, currentWorktreeId)} — opened it`
         )
         return
       }
       onSelectContext(item, investigate)
     },
-    [getMatches, onOpenChange, onSelectContext]
+    [currentWorktreeId, getMatches, onOpenChange, onSelectContext]
   )
 
   const handleRefresh = useCallback(async () => {
     if (!projectPath && !projectId) return
     setIsRefreshing(true)
-    try {
-      await queryClient.invalidateQueries(
+    const prefix = limitKeyPrefix(projectPath, projectId)
+    for (const key of loadedLimits.keys()) {
+      if (key.startsWith(prefix)) loadedLimits.delete(key)
+    }
+    setLimitsVersion(version => version + 1)
+    const results = await Promise.allSettled([
+      queryClient.invalidateQueries(
         {
           predicate: ({ queryKey }) =>
-            (Boolean(projectPath) &&
-              queryKey[0] === 'github' &&
-              queryKey[2] === projectPath &&
-              githubContextQueries.has(String(queryKey[1]))) ||
-            (Boolean(projectId) &&
-              queryKey[0] === 'linear' &&
-              queryKey[2] === projectId &&
-              linearContextQueries.has(String(queryKey[1]))),
+            Boolean(projectPath) &&
+            queryKey[0] === 'github' &&
+            queryKey[2] === projectPath &&
+            githubContextQueries.has(String(queryKey[1])),
         },
         { throwOnError: true }
-      )
-    } catch (error) {
-      toast.error(`Failed to refresh context links: ${error}`)
-    } finally {
-      setIsRefreshing(false)
+      ),
+      queryClient.invalidateQueries(
+        {
+          predicate: ({ queryKey }) =>
+            Boolean(projectId) &&
+            queryKey[0] === 'linear' &&
+            queryKey[2] === projectId &&
+            linearContextQueries.has(String(queryKey[1])),
+        },
+        { throwOnError: true }
+      ),
+    ])
+    setIsRefreshing(false)
+    // Linear is optional: a missing/invalid key is not a refresh failure
+    const failure = results.find(
+      (result): result is PromiseRejectedResult =>
+        result.status === 'rejected' && !isLinearAuthError(result.reason)
+    )
+    if (failure) {
+      toast.error(`Failed to refresh context links: ${failure.reason}`)
     }
   }, [projectId, projectPath, queryClient])
 
-  const resetListPosition = useCallback(() => {
-    setSelectedIndex(0)
-    setIssueLimit(8)
-    setPrLimit(8)
-  }, [])
+  const resetListPosition = useCallback(() => setSelectedIndex(0), [])
 
   // Prop-driven resets. Local filter changes (menuSearch, includeClosed)
   // reset in their own event handlers to avoid chaining effects.
@@ -223,8 +272,44 @@ export function ContextMentionPopover({
   }, [open, searchQuery, projectPath, resetListPosition])
 
   useEffect(() => {
-    if (open) setMenuSearch('')
+    if (!open) return
+    setMenuSearch('')
+    setCheckedItems(new Map())
   }, [open])
+
+  const toggleChecked = useCallback(
+    (item: ContextMentionItem, checked: boolean) => {
+      setCheckedItems(prev => {
+        const next = new Map(prev)
+        if (checked) next.set(item.id, item)
+        else next.delete(item.id)
+        return next
+      })
+    },
+    []
+  )
+
+  const handleInvestigateChecked = useCallback(
+    (separate: boolean) => {
+      if (!onInvestigateInNewSession) return
+      // Skip items that already have an investigation, like single Investigate
+      const items = [...checkedItems.values()]
+      const fresh = items.filter(item => {
+        const linkRef = getLinkRef(item)
+        return !linkRef || getMatches(linkRef).length === 0
+      })
+      const skipped = items.length - fresh.length
+      if (skipped > 0) {
+        toast.info(
+          `Skipped ${skipped} already investigated ${skipped === 1 ? 'item' : 'items'}`
+        )
+      }
+      if (fresh.length === 0) return
+      onOpenChange(false)
+      onInvestigateInNewSession(fresh, separate)
+    },
+    [checkedItems, getMatches, onInvestigateInNewSession, onOpenChange]
+  )
 
   useImperativeHandle(
     handleRef,
@@ -392,13 +477,32 @@ export function ContextMentionPopover({
                           isSelected && '!bg-accent !text-accent-foreground'
                         )}
                       >
+                        {onInvestigateInNewSession &&
+                          (item.type === 'issue' || item.type === 'pr') && (
+                            <div className="self-center">
+                              <ItemSelectCheckbox
+                                checked={checkedItems.has(item.id)}
+                                ariaLabel={`Select ${item.label}`}
+                                onCheckedChange={checked =>
+                                  toggleChecked(item, checked)
+                                }
+                              />
+                            </div>
+                          )}
                         <div className="min-w-0 flex-1 self-center line-clamp-2 break-words text-sm">
                           <span className="mr-2 font-mono text-xs text-muted-foreground">
                             {item.label}
                           </span>
                           <span className="font-medium">{item.title}</span>
                         </div>
-                        <ContextLinkBadge matches={matches} />
+                        <ContextLinkBadge
+                          matches={matches}
+                          currentWorktreeId={currentWorktreeId}
+                          onOpen={match => {
+                            onOpenChange(false)
+                            openContextLinkMatch(match)
+                          }}
+                        />
                         {item.badge && (
                           <span className="shrink-0 self-center rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
                             {item.badge}
@@ -457,7 +561,7 @@ export function ContextMentionPopover({
                               </TooltipTrigger>
                               <TooltipContent className="flex items-center gap-2">
                                 {existing
-                                  ? `Open ${contextLinkMatchLabel(existing)}`
+                                  ? `Open ${contextLinkMatchLabel(existing, currentWorktreeId)}`
                                   : `Add ${item.label} and start investigating`}
                                 {showKeyboardHints && isSelected && (
                                   <Kbd>Shift+Enter</Kbd>
@@ -497,11 +601,9 @@ export function ContextMentionPopover({
                       <button
                         type="button"
                         className="w-full rounded px-3 py-2 text-left text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                        onClick={() => {
-                          if (group.id === 'issue')
-                            setIssueLimit(limit => limit + 8)
-                          else setPrLimit(limit => limit + 8)
-                        }}
+                        onClick={() =>
+                          loadMore(group.id === 'issue' ? 'issue' : 'pr')
+                        }
                       >
                         Load more{' '}
                         {group.id === 'issue' ? 'issues' : 'pull requests'}
@@ -512,6 +614,20 @@ export function ContextMentionPopover({
             )}
           </CommandList>
         </Command>
+        {onInvestigateInNewSession && checkedItems.size > 0 && (
+          <BulkInvestigateBar
+            count={checkedItems.size}
+            actionLabel={`Investigate ${checkedItems.size} in new session`}
+            onClear={() => setCheckedItems(new Map())}
+            secondaryActionLabel={
+              checkedItems.size > 1
+                ? `Investigate in ${checkedItems.size} new sessions`
+                : undefined
+            }
+            onSecondaryAction={() => handleInvestigateChecked(true)}
+            onInvestigate={() => handleInvestigateChecked(false)}
+          />
+        )}
       </PopoverContent>
       {projectPath && previewTarget && (
         <IssuePreviewModal

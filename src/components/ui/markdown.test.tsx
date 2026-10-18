@@ -265,7 +265,9 @@ describe('Markdown', () => {
       target: { value: 'kept' },
     })
     await act(() => new Promise(resolve => setTimeout(resolve, 20)))
+    // Radix Popover dismisses on the click that follows the outside pointerdown.
     fireEvent.pointerDown(document.body)
+    fireEvent.click(document.body)
     expect(mockSetRow).toHaveBeenCalledWith(
       's5',
       't5',

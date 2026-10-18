@@ -12,7 +12,6 @@
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::AppHandle;
 
 use crate::platform::{detect_cli_in_path, host_cli_command};
@@ -709,7 +708,7 @@ fn remove_json_server(
 
     let updated = serde_json::to_string_pretty(&root)
         .map_err(|e| format!("Failed to serialize {}: {e}", path.display()))?;
-    let backup = write_atomic_with_backup(path, &updated)?;
+    let backup = crate::platform::write_file_atomically_with_backup(path, updated.as_bytes())?;
     Ok(Some((path.to_path_buf(), backup)))
 }
 
@@ -740,7 +739,8 @@ fn remove_toml_server(path: &Path) -> Result<Option<(PathBuf, Option<PathBuf>)>,
         servers.remove(MCP_SERVER_NAME);
     }
 
-    let backup = write_atomic_with_backup(path, &doc.to_string())?;
+    let backup =
+        crate::platform::write_file_atomically_with_backup(path, doc.to_string().as_bytes())?;
     Ok(Some((path.to_path_buf(), backup)))
 }
 
@@ -928,7 +928,7 @@ fn install_json_server(
 
     let updated = serde_json::to_string_pretty(&root)
         .map_err(|e| format!("Failed to serialize {}: {e}", path.display()))?;
-    let backup = write_atomic_with_backup(&path, &updated)?;
+    let backup = crate::platform::write_file_atomically_with_backup(&path, updated.as_bytes())?;
     Ok((path, backup))
 }
 
@@ -985,36 +985,8 @@ fn install_toml_server(
     updated
         .parse::<toml_edit::DocumentMut>()
         .map_err(|e| format!("Generated invalid {label} TOML: {e}"))?;
-    let backup = write_atomic_with_backup(&path, &updated)?;
+    let backup = crate::platform::write_file_atomically_with_backup(&path, updated.as_bytes())?;
     Ok((path, backup))
-}
-
-fn write_atomic_with_backup(path: &Path, content: &str) -> Result<Option<PathBuf>, String> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create {}: {e}", parent.display()))?;
-    }
-
-    let backup = if path.exists() {
-        let ts = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or_default();
-        let backup = path.with_extension(format!(
-            "{}.bak.{ts}",
-            path.extension()
-                .and_then(|e| e.to_str())
-                .unwrap_or("config")
-        ));
-        std::fs::copy(path, &backup)
-            .map_err(|e| format!("Failed to create backup {}: {e}", backup.display()))?;
-        Some(backup)
-    } else {
-        None
-    };
-
-    crate::platform::write_file_atomically(path, content.as_bytes())?;
-    Ok(backup)
 }
 
 fn strip_jsonc_comments_simple(input: &str) -> String {

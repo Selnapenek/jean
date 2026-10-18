@@ -1,4 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { invoke } from '@/lib/transport'
 import { chatQueryKeys } from '@/services/chat'
 import { useChatStore } from '@/store/chat-store'
@@ -26,7 +27,8 @@ export function clearPlanApprovalTransientState(sessionId: string) {
  *
  * Always archives instead of honoring `removal_behavior: 'delete'`: the
  * planning conversation is still useful history and must stay restorable
- * from archived sessions (issue #795).
+ * from archived sessions (issue #795). A toast with a Restore action tells
+ * the user where the planning conversation went.
  */
 export function archiveOriginalPlanSession({
   queryClient,
@@ -60,12 +62,32 @@ export function archiveOriginalPlanSession({
 
   // cancel_process_if_running (used by archive) safely skips idle sessions,
   // and with_sessions_mut uses a per-worktree mutex so there's no file-level race.
+  const invalidateSessions = () =>
+    queryClient.invalidateQueries({
+      queryKey: chatQueryKeys.sessions(worktreeId),
+    })
+
   invoke('archive_session', { worktreeId, worktreePath, sessionId })
-    .then(() =>
-      queryClient.invalidateQueries({
-        queryKey: chatQueryKeys.sessions(worktreeId),
+    .then(() => {
+      invalidateSessions()
+      toast('Planning session archived', {
+        action: {
+          label: 'Restore',
+          onClick: () => {
+            invoke('unarchive_session', { worktreeId, worktreePath, sessionId })
+              .then(() => {
+                invalidateSessions()
+                toast.success('Session restored')
+              })
+              .catch(err =>
+                toast.error('Failed to restore session', {
+                  description: String(err),
+                })
+              )
+          },
+        },
       })
-    )
+    })
     .catch(err =>
       console.error('[plan-approval] Failed to archive original session:', err)
     )

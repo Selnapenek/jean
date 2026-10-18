@@ -133,6 +133,10 @@ export function useContextLinkUsage({
     return { projectWorktrees, worktreeById, sessionById }
   }, [allSessions, projectId, worktrees])
 
+  const currentWorktreeId = currentSessionId
+    ? index.sessionById.get(currentSessionId)?.worktreeId
+    : undefined
+
   const getMatches = useCallback(
     (ref: ContextLinkRef): ContextLinkMatch[] => {
       const id = normalizeId(ref.id)
@@ -158,25 +162,27 @@ export function useContextLinkUsage({
           add(index.sessionById.get(refId) ?? index.worktreeById.get(refId))
         }
       }
-      const currentWorktreeId = currentSessionId
-        ? index.sessionById.get(currentSessionId)?.worktreeId
-        : undefined
       return Array.from(byWorktree.values()).filter(match =>
         match.sessionId
           ? match.sessionId !== currentSessionId
           : match.worktreeId !== currentWorktreeId
       )
     },
-    [currentSessionId, index, usage]
+    [currentSessionId, currentWorktreeId, index, usage]
   )
 
-  return { getMatches }
+  return { getMatches, currentWorktreeId }
 }
 
-export function contextLinkMatchLabel(match: ContextLinkMatch): string {
-  return match.sessionName
-    ? `${match.worktreeName} › ${match.sessionName}`
-    : match.worktreeName
+/** "worktree › session"; only the session name inside the current worktree */
+export function contextLinkMatchLabel(
+  match: ContextLinkMatch,
+  currentWorktreeId?: string
+): string {
+  if (!match.sessionName) return match.worktreeName
+  return match.worktreeId === currentWorktreeId
+    ? match.sessionName
+    : `${match.worktreeName} › ${match.sessionName}`
 }
 
 /** Open the worktree/session of a match, keeping the current presentation */

@@ -1,11 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-const { mockInvoke } = vi.hoisted(() => ({
+const { mockInvoke, mockToast } = vi.hoisted(() => ({
   mockInvoke: vi.fn().mockResolvedValue(undefined),
+  mockToast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
 }))
 
 vi.mock('@/lib/transport', () => ({
   invoke: mockInvoke,
+}))
+
+vi.mock('sonner', () => ({
+  toast: mockToast,
 }))
 
 import { QueryClient } from '@tanstack/react-query'
@@ -94,6 +99,53 @@ describe('archiveOriginalPlanSession', () => {
     )
     expect(data?.sessions.map(s => s.id)).toEqual(['exec'])
     expect(data?.active_session_id).toBe('exec')
+  })
+
+  it('offers a Restore action that unarchives the planning session', async () => {
+    const queryClient = new QueryClient()
+    seedSessions(queryClient)
+
+    archiveOriginalPlanSession({
+      queryClient,
+      worktreeId: 'wt',
+      worktreePath: '/tmp/wt',
+      sessionId: 'plan',
+    })
+
+    await vi.waitFor(() => expect(mockToast).toHaveBeenCalled())
+    const [message, options] = mockToast.mock.calls[0] as [
+      string,
+      { action: { label: string; onClick: () => void } },
+    ]
+    expect(message).toBe('Planning session archived')
+    expect(options.action.label).toBe('Restore')
+
+    options.action.onClick()
+
+    expect(mockInvoke).toHaveBeenCalledWith('unarchive_session', {
+      worktreeId: 'wt',
+      worktreePath: '/tmp/wt',
+      sessionId: 'plan',
+    })
+    await vi.waitFor(() =>
+      expect(mockToast.success).toHaveBeenCalledWith('Session restored')
+    )
+  })
+
+  it('does not offer Restore when archiving fails', async () => {
+    mockInvoke.mockRejectedValueOnce(new Error('boom'))
+    const queryClient = new QueryClient()
+    seedSessions(queryClient)
+
+    archiveOriginalPlanSession({
+      queryClient,
+      worktreeId: 'wt',
+      worktreePath: '/tmp/wt',
+      sessionId: 'plan',
+    })
+
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(mockToast).not.toHaveBeenCalled()
   })
 
   it('keeps the active session when no replacement is in the same worktree', () => {

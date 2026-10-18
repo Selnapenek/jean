@@ -82,6 +82,7 @@ pub use platform::open_url_in_browser;
 pub use projects::open_worktree_in_editor;
 
 // Process startup helper shared by the desktop and headless entry points.
+pub use platform::add_fnm_node_to_path;
 pub use platform::raise_fd_limit;
 
 // Validation functions
@@ -319,6 +320,8 @@ pub struct AppPreferences {
     pub canvas_layout: String, // Canvas display mode: grid or list
     #[serde(default = "default_confirm_session_close")]
     pub confirm_session_close: bool, // Show confirmation dialog before closing sessions/worktrees
+    #[serde(default = "default_close_confirm_bypass_modifier")]
+    pub close_confirm_bypass_modifier: String, // Modifier that skips the close confirmation ("none" disables)
     #[serde(default = "default_execution_mode")]
     pub default_execution_mode: String, // Default workflow/permission policy for new sessions
     #[serde(default = "default_backend")]
@@ -671,6 +674,10 @@ fn default_canvas_layout() -> String {
 
 fn default_confirm_session_close() -> bool {
     true // Enabled by default
+}
+
+fn default_close_confirm_bypass_modifier() -> String {
+    "none".to_string() // Off by default — closing stays behind the confirmation dialog
 }
 
 fn default_execution_mode() -> String {
@@ -2801,6 +2808,7 @@ impl Default for AppPreferences {
             fast_mode_models: Vec::new(),
             canvas_layout: default_canvas_layout(),
             confirm_session_close: default_confirm_session_close(),
+            close_confirm_bypass_modifier: default_close_confirm_bypass_modifier(),
             default_execution_mode: default_execution_mode(),
             default_backend: default_backend(),
             default_new_session_kind: default_new_session_kind(),
@@ -3056,6 +3064,10 @@ pub struct UIState {
     #[serde(default)]
     pub seen_failed_workflow_run_ids: Vec<u64>,
 
+    /// Sessions armed for auto-continue after a usage limit resets
+    #[serde(default)]
+    pub auto_resume: Vec<AutoResumeEntry>,
+
     /// Version for future migration support
     #[serde(default = "default_ui_state_version")]
     pub version: u32,
@@ -3063,6 +3075,16 @@ pub struct UIState {
 
 fn default_ui_state_version() -> u32 {
     1
+}
+
+/// A session armed for auto-continue after a usage limit resets. `send_args`
+/// is the opaque frontend `SendMessageArgs` payload, replayed verbatim.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutoResumeEntry {
+    pub session_id: String,
+    #[serde(default)]
+    pub resume_at_ms: Option<f64>,
+    pub send_args: Value,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -3192,6 +3214,7 @@ impl Default for UIState {
             pinned_recent_session_ids: Vec::new(),
             last_opened_per_project: std::collections::HashMap::new(),
             seen_failed_workflow_run_ids: Vec::new(),
+            auto_resume: Vec::new(),
             version: default_ui_state_version(),
         }
     }
@@ -3477,6 +3500,7 @@ const CLIENT_ONLY_PREFERENCE_KEYS: &[&str] = &[
     "mobile_zoom_level",
     "sync_zoom_levels",
     "confirm_session_close",
+    "close_confirm_bypass_modifier",
     "expand_tool_calls_by_default",
     "window_vibrancy",
     "finished_session_animation_enabled",
@@ -5119,6 +5143,7 @@ pub async fn run_server() -> Result<(), String> {
     async_runtime::set(tokio::runtime::Handle::current());
     #[cfg(target_os = "linux")]
     platform::fix_headless_path();
+    platform::add_fnm_node_to_path();
     let cli = parse_cli_args();
     // WSL headless auto-allows native open; explicit flag covers non-WSL local servers.
     platform::set_allow_native_open(cli.allow_native_open);

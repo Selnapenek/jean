@@ -10663,8 +10663,6 @@ pub async fn start_review_job(
 
     if let Err(error) = update_review_session_entry(
         &app,
-        &worktree_id,
-        &worktree_path,
         &session_id,
         entry_backend,
         entry_model,
@@ -10745,8 +10743,6 @@ pub async fn start_review_job(
                 {
                     let _ = update_review_session_entry(
                         &task_app,
-                        &worktree_id,
-                        &worktree_path,
                         &session_id,
                         &result_backend,
                         &result_model,
@@ -10773,8 +10769,6 @@ pub async fn start_review_job(
                 };
                 let _ = update_review_session_entry(
                     &task_app,
-                    &worktree_id,
-                    &worktree_path,
                     &session_id,
                     &result_backend,
                     &result_model,
@@ -10794,8 +10788,6 @@ pub async fn start_review_job(
 
 fn update_review_session_entry(
     app: &AppHandle,
-    worktree_id: &str,
-    worktree_path: &str,
     session_id: &str,
     backend: &str,
     model: &str,
@@ -10803,21 +10795,29 @@ fn update_review_session_entry(
     response: Option<&ReviewResponse>,
     error: Option<&str>,
 ) -> Result<(), String> {
-    crate::chat::with_sessions_mut(app, worktree_path, worktree_id, |sessions| {
-        let session = sessions
-            .find_session_mut(session_id)
-            .ok_or_else(|| format!("Session not found: {session_id}"))?;
-        session.review_results = Some(merge_review_entry(
-            session.review_results.take(),
+    let finished = status != ReviewJobStatus::Running;
+    crate::chat::storage::with_existing_metadata_mut(app, session_id, |metadata| {
+        metadata.review_results = Some(merge_review_entry(
+            metadata.review_results.take(),
             backend,
             model,
             status,
             response,
             error,
         )?);
-        session.is_reviewing = REVIEW_JOB_REGISTRY.has_running_for_session(session_id);
-        Ok(())
-    })
+        metadata.is_reviewing = REVIEW_JOB_REGISTRY.has_running_for_session(session_id);
+        if finished {
+            metadata.review_activity_at = Some(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
+            );
+        }
+        Ok::<(), String>(())
+    })??;
+    crate::chat::emit_sessions_cache_invalidation(app);
+    Ok(())
 }
 
 pub async fn get_review_job(job_id: String) -> Result<Option<ReviewJob>, String> {

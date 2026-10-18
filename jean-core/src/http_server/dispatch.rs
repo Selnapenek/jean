@@ -1244,6 +1244,7 @@ pub async fn dispatch_command(
                 field_opt(&args, "forceNewSession", "force_new_session")?;
             let issue_context: Option<crate::projects::IssueContext> =
                 field_opt(&args, "issueContext", "issue_context")?;
+            let session_id: Option<String> = field_opt(&args, "sessionId", "session_id")?;
             let result = crate::jean_mcp_core::start_background_investigation(
                 app.clone(),
                 worktree_id,
@@ -1260,6 +1261,7 @@ pub async fn dispatch_command(
                 execution_mode,
                 issue_context,
                 force_new_session,
+                session_id,
             )
             .await?;
             to_value(result)

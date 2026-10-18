@@ -2335,6 +2335,7 @@ async fn start_autoinvestigating(
         Some(source.to_string()),
         None,
         false,
+        None,
     )
     .await
     .map_err(ToolError::internal)?;
@@ -2536,6 +2537,7 @@ pub async fn start_background_investigation_impl(
     source: Option<String>,
     issue_context: Option<IssueContext>,
     force_new_session: bool,
+    target_session_id: Option<String>,
 ) -> Result<BackgroundInvestigationResult, String> {
     let sessions = crate::chat::get_sessions(
         app.clone(),
@@ -2545,9 +2547,19 @@ pub async fn start_background_investigation_impl(
         Some(false),
     )
     .await?;
-    // Prefer the active/first session; create one if the worktree has none yet
-    // (e.g. programmatically empty index before the UI opens a tab).
-    let session_id = match select_reusable_investigation_session(&sessions, force_new_session) {
+    if let Some(id) = &target_session_id {
+        if !sessions.sessions.iter().any(|session| &session.id == id) {
+            return Err(format!(
+                "Background investigation: session {id} not found in worktree {worktree_id}"
+            ));
+        }
+    }
+    // Use the requested session, else prefer the active/first session; create
+    // one if the worktree has none yet (e.g. programmatically empty index
+    // before the UI opens a tab).
+    let session_id = match target_session_id
+        .or_else(|| select_reusable_investigation_session(&sessions, force_new_session))
+    {
         Some(id) => id,
         None => {
             let created = crate::chat::create_session(
@@ -2687,6 +2699,7 @@ pub async fn start_background_investigation(
     execution_mode: Option<String>,
     issue_context: Option<IssueContext>,
     force_new_session: Option<bool>,
+    session_id: Option<String>,
 ) -> Result<BackgroundInvestigationResult, String> {
     start_background_investigation_impl(
         &app,
@@ -2705,6 +2718,7 @@ pub async fn start_background_investigation(
         Some("ui".to_string()),
         issue_context,
         force_new_session.unwrap_or(false),
+        session_id,
     )
     .await
 }

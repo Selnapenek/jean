@@ -79,7 +79,11 @@ export function NewAgentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent
+        // Opened from inside the mobile sidebar sheet (z-80); sit above it
+        overlayClassName="z-[90]"
+        className="sm:max-w-lg z-[90]"
+      >
         <DialogHeader>
           <DialogTitle>New agent</DialogTitle>
           <DialogDescription>

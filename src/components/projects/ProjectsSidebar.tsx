@@ -67,13 +67,6 @@ const PANEL_VIEWS: { view: SidebarTab; label: string }[] = [
   { view: 'recent', label: 'Recent' },
 ]
 
-/** Close the mobile projects drawer when leaving into a dialog/modal. */
-function closeMobileSidebarIfNeeded(isMobile: boolean) {
-  if (isMobile) {
-    useUIStore.getState().setLeftSidebarVisible(false)
-  }
-}
-
 /**
  * Each Jean shows its own machine in the Servers tab (no SSH). Create that
  * entry on this Jean, and in the native app on every connected jean-server.
@@ -195,26 +188,22 @@ export function ProjectsSidebar() {
   const setupIncomplete = installedBackends.length === 0
 
   const handleNewProject = useCallback(() => {
-    closeMobileSidebarIfNeeded(isMobile)
     setAddProjectDialogOpen(true)
-  }, [isMobile, setAddProjectDialogOpen])
+  }, [setAddProjectDialogOpen])
 
   const handleNewFolder = useCallback(() => {
     setSearchQuery('')
     createFolder.mutate({ name: 'New Folder' })
   }, [createFolder])
 
-  // The dialog lives outside the sidebar, so the mobile drawer can close.
   const handleNewServer = useCallback(() => {
-    closeMobileSidebarIfNeeded(isMobile)
     useProjectsStore.getState().setServerDialog({})
-  }, [isMobile])
+  }, [])
 
   const handleNewWorktree = useCallback(() => {
     if (!selectedProjectId) return
-    closeMobileSidebarIfNeeded(isMobile)
     useUIStore.getState().setNewWorktreeModalOpen(true)
-  }, [isMobile, selectedProjectId])
+  }, [selectedProjectId])
 
   return (
     <div className="flex h-full">
@@ -223,7 +212,7 @@ export function ProjectsSidebar() {
           <button
             type="button"
             className="flex size-12 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            onClick={() => closeMobileSidebarIfNeeded(isMobile)}
+            onClick={() => useUIStore.getState().setLeftSidebarVisible(false)}
             aria-label="Close sidebar"
           >
             <X className="size-6" />

@@ -43,7 +43,6 @@ import {
   resolveMagicPromptBackend,
   resolveMagicPromptProvider,
 } from '@/types/preferences'
-import { resolveBackend } from '@/lib/model-utils'
 import { useInstalledBackends } from '@/hooks/useInstalledBackends'
 import { DesktopBackendModelPicker } from '@/components/chat/toolbar/DesktopBackendModelPicker'
 import type { InvestigateOverride } from '@/components/chat/hooks/useMagicCommands'
@@ -567,8 +566,8 @@ export function ReviewCommentsDialog() {
     resolveMagicPromptBackend(
       preferences?.magic_prompt_backends,
       'review_comments_backend',
-      project?.default_backend ?? preferences?.default_backend ?? null
-    ) ?? resolveBackend(settingsModel)
+      project?.default_backend ?? preferences?.default_backend
+    ) ?? 'claude'
   const pickerBackend = modelOverride?.backend ?? settingsBackend
   const pickerModel = modelOverride?.model ?? settingsModel
   const settingsProvider = resolveMagicPromptProvider(

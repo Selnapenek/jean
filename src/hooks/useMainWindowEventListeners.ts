@@ -18,7 +18,9 @@ import type {
   Session,
   WorktreeSessions,
 } from '@/types/chat'
-import type { RecentWorktreeItem } from '@/types/projects'
+import type { RecentWorktreeItem, ReviewJob } from '@/types/projects'
+import { isSessionCurrentlyViewed } from '@/lib/session-notifications'
+import { markSessionOpenedWhenSeen } from '@/lib/session-read'
 import { disposeTerminal, startHeadless } from '@/lib/terminal-instances'
 import { toast } from 'sonner'
 import { useCommandContext } from './use-command-context'
@@ -1152,6 +1154,16 @@ export function useMainWindowEventListeners() {
           // Mirror chat:done waiting so canvas/list badges update before sessions
           // cache invalidation lands (terminal sessions have no run transcript).
           store.setWaitingForInput(sessionId, true)
+        }),
+
+        // Review jobs have no chat run, so mirror chat:done read handling:
+        // a review that finishes on screen must not show as unread.
+        listen<ReviewJob>('review-job:updated', event => {
+          const { status, sessionId } = event.payload
+          if (status === 'running' || !sessionId) return
+          if (isSessionCurrentlyViewed(sessionId)) {
+            markSessionOpenedWhenSeen(sessionId)
+          }
         }),
 
         listenLocal('menu-about', async () => {

@@ -18,6 +18,7 @@ import { middleClickClose } from '@/lib/middle-click'
 import {
   decideWorktreeMiddleClose,
   decideSessionMiddleClose,
+  isSessionEmpty,
 } from './worktree-close-decision'
 import { useRenameWorktree } from '@/services/projects'
 import { useSessions } from '@/services/chat'
@@ -539,7 +540,10 @@ export const WorktreeItem = memo(function WorktreeItem({
       ).length
       const decision = decideSessionMiddleClose({
         activeSessionCount,
-        sessionIsEmpty: !session.message_count,
+        sessionIsEmpty: isSessionEmpty(
+          session,
+          useChatStore.getState().inputDrafts
+        ),
         confirmSessionClose: preferences?.confirm_session_close,
       })
       if (decision === 'confirm') {

@@ -43,6 +43,7 @@ import {
   type CloseConfirmMode,
 } from './CloseWorktreeDialog'
 import { useChatStore } from '@/store/chat-store'
+import { isSessionEmpty } from '@/components/projects/worktree-close-decision'
 import { useTerminalStore } from '@/store/terminal-store'
 import { useBrowserStore } from '@/store/browser-store'
 import { useUIStore } from '@/store/ui-store'
@@ -592,10 +593,14 @@ export const SessionChatModal = memo(function SessionChatModal({
   const removeSessionTab = useCallback(
     (session: Session, archive = false) => {
       const activeSessions = tabSessions.filter(s => !s.archived_at)
-      const sessionIsEmpty = !session.message_count
+      const sessionIsEmpty = isSessionEmpty(
+        session,
+        useChatStore.getState().inputDrafts
+      )
       // Confirm any non-empty session when preference is on (default). Only
       // confirming the last tab allowed held/cascade closes to wipe chats
-      // without a prompt (issue #56). Empty sessions close immediately.
+      // without a prompt (issue #56). Empty sessions (no messages and no
+      // unsent draft) close immediately.
       const needsConfirm =
         preferences?.confirm_session_close !== false && !sessionIsEmpty
 
@@ -664,7 +669,9 @@ export const SessionChatModal = memo(function SessionChatModal({
         }
       }
       const currentSession = tabSessions.find(s => s.id === currentSessionId)
-      const sessionIsEmpty = !currentSession?.message_count
+      const sessionIsEmpty =
+        !currentSession ||
+        isSessionEmpty(currentSession, useChatStore.getState().inputDrafts)
       if (preferences?.confirm_session_close !== false && !sessionIsEmpty) {
         setCloseConfirmMode('session')
         pendingCloseAction.current = action

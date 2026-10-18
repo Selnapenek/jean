@@ -264,9 +264,10 @@ export function ProjectTreeItem({
   }
 
   return (
-    <ProjectContextMenu project={project}>
-      <div>
-        {/* Project Row */}
+    <div>
+      {/* Project Row — only the row is the context-menu trigger, so worktree
+          rows' long-press does not also open this menu on touch. */}
+      <ProjectContextMenu project={project}>
         <div
           className={cn(
             'group relative flex items-center gap-1.5 px-2 py-1.5 overflow-hidden transition-colors duration-150',
@@ -387,20 +388,20 @@ export function ProjectTreeItem({
             isExpanded={isExpanded}
           />
         </div>
+      </ProjectContextMenu>
 
-        {/* Worktrees */}
-        {isExpanded && (
-          <WorktreeList
-            projectId={project.id}
-            projectPath={project.path}
-            worktrees={worktrees}
-            defaultBranch={project.default_branch}
-            searchQuery={projectMatchesSearch ? '' : searchQuery}
-            searchActive={Boolean(searchQuery)}
-            loadSessionCounts={!searchQuery}
-          />
-        )}
-      </div>
-    </ProjectContextMenu>
+      {/* Worktrees */}
+      {isExpanded && (
+        <WorktreeList
+          projectId={project.id}
+          projectPath={project.path}
+          worktrees={worktrees}
+          defaultBranch={project.default_branch}
+          searchQuery={projectMatchesSearch ? '' : searchQuery}
+          searchActive={Boolean(searchQuery)}
+          loadSessionCounts={!searchQuery}
+        />
+      )}
+    </div>
   )
 }

@@ -42,3 +42,14 @@ export function decideSessionMiddleClose(params: {
   }
   return 'delete'
 }
+
+/**
+ * A session is empty when it has no messages and no unsent draft text.
+ * A typed but unsent prompt must not be lost without a confirmation.
+ */
+export function isSessionEmpty(
+  session: { id: string; message_count?: number },
+  inputDrafts: Record<string, string>
+): boolean {
+  return !session.message_count && !inputDrafts[session.id]?.trim()
+}

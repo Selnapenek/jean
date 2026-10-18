@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { closeLeftSidebarOnMobile } from '@/store/ui-store'
 import type { LabelData } from '@/types/chat'
 import type { Project, WorktreeSortMode } from '@/types/projects'
 
@@ -499,7 +500,8 @@ export const useProjectsStore = create<ProjectsUIState>()(
         ),
 
       // Dialog actions
-      setAddProjectDialogOpen: (open, parentFolderId) =>
+      setAddProjectDialogOpen: (open, parentFolderId) => {
+        if (open) closeLeftSidebarOnMobile()
         set(
           {
             addProjectDialogOpen: open,
@@ -507,12 +509,16 @@ export const useProjectsStore = create<ProjectsUIState>()(
           },
           undefined,
           'setAddProjectDialogOpen'
-        ),
+        )
+      },
 
-      setServerDialog: serverDialog =>
-        set({ serverDialog }, undefined, 'setServerDialog'),
+      setServerDialog: serverDialog => {
+        if (serverDialog) closeLeftSidebarOnMobile()
+        set({ serverDialog }, undefined, 'setServerDialog')
+      },
 
-      openProjectSettings: (projectId, pane) =>
+      openProjectSettings: (projectId, pane) => {
+        closeLeftSidebarOnMobile()
         set(
           {
             projectSettingsDialogOpen: true,
@@ -521,7 +527,8 @@ export const useProjectsStore = create<ProjectsUIState>()(
           },
           undefined,
           'openProjectSettings'
-        ),
+        )
+      },
 
       closeProjectSettings: () =>
         set(

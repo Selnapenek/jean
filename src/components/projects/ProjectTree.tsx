@@ -36,6 +36,7 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
 import { cn } from '@/lib/utils'
+import { useIsTouchDevice } from '@/hooks/use-touch-device'
 import {
   isProjectTreeDragData,
   isProjectTreeDropTargetData,
@@ -168,10 +169,13 @@ function SortableItem({
   searchQuery,
 }: SortableItemProps) {
   const elementRef = useRef<HTMLDivElement | null>(null)
+  // draggable="true" makes mobile browsers lift the row on long-press, which
+  // fights the context menu; touch has no reorder gesture anyway.
+  const isTouchDevice = useIsTouchDevice()
 
   useEffect(() => {
     const element = elementRef.current
-    if (!element || item.offline || searchQuery) return
+    if (!element || item.offline || searchQuery || isTouchDevice) return
 
     return combine(
       draggable({
@@ -225,7 +229,7 @@ function SortableItem({
         },
       })
     )
-  }, [allProjects, item, searchQuery])
+  }, [allProjects, item, searchQuery, isTouchDevice])
 
   const style: React.CSSProperties = {
     opacity: activeId === item.id ? 0.35 : 1,

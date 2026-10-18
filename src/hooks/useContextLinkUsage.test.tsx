@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
-import { useContextLinkUsage } from './useContextLinkUsage'
+import {
+  contextLinkMatchLabel,
+  useContextLinkUsage,
+} from './useContextLinkUsage'
 
 const mockInvoke = vi.hoisted(() => vi.fn())
 
@@ -39,6 +42,7 @@ vi.mock('@/services/chat', () => ({
           sessions: [
             { id: 's-b1', name: 'Chat' },
             { id: 's-b2', name: 'Archived', archived_at: 1 },
+            { id: 's-b3', name: 'Current' },
           ],
         },
       ],
@@ -119,5 +123,39 @@ describe('useContextLinkUsage', () => {
 
     await waitFor(() => expect(mockInvoke).toHaveBeenCalled())
     expect(result.current.getMatches({ type: 'issue', id: 12 })).toEqual([])
+  })
+
+  it('shows other sessions of the current worktree by session name', async () => {
+    mockInvoke.mockResolvedValue({
+      issues: { '40': ['s-b2', 's-b1'] },
+      prs: {},
+      security: {},
+      advisories: {},
+      linear: {},
+    })
+
+    const { result } = renderHook(
+      () =>
+        useContextLinkUsage({
+          enabled: true,
+          projectId: 'p1',
+          projectPath: '/repo',
+          currentSessionId: 's-b3',
+        }),
+      { wrapper }
+    )
+
+    await waitFor(() =>
+      expect(result.current.getMatches({ type: 'issue', id: 40 })).toHaveLength(
+        1
+      )
+    )
+    const [match] = result.current.getMatches({ type: 'issue', id: 40 })
+    if (!match) throw new Error('Expected a context link match')
+    expect(result.current.currentWorktreeId).toBe('wt-b')
+    expect(contextLinkMatchLabel(match, result.current.currentWorktreeId)).toBe(
+      'Chat'
+    )
+    expect(contextLinkMatchLabel(match)).toBe('feature › Chat')
   })
 })

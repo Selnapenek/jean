@@ -130,3 +130,8 @@
 ## Backend-created sessions need an explicit mode
 
 - A session without a metadata file loads with the legacy Plan default. Sessions created by the backend (not the UI) must save their execution mode, or tools that Plan mode blocks (Jean MCP) fail.
+
+## Debug minified production crashes from the release tag
+
+- Map a user's minified stack frame by building the release tag's frontend (`git archive <tag>`, `bun install --frozen-lockfile`, `vite build`). Vendor code keeps the same chunk lines, so the column points at the real library function.
+- Run a release build only in an isolated environment: `env -i` (inherited `JEAN_HEADLESS` starts headless server mode), a temporary `HOME`, `dbus-run-session`, and fake CLI scripts. Real CLIs on `PATH` get auto-updated.

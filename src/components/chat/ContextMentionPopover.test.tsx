@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ContextMentionPopover } from './ContextMentionPopover'
 import type { ContextMentionItem } from './hooks/useContextMentionData'
 import type { GitHubIssue } from '@/types/github'
+import { toast } from 'sonner'
 import type * as EnvironmentModule from '@/lib/environment'
 import type * as ContextLinkUsageModule from '@/hooks/useContextLinkUsage'
 
@@ -14,6 +15,10 @@ const platform = vi.hoisted(() => ({ native: false, mobile: false }))
 vi.mock('@/lib/environment', async importOriginal => ({
   ...(await importOriginal<typeof EnvironmentModule>()),
   isNativeApp: () => platform.native,
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), info: vi.fn() },
 }))
 
 vi.mock('@/hooks/use-mobile', () => ({
@@ -437,6 +442,157 @@ describe('ContextMentionPopover', () => {
     ).toBeInTheDocument()
   })
 
+  it('keeps loaded issues after reopening until refresh', async () => {
+    const issues = Array.from(
+      { length: 10 },
+      (_, index): ContextMentionItem => ({
+        ...items[0],
+        id: `issue:${index + 1}`,
+        label: `#${index + 1}`,
+        title: `Issue ${index + 1}`,
+      })
+    )
+    useContextMentionDataMock.mockImplementation(
+      ({ issueLimit }: { issueLimit: number }) => ({
+        groups: [
+          {
+            id: 'issue',
+            heading: 'GitHub Issues',
+            items: issues.slice(0, issueLimit),
+            hasMore: issues.length > issueLimit,
+          },
+        ],
+        isFetching: false,
+      })
+    )
+    const popover = (
+      <ContextMentionPopover
+        projectPath="/tmp/cached-repo"
+        projectId="cached-project"
+        open
+        onOpenChange={vi.fn()}
+        onSelectContext={vi.fn()}
+        searchQuery=""
+        anchorPosition={{ top: 0, left: 0 }}
+      />
+    )
+
+    const first = render(popover)
+    fireEvent.click(screen.getByRole('button', { name: 'Load more issues' }))
+    expect(screen.getByText('Issue 9')).toBeInTheDocument()
+    first.unmount()
+
+    render(popover)
+    expect(screen.getByText('Issue 9')).toBeInTheDocument()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Refresh context links' })
+    )
+    await waitFor(() =>
+      expect(screen.queryByText('Issue 9')).not.toBeInTheDocument()
+    )
+  })
+
+  it('investigates checked issues and PRs together, skipping investigated ones', () => {
+    const investigated: ContextMentionItem = {
+      id: 'issue:7',
+      type: 'issue',
+      label: '#7',
+      title: 'Already investigated',
+      issue: { number: 7 } as GitHubIssue,
+    }
+    useContextMentionDataMock.mockImplementation(() => ({
+      groups: [
+        {
+          id: 'issue',
+          heading: 'GitHub Issues',
+          items: [items[0], investigated],
+        },
+        { id: 'pr', heading: 'GitHub Pull Requests', items: [items[1]] },
+      ],
+      isFetching: false,
+    }))
+    linkUsage.getMatches.mockImplementation((ref?: unknown) =>
+      (ref as { id?: unknown } | undefined)?.id === 7 ? [{}] : []
+    )
+    const onInvestigateInNewSession = vi.fn()
+    const onSelectContext = vi.fn()
+    render(
+      <ContextMentionPopover
+        projectPath="/tmp/repo"
+        projectId="project-1"
+        open
+        onOpenChange={vi.fn()}
+        onSelectContext={onSelectContext}
+        onInvestigateInNewSession={onInvestigateInNewSession}
+        searchQuery=""
+        anchorPosition={{ top: 0, left: 0 }}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select #123' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select #7' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select PR #45' }))
+    expect(onSelectContext).not.toHaveBeenCalled()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Investigate 3 in new session' })
+    )
+
+    expect(onInvestigateInNewSession).toHaveBeenCalledWith(
+      [items[0], items[1]],
+      false
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Investigate in 3 new sessions' })
+    )
+    expect(onInvestigateInNewSession).toHaveBeenLastCalledWith(
+      [items[0], items[1]],
+      true
+    )
+    expect(toast.info).toHaveBeenCalledWith(
+      'Skipped 1 already investigated item'
+    )
+  })
+
+  it('opens the existing session from its badge', () => {
+    const match = {
+      worktreeId: 'wt-1',
+      worktreeName: 'main',
+      worktreePath: '/tmp/repo',
+      sessionId: 'session-2',
+      sessionName: 'Investigate #123',
+    }
+    linkUsage.getMatches.mockReturnValue([match])
+    useContextMentionDataMock.mockImplementation(() => ({
+      groups: [
+        {
+          id: 'issue',
+          heading: 'GitHub Issues',
+          items: [{ ...items[0], issue: { number: 123 } as GitHubIssue }],
+        },
+      ],
+      isFetching: false,
+    }))
+    const onOpenChange = vi.fn()
+    render(
+      <ContextMentionPopover
+        projectPath="/tmp/repo"
+        projectId="project-1"
+        open
+        onOpenChange={onOpenChange}
+        onSelectContext={vi.fn()}
+        searchQuery=""
+        anchorPosition={{ top: 0, left: 0 }}
+      />
+    )
+
+    fireEvent.click(screen.getByTestId('context-link-badge'))
+
+    expect(linkUsage.open).toHaveBeenCalledWith(match)
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
   it('refreshes only context queries for the current project', async () => {
     const client = new QueryClient()
     const refreshedKeys = [
@@ -484,11 +640,11 @@ describe('ContextMentionPopover', () => {
 
   it('blocks a second refresh while the first refresh runs', async () => {
     const client = new QueryClient()
-    let finishRefresh: (() => void) | undefined
+    const pending: (() => void)[] = []
     vi.spyOn(client, 'invalidateQueries').mockImplementation(
       () =>
         new Promise<void>(resolve => {
-          finishRefresh = resolve
+          pending.push(resolve)
         })
     )
 
@@ -511,7 +667,57 @@ describe('ContextMentionPopover', () => {
     })
     fireEvent.click(refresh)
     expect(refresh).toBeDisabled()
-    await act(async () => finishRefresh?.())
+    await act(async () => pending.forEach(resolve => resolve()))
     expect(refresh).not.toBeDisabled()
+  })
+
+  it.each([
+    {
+      name: 'ignores a missing Linear API key',
+      github: undefined,
+      linear: new Error('No Linear API key configured. Add one in Settings'),
+      toast: null,
+    },
+    {
+      name: 'reports a GitHub failure',
+      github: new Error('gh auth failed'),
+      linear: new Error('No Linear API key configured. Add one in Settings'),
+      toast: 'Failed to refresh context links: Error: gh auth failed',
+    },
+  ])('$name on refresh', async ({ github, linear, toast: expected }) => {
+    const client = new QueryClient()
+    vi.spyOn(client, 'invalidateQueries').mockImplementation(filters => {
+      const predicate = (filters as { predicate: (q: unknown) => boolean })
+        .predicate
+      const matches = (queryKey: string[]) => predicate({ queryKey })
+      const error =
+        (matches(['github', 'issues', '/tmp/repo']) && github) ||
+        (matches(['linear', 'issues', 'project-1']) && linear)
+      return error ? Promise.reject(error) : Promise.resolve()
+    })
+    const toastError = vi.mocked(toast.error)
+    toastError.mockClear()
+
+    renderWithoutProviders(
+      <QueryClientProvider client={client}>
+        <ContextMentionPopover
+          projectPath="/tmp/repo"
+          projectId="project-1"
+          open
+          onOpenChange={vi.fn()}
+          onSelectContext={vi.fn()}
+          searchQuery=""
+          anchorPosition={{ top: 0, left: 0 }}
+        />
+      </QueryClientProvider>
+    )
+
+    const refresh = screen.getByRole('button', {
+      name: 'Refresh context links',
+    })
+    fireEvent.click(refresh)
+    await waitFor(() => expect(refresh).not.toBeDisabled())
+    if (expected) expect(toastError).toHaveBeenCalledWith(expected)
+    else expect(toastError).not.toHaveBeenCalled()
   })
 })
